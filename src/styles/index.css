@@ -1,0 +1,537 @@
+/* ==========================================================================
+   ARCHIVA — UBA Archives Manager Design System
+   Palette Stricte UBA (Noir, Rouge, Argent, Blanc)
+   ========================================================================== */
+
+:root {
+  /* Noir et nuances sombres */
+  --uba-black-absolute: #030303;
+  --uba-black-deep: #080808;
+  --uba-black-smoke: #101010;
+  --uba-black-glass: #151515;
+  --uba-anthracite: #202020;
+  --uba-graphite: #303030;
+
+  /* Argent et nuances métalliques */
+  --uba-silver-dark: #666666;
+  --uba-silver-metal: #A6A6A6;
+  --uba-silver-light: #D9D9D9;
+
+  /* Blancs */
+  --uba-white-cool: #F5F5F5;
+  --uba-white-pure: #FFFFFF;
+
+  /* Rouge UBA */
+  --uba-red: #E31E24;
+  --uba-red-bright: #FF252B;
+  --uba-red-dark: #8F1015;
+  --uba-red-tint: rgba(227, 30, 36, 0.12);
+  --uba-red-border: rgba(227, 30, 36, 0.45);
+
+  /* Typographie */
+  --font-main: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Rayons rectangulaires (6 à 10px strictement) */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+
+  /* Ombres & Lueurs */
+  --shadow-xs: 0 1px 3px rgba(0, 0, 0, 0.6);
+  --shadow-sm: 0 3px 8px rgba(0, 0, 0, 0.7);
+  --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.85);
+  --shadow-lg: 0 16px 36px rgba(0, 0, 0, 0.95);
+  --glow-red: 0 0 15px rgba(227, 30, 36, 0.35);
+
+  /* Surfaces Design System v2 (alias sémantiques) */
+  --surface-0: var(--uba-black-deep);
+  --surface-1: var(--uba-black-smoke);
+  --surface-2: var(--uba-black-glass);
+  --surface-3: var(--uba-anthracite);
+
+  /* Texte & Contraste corrigé (>= 4.5:1 sur fond sombre) */
+  --text-1: var(--uba-white-cool);
+  --text-2: var(--uba-silver-light);
+  --text-3: #8A8A8A; /* Remplacement de #666 pour assurer le contraste WCAG AA 5.8:1 sur #080808 */
+  --text-accent: var(--uba-red-bright);
+
+  /* Filets & Focus Ring */
+  --hairline: rgba(255, 255, 255, 0.08);
+  --hairline-strong: rgba(255, 255, 255, 0.14);
+  --ring: 0 0 0 2px var(--uba-black-deep), 0 0 0 4px var(--uba-red-bright);
+
+  /* Espacement (rythme 4/8) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+
+  /* Mouvement & Durées */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Icônes */
+  --icon-sm: 16px;
+  --icon-md: 20px;
+  --icon-lg: 24px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-main);
+  background-color: var(--uba-black-deep);
+  color: var(--uba-white-cool);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  position: relative;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Background motif UBA visible (Opacité 0.22, fixed, pointer-events none) */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url('/images/uba-app-background.png');
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: cover;
+  opacity: 0.28;
+  pointer-events: none;
+  z-index: 0;
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Typography — Grandes tailles lisibles et contrastées */
+h1 {
+  font-family: var(--font-main);
+  font-weight: 800;
+  color: var(--uba-white-cool);
+  font-size: 1.85rem;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
+}
+
+h2 {
+  font-family: var(--font-main);
+  font-weight: 800;
+  color: var(--uba-white-cool);
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+h3 {
+  font-family: var(--font-main);
+  font-weight: 700;
+  color: var(--uba-white-cool);
+  font-size: 1.25rem;
+  line-height: 1.35;
+}
+
+h4, h5, h6 {
+  font-family: var(--font-main);
+  font-weight: 700;
+  color: var(--uba-white-cool);
+  font-size: 1.1rem;
+}
+
+p, span, label {
+  color: var(--uba-silver-light);
+}
+
+/* Boutons rectangulaires (radius 6 à 8px, 40-44px min height) */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  font-family: var(--font-main);
+  font-weight: 700;
+  font-size: 0.98rem;
+  padding: 10px 18px;
+  min-height: 42px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--uba-red-bright);
+  outline-offset: 2px;
+}
+
+.btn-primary {
+  background-color: var(--uba-red);
+  color: var(--uba-white-pure);
+  border-color: var(--uba-red);
+  box-shadow: 0 2px 8px rgba(227, 30, 36, 0.4);
+}
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--uba-red-bright);
+  border-color: var(--uba-red-bright);
+  box-shadow: 0 4px 14px rgba(227, 30, 36, 0.6);
+}
+
+.btn-secondary {
+  background-color: var(--uba-black-glass);
+  color: var(--uba-white-cool);
+  border: 1px solid var(--uba-graphite);
+  box-shadow: var(--shadow-xs);
+}
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--uba-anthracite);
+  border-color: var(--uba-silver-dark);
+  color: var(--uba-white-pure);
+}
+
+.btn-black {
+  background-color: var(--uba-black-deep);
+  color: var(--uba-white-cool);
+  border: 1px solid var(--uba-graphite);
+}
+.btn-black:hover:not(:disabled) {
+  background-color: var(--uba-black-smoke);
+  border-color: var(--uba-silver-dark);
+}
+
+.btn-danger {
+  background-color: var(--uba-red-dark);
+  color: var(--uba-white-pure);
+  border-color: var(--uba-red);
+}
+.btn-danger:hover:not(:disabled) {
+  background-color: var(--uba-red);
+}
+
+.btn-outline-red {
+  background-color: transparent;
+  color: var(--uba-red-bright);
+  border-color: var(--uba-red);
+}
+.btn-outline-red:hover:not(:disabled) {
+  background-color: var(--uba-red-tint);
+  border-color: var(--uba-red-bright);
+}
+
+.btn-sm {
+  padding: 7px 14px;
+  font-size: 0.9rem;
+  min-height: 36px;
+}
+
+/* Badges Rectangulaires (Coins 6px, Palette Stricte) */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  letter-spacing: 0.02em;
+}
+
+.badge-red {
+  background-color: var(--uba-red-tint);
+  color: var(--uba-red-bright);
+  border: 1px solid var(--uba-red-border);
+}
+
+.badge-black {
+  background-color: var(--uba-black-smoke);
+  color: var(--uba-white-pure);
+  border: 1px solid var(--uba-graphite);
+}
+
+.badge-silver {
+  background-color: var(--uba-anthracite);
+  color: var(--uba-silver-light);
+  border: 1px solid var(--uba-silver-dark);
+}
+
+.badge-white {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--uba-white-pure);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Compatibilité des anciens badges avec la palette stricte */
+.badge-green {
+  background-color: var(--uba-anthracite);
+  color: var(--uba-white-pure);
+  border: 1px solid var(--uba-silver-dark);
+}
+
+.badge-gray {
+  background-color: var(--uba-black-smoke);
+  color: var(--uba-silver-light);
+  border: 1px solid var(--uba-graphite);
+}
+
+/* Cartes et Panneaux en Verre Noir Transparents (Visibilité du fond UBA) */
+.card {
+  background: rgba(14, 14, 14, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* Titres de Section */
+.uba-section-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--uba-white-cool);
+  margin-bottom: 18px;
+}
+.uba-section-title::before {
+  content: '';
+  display: inline-block;
+  width: 5px;
+  height: 24px;
+  background-color: var(--uba-red);
+  border-radius: var(--radius-xs);
+}
+
+/* Tableaux Transparents (Pour voir le fond UBA) */
+.uba-table-container {
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(12, 12, 12, 0.75);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--shadow-xs);
+}
+
+.uba-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 1rem;
+  text-align: left;
+  background: transparent;
+}
+
+.uba-table th {
+  background-color: rgba(6, 6, 6, 0.85);
+  color: #F5F5F5;
+  font-weight: 800;
+  padding: 14px 18px;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.uba-table td {
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  color: #FFFFFF;
+  background: transparent;
+}
+
+.uba-table tr:last-child td {
+  border-bottom: none;
+}
+
+.uba-table tr:hover td {
+  background-color: rgba(227, 30, 36, 0.15);
+}
+
+/* Champs de Formulaires Rectangulaires (min 46px, radius 6px) */
+.form-group {
+  margin-bottom: 18px;
+}
+
+.form-label {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--uba-silver-light);
+  margin-bottom: 7px;
+}
+
+.form-input, .form-select, .form-textarea {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 1.02rem;
+  color: var(--uba-white-cool);
+  background-color: var(--uba-black-glass);
+  border: 1px solid var(--uba-graphite);
+  border-radius: var(--radius-sm);
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  min-height: 46px;
+}
+
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  border-color: var(--uba-red);
+  box-shadow: 0 0 0 3px rgba(227, 30, 36, 0.25);
+  background-color: var(--uba-black-smoke);
+}
+
+.form-input::placeholder, .form-textarea::placeholder {
+  color: var(--uba-silver-dark);
+}
+
+/* Modales */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(3, 3, 3, 0.85);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal-content {
+  background: var(--uba-black-smoke);
+  border: 1px solid var(--uba-graphite);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  max-width: 620px;
+  width: 100%;
+  padding: 28px;
+  max-height: 90vh;
+  overflow-y: auto;
+  color: var(--uba-white-cool);
+}
+
+/* Responsive Utilities */
+@media (max-width: 900px) {
+  .desktop-only {
+    display: none !important;
+  }
+}
+
+/* Feuille de style d'impression A4 stricte (Fond Noir, Accents Rouge, Écrits Blanc) */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 15mm 15mm 15mm 15mm;
+  }
+
+  body {
+    background: #080808 !important;
+    color: #FFFFFF !important;
+    font-size: 10pt !important;
+    line-height: 1.4 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body::before,
+  header,
+  aside,
+  .no-print,
+  button,
+  .btn,
+  .modal-overlay {
+    display: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+  }
+
+  .card, .uba-table-container {
+    background: #111111 !important;
+    border: 1px solid #303030 !important;
+    box-shadow: none !important;
+    color: #FFFFFF !important;
+  }
+
+  .uba-table th {
+    background-color: #E41E26 !important;
+    color: #FFFFFF !important;
+    border-bottom: 2px solid #303030 !important;
+  }
+
+  .uba-table td {
+    color: #FFFFFF !important;
+    border-bottom: 1px solid #202020 !important;
+    background-color: transparent !important;
+  }
+
+  .a4-page {
+    box-shadow: none !important;
+    margin: 0 !important;
+    width: 100% !important;
+    background: #080808 !important;
+    color: #FFFFFF !important;
+    page-break-after: always;
+  }
+
+  h1, h2, h3, h4, p, span, div, strong {
+    color: #FFFFFF !important;
+  }
+
+  .badge {
+    border: 1px solid #E41E26 !important;
+    color: #FFFFFF !important;
+    background: #1A1A1A !important;
+  }
+}
