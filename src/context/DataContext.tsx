@@ -23,6 +23,7 @@ import {
 import { useAuth } from './AuthContext';
 import { selectSynthesisData } from '../domain/selectors';
 import { eventBus } from '../domain/events';
+import { supabaseSync } from '../services/supabaseSync';
 
 interface DataContextType {
   agencies: Agency[];
@@ -182,7 +183,30 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => { localStorage.setItem('archiva_uba_incidents', JSON.stringify(incidents)); }, [incidents]);
   useEffect(() => { localStorage.setItem('archiva_uba_cartons', JSON.stringify(cartons)); }, [cartons]);
   useEffect(() => { localStorage.setItem('archiva_uba_slips', JSON.stringify(transferSlips)); }, [transferSlips]);
-  useEffect(() => { localStorage.setItem('archiva_uba_logs', JSON.stringify(logs)); }, [logs]);
+  // Chargement initial depuis Supabase si disponible à distance
+  useEffect(() => {
+    supabaseSync.fetchAll().then(remote => {
+      if (!remote) return;
+      if (remote.agencies && remote.agencies.length > 0) {
+        setAgencies(prev => prev.length === 0 ? remote.agencies! : prev);
+      }
+      if (remote.teamMembers && remote.teamMembers.length > 0) {
+        setTeamMembers(prev => prev.length === 0 ? remote.teamMembers! : prev);
+      }
+      if (remote.dailyReports && remote.dailyReports.length > 0) {
+        setDailyReports(prev => prev.length === 0 ? remote.dailyReports! : prev);
+      }
+      if (remote.cartons && remote.cartons.length > 0) {
+        setCartons(prev => prev.length === 0 ? remote.cartons! : prev);
+      }
+      if (remote.transferSlips && remote.transferSlips.length > 0) {
+        setTransferSlips(prev => prev.length === 0 ? remote.transferSlips! : prev);
+      }
+      if (remote.incidents && remote.incidents.length > 0) {
+        setIncidents(prev => prev.length === 0 ? remote.incidents! : prev);
+      }
+    });
+  }, []);
 
   const addLog = (action: string, details: string, category: LogEntry['category']) => {
     const newLog: LogEntry = {
@@ -196,6 +220,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       category
     };
     setLogs(prev => [newLog, ...prev]);
+    supabaseSync.syncLog(newLog);
   };
 
   const clearLogs = () => {
@@ -217,12 +242,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setAgencies(prev => [...prev, newAgency]);
     addLog('Création d\'agence', `Ajout de l'agence ${newAgency.nom} (Code ${newAgency.code})`, 'agence');
+    supabaseSync.syncAgency(newAgency);
     return { success: true, message: `L'agence ${newAgency.nom} a été ajoutée.` };
   };
 
   const updateAgency = (updatedAgency: Agency) => {
     setAgencies(prev => prev.map(a => a.id === updatedAgency.id ? updatedAgency : a));
     addLog('Modification d\'agence', `Mise à jour de l'agence ${updatedAgency.nom} (Code ${updatedAgency.code})`, 'agence');
+    supabaseSync.syncAgency(updatedAgency);
     return { success: true, message: `Agence ${updatedAgency.nom} mise à jour.` };
   };
 
@@ -232,6 +259,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setAgencies(prev => prev.filter(a => a.id !== agencyId));
     addLog('Suppression d\'agence', `Suppression de l'agence ${target.nom} (Code ${target.code})`, 'agence');
+    supabaseSync.deleteAgency(agencyId);
     return { success: true, message: `Agence ${target.nom} supprimée.` };
   };
 
@@ -243,12 +271,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     setTeamMembers(prev => [...prev, newMember]);
     addLog('Ajout Membre', `Nouveau membre : ${newMember.nomOfficiel} (${newMember.site})`, 'equipe');
+    supabaseSync.syncTeamMember(newMember);
     return { success: true, message: `Membre ${newMember.nomOfficiel} ajouté.` };
   };
 
   const updateTeamMember = (member: TeamMember) => {
     setTeamMembers(prev => prev.map(m => m.id === member.id ? member : m));
     addLog('Modification Membre', `Mise à jour : ${member.nomOfficiel}`, 'equipe');
+    supabaseSync.syncTeamMember(member);
     return { success: true, message: `Membre ${member.nomOfficiel} modifié.` };
   };
 
@@ -257,6 +287,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!target) return { success: false, message: 'Membre introuvable.' };
     setTeamMembers(prev => prev.filter(m => m.id !== memberId));
     addLog('Suppression Membre', `Suppression : ${target.nomOfficiel}`, 'equipe');
+    supabaseSync.deleteTeamMember(memberId);
     return { success: true, message: `Membre ${target.nomOfficiel} retiré.` };
   };
 
@@ -274,15 +305,18 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (newReport.statut === 'valide') {
       eventBus.emit({ type: 'rapport.valide', rapportId: newReport.id, date: newReport.dateDebut });
     }
+    supabaseSync.syncDailyReport(newReport);
     return { success: true, reportId: newReport.id };
   };
 
   const updateDailyReport = (report: DailyReport) => {
-    setDailyReports(prev => prev.map(r => r.id === report.id ? { ...report, version: report.version + 1 } : r));
+    const updated = { ...report, version: report.version + 1 };
+    setDailyReports(prev => prev.map(r => r.id === report.id ? updated : r));
     addLog('Modification Rapport', `Mise à jour du rapport (${report.titre}) - v${report.version + 1}`, 'rapport');
     if (report.statut === 'valide') {
       eventBus.emit({ type: 'rapport.valide', rapportId: report.id, date: report.dateDebut });
     }
+    supabaseSync.syncDailyReport(updated);
     return { success: true, message: 'Rapport mis à jour avec succès.' };
   };
 
@@ -292,6 +326,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (report) {
       addLog('Suppression Rapport', `Suppression du rapport : ${report.titre}`, 'rapport');
     }
+    supabaseSync.deleteDailyReport(id);
     return { success: true, message: 'Rapport supprimé.' };
   };
 
@@ -358,18 +393,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     setIncidents(prev => [newInc, ...prev]);
     addLog('Signalement Incident', `Incident : ${newInc.titre} (${newInc.severite})`, 'systeme');
+    supabaseSync.syncIncident(newInc);
     return { success: true, message: 'Incident enregistré.' };
   };
 
   const updateIncident = (inc: ArchiveIncident) => {
     setIncidents(prev => prev.map(i => i.id === inc.id ? inc : i));
     addLog('Mise à jour Incident', `Incident ${inc.titre} passé au statut ${inc.statut}`, 'systeme');
+    supabaseSync.syncIncident(inc);
     return { success: true, message: 'Incident mis à jour.' };
   };
 
   const deleteIncident = (id: string) => {
     setIncidents(prev => prev.filter(i => i.id !== id));
     addLog('Suppression Incident', `Incident ID ${id} supprimé`, 'systeme');
+    supabaseSync.deleteIncident(id);
     return { success: true, message: 'Incident supprimé.' };
   };
 
@@ -382,18 +420,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     setCartons(prev => [newCarton, ...prev]);
     addLog('Inventaire Carton', `Nouveau carton répertorié : ${newCarton.numeroCarton}`, 'agence');
+    supabaseSync.syncCarton(newCarton);
     return { success: true, message: 'Carton enregistré à l\'inventaire.' };
   };
 
   const updateCarton = (carton: CartonInventory) => {
     setCartons(prev => prev.map(c => c.id === carton.id ? carton : c));
     addLog('Modification Carton', `Carton ${carton.numeroCarton} mis à jour (${carton.emplacement})`, 'agence');
+    supabaseSync.syncCarton(carton);
     return { success: true, message: 'Carton mis à jour.' };
   };
 
   const deleteCarton = (id: string) => {
     setCartons(prev => prev.filter(c => c.id !== id));
     addLog('Suppression Carton', `Carton ${id} retiré de l'inventaire`, 'agence');
+    supabaseSync.deleteCarton(id);
     return { success: true, message: 'Carton supprimé.' };
   };
 
@@ -406,18 +447,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     setTransferSlips(prev => [newSlip, ...prev]);
     addLog('Bordereau de Transfert', `Bordereau officiel émis : ${newSlip.numeroBordereau} (${newSlip.totalBoites} boîtes)`, 'rapport');
+    supabaseSync.syncTransferSlip(newSlip);
     return { success: true, slipId: newSlip.id, message: 'Bordereau de décharge créé avec succès.' };
   };
 
   const updateTransferSlip = (slip: TransferSlip) => {
     setTransferSlips(prev => prev.map(s => s.id === slip.id ? slip : s));
     addLog('Mise à jour Bordereau', `Bordereau ${slip.numeroBordereau} mis à jour (${slip.statut})`, 'rapport');
+    supabaseSync.syncTransferSlip(slip);
     return { success: true, message: 'Bordereau mis à jour.' };
   };
 
   const deleteTransferSlip = (id: string) => {
     setTransferSlips(prev => prev.filter(s => s.id !== id));
     addLog('Suppression Bordereau', `Bordereau ID ${id} supprimé`, 'rapport');
+    supabaseSync.deleteTransferSlip(id);
     return { success: true, message: 'Bordereau supprimé.' };
   };
 
