@@ -89,21 +89,24 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '11px' }}>
             <img
-              src="/images/uba-app-logo.png"
+              src="/images/uba-app-badge.png"
               alt="Logo UBA"
               style={{
-                height: '36px',
-                maxWidth: '170px',
-                objectFit: 'contain'
+                height: '38px',
+                width: '38px',
+                borderRadius: '8px',
+                objectFit: 'cover',
+                border: '1px solid rgba(255, 255, 255, 0.16)',
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.6)'
               }}
             />
-            <div className="desktop-only" style={{ borderLeft: '1px solid var(--uba-anthracite)', paddingLeft: '12px' }}>
-              <div style={{ fontWeight: 800, fontSize: '0.98rem', color: 'var(--uba-white-cool)', lineHeight: 1.2 }}>
-                ARCHIVA <span style={{ color: 'var(--uba-red)', fontSize: '0.78rem', fontWeight: 700 }}>| SUPERVISION DES ARCHIVES</span>
+            <div className="desktop-only" style={{ borderLeft: '1px solid rgba(255, 255, 255, 0.12)', paddingLeft: '12px' }}>
+              <div style={{ fontWeight: 800, fontSize: '0.98rem', color: '#FFFFFF', lineHeight: 1.2 }}>
+                ARCHIVA <span style={{ color: 'var(--uba-red-bright)', fontSize: '0.78rem', fontWeight: 800 }}>| SUPERVISION DES ARCHIVES</span>
               </div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--uba-silver-dark)' }}>
+              <div style={{ fontSize: '0.72rem', color: '#A0A0A0' }}>
                 Sites Maya-Maya & Mazala
               </div>
             </div>

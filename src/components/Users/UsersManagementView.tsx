@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { User, Role } from '../../types';
-import { UserPlus, Trash2, Edit2, CheckCircle, AlertTriangle, Lock, X, ShieldCheck, Power, Shield, UserCheck, KeyRound } from 'lucide-react';
+import { UserPlus, Trash2, Edit2, CheckCircle, AlertTriangle, Lock, X, ShieldCheck, Power, Shield, UserCheck, KeyRound, ShieldAlert } from 'lucide-react';
+import { vault } from '../../utils/vault';
 
 interface UsersManagementViewProps {
   autoOpenAdd?: boolean;
@@ -22,6 +23,7 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
   const [role, setRole] = useState<Role>('user');
   const [titre, setTitre] = useState('');
   const [motDePasse, setMotDePasse] = useState('uba2026');
+  const [memoriserDansNavigateur, setMemoriserDansNavigateur] = useState(true);
 
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -41,6 +43,7 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
     setRole('stagiaire');
     setTitre('');
     setMotDePasse('uba2026');
+    setMemoriserDansNavigateur(true);
     setShowModal(true);
   };
 
@@ -82,7 +85,13 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
       });
 
       if (res.success) {
-        setMessage({ type: 'success', text: res.message });
+        if (memoriserDansNavigateur && motDePasse) {
+          vault.savePassword(email.trim(), motDePasse.trim(), true);
+        }
+        setMessage({ 
+          type: 'success', 
+          text: `${res.message}${memoriserDansNavigateur ? ' 🔐 Mot de passe enregistré dans le trousseau local.' : ''}` 
+        });
         addLog('Création Utilisateur', `Nouvel utilisateur créé : ${nomComplet} (${role})`, 'utilisateur');
         setShowModal(false);
       } else {
@@ -460,6 +469,18 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
                   <span style={{ fontSize: '0.82rem', color: '#D9D9D9', marginTop: '6px', display: 'block' }}>
                     L'agent pourra changer son mot de passe lors de sa première session.
                   </span>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '9px', marginTop: '12px', cursor: 'pointer', padding: '8px 10px', backgroundColor: 'rgba(255, 255, 255, 0.04)', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                    <input
+                      type="checkbox"
+                      checked={memoriserDansNavigateur}
+                      onChange={e => setMemoriserDansNavigateur(e.target.checked)}
+                      style={{ accentColor: 'var(--uba-red)', width: '16px', height: '16px', cursor: 'pointer' }}
+                    />
+                    <span style={{ fontSize: '0.86rem', color: '#FFFFFF', fontWeight: 600 }}>
+                      🔐 Enregistrer automatiquement dans le trousseau local sécurisé du navigateur
+                    </span>
+                  </label>
                 </div>
               )}
 

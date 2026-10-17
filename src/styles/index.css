@@ -1,66 +1,66 @@
 /* ==========================================================================
    ARCHIVA — UBA Archives Manager Design System
-   Palette Stricte UBA (Noir, Rouge, Argent, Blanc)
+   Palette Stricte UBA : Noir OLED Pur, Rouge UBA, Blanc Pur & Verre Transparent
    ========================================================================== */
 
 :root {
-  /* Noir et nuances sombres */
-  --uba-black-absolute: #030303;
-  --uba-black-deep: #080808;
-  --uba-black-smoke: #101010;
-  --uba-black-glass: #151515;
-  --uba-anthracite: #202020;
-  --uba-graphite: #303030;
+  /* Noir OLED absolu & nuances sombres */
+  --uba-black-absolute: #000000;
+  --uba-black-deep: #000000;
+  --uba-black-smoke: #050505;
+  --uba-black-glass: rgba(10, 10, 10, 0.45);
+  --uba-anthracite: #121212;
+  --uba-graphite: #1e1e1e;
 
   /* Argent et nuances métalliques */
-  --uba-silver-dark: #666666;
-  --uba-silver-metal: #A6A6A6;
-  --uba-silver-light: #D9D9D9;
+  --uba-silver-dark: #6e6e6e;
+  --uba-silver-metal: #a8a8a8;
+  --uba-silver-light: #e0e0e0;
 
-  /* Blancs */
-  --uba-white-cool: #F5F5F5;
+  /* Blanc pur éclatant */
+  --uba-white-cool: #FFFFFF;
   --uba-white-pure: #FFFFFF;
 
   /* Rouge UBA */
   --uba-red: #E31E24;
   --uba-red-bright: #FF252B;
   --uba-red-dark: #8F1015;
-  --uba-red-tint: rgba(227, 30, 36, 0.12);
-  --uba-red-border: rgba(227, 30, 36, 0.45);
+  --uba-red-tint: rgba(227, 30, 36, 0.14);
+  --uba-red-border: rgba(227, 30, 36, 0.50);
 
-  /* Typographie */
-  --font-main: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  /* Typographie Apple humanisée (SF Pro / Inter) */
+  --font-main: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", -apple-system-font, "Helvetica Neue", sans-serif;
+  --font-mono: 'JetBrains Mono', SFMono-Regular, Menlo, monospace;
 
-  /* Rayons rectangulaires (6 à 10px strictement) */
+  /* Rayons arrondis Apple (6 à 10px) */
   --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 10px;
 
   /* Ombres & Lueurs */
-  --shadow-xs: 0 1px 3px rgba(0, 0, 0, 0.6);
-  --shadow-sm: 0 3px 8px rgba(0, 0, 0, 0.7);
-  --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.85);
-  --shadow-lg: 0 16px 36px rgba(0, 0, 0, 0.95);
+  --shadow-xs: 0 1px 3px rgba(0, 0, 0, 0.7);
+  --shadow-sm: 0 3px 8px rgba(0, 0, 0, 0.8);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.9);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.98);
   --glow-red: 0 0 15px rgba(227, 30, 36, 0.35);
 
-  /* Surfaces Design System v2 (alias sémantiques) */
+  /* Surfaces Design System */
   --surface-0: var(--uba-black-deep);
   --surface-1: var(--uba-black-smoke);
   --surface-2: var(--uba-black-glass);
   --surface-3: var(--uba-anthracite);
 
-  /* Texte & Contraste corrigé (>= 4.5:1 sur fond sombre) */
-  --text-1: var(--uba-white-cool);
-  --text-2: var(--uba-silver-light);
-  --text-3: #8A8A8A; /* Remplacement de #666 pour assurer le contraste WCAG AA 5.8:1 sur #080808 */
+  /* Texte & Contraste */
+  --text-1: #FFFFFF;
+  --text-2: #E0E0E0;
+  --text-3: #999999;
   --text-accent: var(--uba-red-bright);
 
   /* Filets & Focus Ring */
   --hairline: rgba(255, 255, 255, 0.08);
   --hairline-strong: rgba(255, 255, 255, 0.14);
-  --ring: 0 0 0 2px var(--uba-black-deep), 0 0 0 4px var(--uba-red-bright);
+  --ring: 0 0 0 2px #000000, 0 0 0 4px var(--uba-red-bright);
 
   /* Espacement (rythme 4/8) */
   --sp-1: 4px;
@@ -71,11 +71,11 @@
   --sp-6: 32px;
   --sp-7: 48px;
 
-  /* Mouvement & Durées */
+  /* Mouvement & Durées Apple */
   --dur-fast: 120ms;
   --dur-base: 200ms;
   --dur-slow: 320ms;
-  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
   /* Icônes */
   --icon-sm: 16px;
@@ -91,14 +91,16 @@
 
 body {
   font-family: var(--font-main);
-  background-color: var(--uba-black-deep);
-  color: var(--uba-white-cool);
-  font-size: 14.5px;
+  background-color: #000000;
+  color: #FFFFFF;
+  font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   position: relative;
   min-height: 100vh;
   overflow-x: hidden;
+  text-rendering: optimizeLegibility;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -184,27 +186,33 @@ p, span, label {
   color: var(--uba-silver-light);
 }
 
-/* Boutons rectangulaires (radius 6 à 8px, 38px min height) */
+/* Boutons Apple Tactile & Smooth (radius 6 à 8px, 36-38px height) */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   font-family: var(--font-main);
-  font-weight: 700;
-  font-size: 0.88rem;
+  font-weight: 600;
+  font-size: 0.86rem;
   padding: 8px 15px;
   min-height: 38px;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   line-height: 1.25;
   white-space: nowrap;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .btn:disabled {
-  opacity: 0.45;
+  opacity: 0.40;
   cursor: not-allowed;
 }
 
@@ -214,46 +222,48 @@ p, span, label {
 }
 
 .btn-primary {
-  background-color: var(--uba-red);
-  color: var(--uba-white-pure);
-  border-color: var(--uba-red);
-  box-shadow: 0 2px 8px rgba(227, 30, 36, 0.4);
+  background: linear-gradient(180deg, #FF252B 0%, #E31E24 100%);
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 2px 10px rgba(227, 30, 36, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 .btn-primary:hover:not(:disabled) {
-  background-color: var(--uba-red-bright);
-  border-color: var(--uba-red-bright);
-  box-shadow: 0 4px 14px rgba(227, 30, 36, 0.6);
+  background: linear-gradient(180deg, #FF3D42 0%, #E31E24 100%);
+  box-shadow: 0 4px 18px rgba(227, 30, 36, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
 .btn-secondary {
-  background-color: var(--uba-black-glass);
-  color: var(--uba-white-cool);
-  border: 1px solid var(--uba-graphite);
-  box-shadow: var(--shadow-xs);
+  background: rgba(255, 255, 255, 0.06);
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 .btn-secondary:hover:not(:disabled) {
-  background-color: var(--uba-anthracite);
-  border-color: var(--uba-silver-dark);
-  color: var(--uba-white-pure);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #FFFFFF;
 }
 
 .btn-black {
-  background-color: var(--uba-black-deep);
-  color: var(--uba-white-cool);
-  border: 1px solid var(--uba-graphite);
+  background: rgba(8, 8, 8, 0.85);
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(10px);
 }
 .btn-black:hover:not(:disabled) {
-  background-color: var(--uba-black-smoke);
-  border-color: var(--uba-silver-dark);
+  background: rgba(20, 20, 20, 0.95);
+  border-color: rgba(255, 255, 255, 0.28);
 }
 
 .btn-danger {
-  background-color: var(--uba-red-dark);
-  color: var(--uba-white-pure);
-  border-color: var(--uba-red);
+  background: linear-gradient(180deg, #991B1B 0%, #7F1D1D 100%);
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.15);
 }
 .btn-danger:hover:not(:disabled) {
-  background-color: var(--uba-red);
+  background: #DC2626;
 }
 
 .btn-outline-red {
@@ -321,14 +331,15 @@ p, span, label {
   border: 1px solid var(--uba-graphite);
 }
 
-/* Cartes et Panneaux en Verre Noir Transparents (Visibilité du fond UBA) */
+/* Cartes et Panneaux en Verre Transparent Style Apple (Fond UBA visible) */
 .card {
-  background: rgba(14, 14, 14, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(8, 8, 8, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-md);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 /* Titres de Section */
@@ -336,53 +347,57 @@ p, span, label {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 1.12rem;
-  font-weight: 800;
-  color: var(--uba-white-cool);
+  font-size: 1.10rem;
+  font-weight: 700;
+  color: #FFFFFF;
   margin-bottom: 16px;
+  letter-spacing: -0.01em;
 }
 .uba-section-title::before {
   content: '';
   display: inline-block;
   width: 4px;
-  height: 20px;
+  height: 18px;
   background-color: var(--uba-red);
   border-radius: var(--radius-xs);
 }
 
-/* Tableaux Transparents (Pour voir le fond UBA) */
+/* Tableaux Transparents en Verre (Vue traversante sur le fond UBA) */
 .uba-table-container {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border-radius: var(--radius-md);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(12, 12, 12, 0.75);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  box-shadow: var(--shadow-xs);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(6, 6, 6, 0.35);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.8);
 }
 
 .uba-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.88rem;
+  font-size: 0.86rem;
   text-align: left;
   background: transparent;
 }
 
 .uba-table th {
-  background-color: rgba(6, 6, 6, 0.85);
-  color: #F5F5F5;
-  font-weight: 800;
-  padding: 10px 14px;
-  font-size: 0.78rem;
+  background-color: rgba(12, 12, 12, 0.65);
+  color: #FFFFFF;
+  font-weight: 700;
+  padding: 11px 14px;
+  font-size: 0.74rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .uba-table td {
-  padding: 10px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  padding: 11px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   color: #FFFFFF;
   background: transparent;
 }
@@ -392,7 +407,7 @@ p, span, label {
 }
 
 .uba-table tr:hover td {
-  background-color: rgba(227, 30, 36, 0.15);
+  background-color: rgba(227, 30, 36, 0.12);
 }
 
 /* Champs de Formulaires Rectangulaires (min 40px, radius 6px) */
@@ -412,20 +427,22 @@ p, span, label {
   width: 100%;
   padding: 9px 13px;
   font-size: 0.9rem;
-  color: var(--uba-white-cool);
-  background-color: var(--uba-black-glass);
-  border: 1px solid var(--uba-graphite);
+  color: #FFFFFF;
+  background-color: rgba(12, 12, 12, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-sm);
   outline: none;
   font-family: inherit;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.18s, box-shadow 0.18s;
   min-height: 40px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .form-input:focus, .form-select:focus, .form-textarea:focus {
   border-color: var(--uba-red);
-  box-shadow: 0 0 0 3px rgba(227, 30, 36, 0.25);
-  background-color: var(--uba-black-smoke);
+  box-shadow: 0 0 0 3px rgba(227, 30, 36, 0.28);
+  background-color: rgba(18, 18, 18, 0.85);
 }
 
 .form-input::placeholder, .form-textarea::placeholder {

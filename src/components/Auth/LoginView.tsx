@@ -1,17 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
-import { Lock, Mail, Eye, EyeOff, ArrowRight, ShieldCheck, CheckCircle2, AlertTriangle, KeyRound, UserPlus } from 'lucide-react';
+import { vault } from '../../utils/vault';
+import { Lock, Mail, Eye, EyeOff, ArrowRight, ShieldCheck, CheckCircle2, AlertTriangle, KeyRound, UserPlus, Check } from 'lucide-react';
 
 export const LoginView: React.FC = () => {
   const { login, users, hasSuperAdmin, createInitialSuperAdmin } = useAuth();
   const { addLog } = useData();
 
-  // Login states
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  // Login states with browser credential vault support
+  const [email, setEmail] = useState(() => {
+    const saved = vault.getSavedEmails();
+    return saved.length > 0 ? saved[0] : '';
+  });
+  const [password, setPassword] = useState(() => {
+    const saved = vault.getSavedEmails();
+    return saved.length > 0 ? (vault.getPassword(saved[0]) || '') : '';
+  });
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
+  const [isPasswordAutofilled, setIsPasswordAutofilled] = useState(() => {
+    const saved = vault.getSavedEmails();
+    return saved.length > 0 && Boolean(vault.getPassword(saved[0]));
+  });
   const [error, setError] = useState('');
+
+  // When email changes, check if vault has a remembered password
+  const handleEmailChange = (newEmail: string) => {
+    setEmail(newEmail);
+    const savedPass = vault.getPassword(newEmail);
+    if (savedPass) {
+      setPassword(savedPass);
+      setIsPasswordAutofilled(true);
+    } else {
+      setIsPasswordAutofilled(false);
+    }
+  };
 
   // Initial Super Admin setup states (si aucun compte n'existe)
   const [setupNom, setSetupNom] = useState('');
@@ -29,6 +53,11 @@ export const LoginView: React.FC = () => {
     }
     const success = login(email.trim(), password);
     if (success) {
+      if (rememberMe && password) {
+        vault.savePassword(email.trim(), password, true);
+      } else if (!rememberMe) {
+        vault.removePassword(email.trim());
+      }
       const u = users.find(usr => usr.email.toLowerCase() === email.trim().toLowerCase());
       addLog('Connexion', `Session ouverte : ${u?.nomComplet} (${u?.role})`, 'auth');
     } else {
@@ -65,6 +94,9 @@ export const LoginView: React.FC = () => {
     });
 
     if (res.success) {
+      if (setupPassword) {
+        vault.savePassword(setupEmail.trim(), setupPassword, true);
+      }
       setSetupSuccess(res.message);
       addLog('Initialisation Système', `Création du Super Administrateur : ${setupNom} (${setupEmail})`, 'auth');
     } else {
@@ -120,19 +152,22 @@ export const LoginView: React.FC = () => {
         {/* Logo officiel UBA */}
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <img
-            src="/images/uba-app-logo.png"
-            alt="UBA Logo"
+            src="/images/uba-app-badge.png"
+            alt="UBA ARCHIVA Logo"
             style={{
-              maxHeight: '54px',
-              maxWidth: '240px',
-              objectFit: 'contain',
-              marginBottom: '14px'
+              height: '72px',
+              width: '72px',
+              borderRadius: '16px',
+              objectFit: 'cover',
+              border: '1px solid rgba(255, 255, 255, 0.18)',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.7), 0 0 20px rgba(227, 30, 36, 0.25)',
+              marginBottom: '16px'
             }}
           />
-          <h1 style={{ fontSize: '1.45rem', fontWeight: 800, color: 'var(--uba-white-cool)', margin: '0 0 6px 0' }}>
+          <h1 style={{ fontSize: '1.45rem', fontWeight: 800, color: '#FFFFFF', margin: '0 0 6px 0', letterSpacing: '-0.02em' }}>
             Portail Archives UBA
           </h1>
-          <p style={{ fontSize: '0.88rem', color: 'var(--uba-silver-metal)', margin: 0 }}>
+          <p style={{ fontSize: '0.88rem', color: '#D9D9D9', margin: 0 }}>
             Supervision & Traitement (Sites Maya-Maya & Mazala)
           </p>
         </div>
@@ -358,47 +393,61 @@ export const LoginView: React.FC = () => {
               </div>
             )}
 
-            <form onSubmit={handleLoginSubmit}>
+            <form onSubmit={handleLoginSubmit} autoComplete="on">
               <div className="form-group" style={{ marginBottom: '16px' }}>
-                <label className="form-label" style={{ fontSize: '0.88rem', color: 'var(--uba-silver-light)' }}>
+                <label className="form-label" style={{ fontSize: '0.86rem', color: '#FFFFFF', fontWeight: 600 }}>
                   Email Professionnel *
                 </label>
                 <div style={{ position: 'relative' }}>
                   <Mail
-                    size={18}
+                    size={17}
                     color="var(--uba-silver-dark)"
                     style={{ position: 'absolute', left: '12px', top: '13px' }}
                   />
                   <input
                     type="email"
+                    name="username"
+                    autoComplete="username"
                     className="form-input"
                     placeholder="votre.nom@ubagroup.com"
                     value={email}
-                    onChange={e => setEmail(e.target.value)}
+                    onChange={e => handleEmailChange(e.target.value)}
                     required
-                    style={{ paddingLeft: '38px', height: '46px' }}
+                    style={{ paddingLeft: '38px', height: '44px' }}
                   />
                 </div>
               </div>
 
-              <div className="form-group" style={{ marginBottom: '22px' }}>
-                <label className="form-label" style={{ fontSize: '0.88rem', color: 'var(--uba-silver-light)' }}>
-                  Mot de passe *
-                </label>
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label className="form-label" style={{ fontSize: '0.86rem', color: '#FFFFFF', fontWeight: 600, margin: 0 }}>
+                    Mot de passe *
+                  </label>
+                  {isPasswordAutofilled && (
+                    <span style={{ fontSize: '0.74rem', color: '#34D399', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                      <Check size={12} /> Mémorisé sur cet appareil
+                    </span>
+                  )}
+                </div>
                 <div style={{ position: 'relative' }}>
                   <Lock
-                    size={18}
+                    size={17}
                     color="var(--uba-silver-dark)"
                     style={{ position: 'absolute', left: '12px', top: '13px' }}
                   />
                   <input
                     type={showPassword ? 'text' : 'password'}
+                    name="password"
+                    autoComplete="current-password"
                     className="form-input"
                     placeholder="Votre mot de passe"
                     value={password}
-                    onChange={e => setPassword(e.target.value)}
+                    onChange={e => {
+                      setPassword(e.target.value);
+                      setIsPasswordAutofilled(false);
+                    }}
                     required
-                    style={{ paddingLeft: '38px', paddingRight: '40px', height: '46px' }}
+                    style={{ paddingLeft: '38px', paddingRight: '40px', height: '44px' }}
                   />
                   <button
                     type="button"
@@ -413,9 +462,22 @@ export const LoginView: React.FC = () => {
                       cursor: 'pointer'
                     }}
                   >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                   </button>
                 </div>
+              </div>
+
+              {/* Option Se Souvenir de Moi / Mémoriser le mot de passe */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '22px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.82rem', color: 'var(--uba-silver-light)', userSelect: 'none' }}>
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={e => setRememberMe(e.target.checked)}
+                    style={{ accentColor: 'var(--uba-red)', width: '15px', height: '15px', cursor: 'pointer' }}
+                  />
+                  <span>Mémoriser le mot de passe sur cet appareil</span>
+                </label>
               </div>
 
               <button
@@ -423,9 +485,9 @@ export const LoginView: React.FC = () => {
                 className="btn btn-primary"
                 style={{
                   width: '100%',
-                  height: '46px',
-                  fontSize: '0.98rem',
-                  fontWeight: 800,
+                  height: '44px',
+                  fontSize: '0.94rem',
+                  fontWeight: 700,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
