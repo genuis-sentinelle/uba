@@ -25,45 +25,37 @@ interface DailyReportEditorProps {
 
 export const DailyReportEditor: React.FC<DailyReportEditorProps> = ({ initialReport, onSave, onCancel }) => {
   const { agencies, teamMembers, addDailyReport } = useData();
-  const { currentUser } = useAuth();
+  const { currentUser, users } = useAuth();
 
   const [step, setStep] = useState(1);
 
-  // Form State
+  // Form State — Propre et dynamique
   const [titre, setTitre] = useState(initialReport?.titre || `Rapport Journalier d'Activité — ${new Date().toLocaleDateString('fr-FR')}`);
   const [dateDebut, setDateDebut] = useState(initialReport?.dateDebut || new Date().toISOString().split('T')[0]);
   const [dateFin, setDateFin] = useState(initialReport?.dateFin || new Date().toISOString().split('T')[0]);
   const [horaires, setHoraires] = useState(initialReport?.horaires || '7h30 – 16h30');
-  const [chefNom, setChefNom] = useState(initialReport?.chefNom || 'Thony Obaki');
-  const [superviseurs, setSuperviseurs] = useState<string[]>(initialReport?.superviseurs || ['Yoka', 'Foundou Fredich']);
+  const [chefNom, setChefNom] = useState(initialReport?.chefNom || currentUser?.nomComplet || '');
+  const [superviseurs, setSuperviseurs] = useState<string[]>(initialReport?.superviseurs || []);
 
-  const [presents, setPresents] = useState<number>(initialReport?.presents || 19);
-  const [effectifTotal, setEffectifTotal] = useState<number>(initialReport?.effectifTotal || 19);
+  const [presents, setPresents] = useState<number>(initialReport?.presents || 0);
+  const [effectifTotal, setEffectifTotal] = useState<number>(initialReport?.effectifTotal || 0);
   const [absents, setAbsents] = useState<number>(initialReport?.absents || 0);
 
-  const [equipeMazala, setEquipeMazala] = useState<string[]>(initialReport?.equipeMazala || ['Duskane', 'Placy']);
-  const [equipeOrdinateur, setEquipeOrdinateur] = useState<string[]>(initialReport?.equipeOrdinateur || ['Richy', 'Beni']);
+  const [equipeMazala, setEquipeMazala] = useState<string[]>(initialReport?.equipeMazala || []);
+  const [equipeOrdinateur, setEquipeOrdinateur] = useState<string[]>(initialReport?.equipeOrdinateur || []);
 
-  const [transferts, setTransferts] = useState<DailyReportMouvement[]>(initialReport?.transferts || [
-    { id: '1', agenceId: 'ag-904', agenceNom: 'Bacongo', code: '904', exercice: 2017, conventions: 1322, boites: 12, traitement: 'Trié' },
-    { id: '2', agenceId: 'ag-902', agenceNom: 'Poto-Poto', code: '902', exercice: 2018, conventions: 741, boites: 8, traitement: 'Mis de côté' },
-    { id: '3', agenceId: 'ag-907', agenceNom: 'Moungali', code: '907', exercice: 2019, conventions: 3550, boites: 25, traitement: 'Transmis' }
-  ]);
-
-  const [totalDeclare, setTotalDeclare] = useState<number>(initialReport?.totalDeclare || 5613);
+  const [transferts, setTransferts] = useState<DailyReportMouvement[]>(initialReport?.transferts || []);
+  const [totalDeclare, setTotalDeclare] = useState<number>(initialReport?.totalDeclare || 0);
 
   const [taches, setTaches] = useState(initialReport?.taches || [
-    { numero: 1, titre: 'Purification de l\'espace de travail', horaire: '07h30 – 08h00', description: 'Nettoyage des allées, évacuation des cartons vides' },
-    { numero: 2, titre: 'Checking et comptage des liasses', horaire: '08h00 – 12h00', description: 'Contrôle minutieux de conformité' },
-    { numero: 3, titre: 'Transfert vers site Mazala', horaire: '14h00 – 16h30', description: 'Conditionnement sécurisé' }
+    { numero: 1, titre: 'Organisation & répartition', horaire: '07h30 – 08h30', description: 'Briefing du matin et prise de poste' },
+    { numero: 2, titre: 'Traitement et tri des conventions', horaire: '08h30 – 13h00', description: 'Vérification de conformité et classement' },
+    { numero: 3, titre: 'Conditionnement & transfert', horaire: '13h30 – 16h30', description: 'Mise en cartons et décharge' }
   ]);
 
-  const [receptions, setReceptions] = useState(initialReport?.receptions || [
-    { id: '1', description: 'Cartons de régularisation Bacongo', boites: 85, provenance: 'Site Mazala', statut: 'Reçu' }
-  ]);
-
+  const [receptions, setReceptions] = useState(initialReport?.receptions || []);
   const [observations, setObservations] = useState(initialReport?.observations || [
-    { point: 'Conditionnement', constat: 'Bon état général des boîtes d\'archives répertoriées', estIncident: false }
+    { point: 'Conformité', constat: 'Opérations réalisées conformément aux procédures UBA', estIncident: false }
   ]);
 
   // Dynamic calculations
@@ -120,10 +112,10 @@ export const DailyReportEditor: React.FC<DailyReportEditorProps> = ({ initialRep
       absents,
       equipeMazala,
       equipeOrdinateur,
-      groupes: [
-        { nom: 'Groupe 1', membres: ['Yoka', 'Parfait', 'Lauria', 'Déo'], tachesAssignees: 'Comptage & Vérification' },
-        { nom: 'Groupe 2', membres: ['Foundou Fredich', 'Christ', 'Gaston'], tachesAssignees: 'Classement & Conditionnement' },
-        { nom: 'Groupe Mazala', membres: equipeMazala, tachesAssignees: 'Réception & Stockage sécurisé' }
+      groupes: initialReport?.groupes || [
+        { nom: 'Groupe Supervision', membres: superviseurs.length > 0 ? superviseurs : [chefNom || 'Superviseur'], tachesAssignees: 'Supervision & Coordination' },
+        { nom: 'Groupe Mazala', membres: equipeMazala.length > 0 ? equipeMazala : ['Équipe Mazala'], tachesAssignees: 'Réception & Stockage sécurisé' },
+        { nom: 'Groupe Traitement', membres: equipeOrdinateur.length > 0 ? equipeOrdinateur : ['Équipe Saisie'], tachesAssignees: 'Traitement & Classement' }
       ],
       taches,
       transferts,
@@ -250,18 +242,30 @@ export const DailyReportEditor: React.FC<DailyReportEditorProps> = ({ initialRep
               <label className="form-label">Chef d'équipe des Archives</label>
               <input
                 type="text"
+                list="chefs-registered-list"
                 className="form-input"
+                placeholder="Sélectionnez ou saisissez le nom du chef"
                 value={chefNom}
                 onChange={e => setChefNom(e.target.value)}
               />
+              <datalist id="chefs-registered-list">
+                {currentUser && <option value={currentUser.nomComplet}>{currentUser.nomComplet} (Utilisateur connecté)</option>}
+                {users.filter(u => u.id !== currentUser?.id).map(u => (
+                  <option key={u.id} value={u.nomComplet}>{u.nomComplet} ({u.titre || u.role})</option>
+                ))}
+                {teamMembers.map(m => (
+                  <option key={m.id} value={m.nomOfficiel}>{m.nomOfficiel}</option>
+                ))}
+              </datalist>
             </div>
             <div className="form-group">
               <label className="form-label">Superviseurs du Jour (séparés par virgule)</label>
               <input
                 type="text"
                 className="form-input"
+                placeholder="Ex: Nom 1, Nom 2"
                 value={superviseurs.join(', ')}
-                onChange={e => setSuperviseurs(e.target.value.split(',').map(s => s.trim()))}
+                onChange={e => setSuperviseurs(e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
               />
             </div>
           </div>

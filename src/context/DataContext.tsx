@@ -87,11 +87,11 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser } = useAuth();
 
-  // Purge unique des anciennes données fictives si la version propre v2 démarre
+  // Purge unique des anciennes données fictives et chargement automatique des 7 agences officielles UBA
   useEffect(() => {
-    const isCleaned = localStorage.getItem('archiva_uba_data_clean_v2');
+    const isCleaned = localStorage.getItem('archiva_uba_data_clean_v3_blank');
     if (!isCleaned) {
-      localStorage.removeItem('archiva_uba_agencies');
+      localStorage.setItem('archiva_uba_agencies', JSON.stringify(INITIAL_AGENCIES));
       localStorage.removeItem('archiva_uba_members');
       localStorage.removeItem('archiva_uba_daily_reports');
       localStorage.removeItem('archiva_uba_synthesis_reports');
@@ -99,8 +99,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem('archiva_uba_cartons');
       localStorage.removeItem('archiva_uba_slips');
       localStorage.removeItem('archiva_uba_logs');
-      localStorage.setItem('archiva_uba_data_clean_v2', 'true');
-      setAgencies([]);
+      localStorage.setItem('archiva_uba_data_clean_v3_blank', 'true');
+      setAgencies(INITIAL_AGENCIES);
       setTeamMembers([]);
       setDailyReports([]);
       setSynthesisReports([]);
@@ -114,7 +114,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [agencies, setAgencies] = useState<Agency[]>(() => {
     const saved = localStorage.getItem('archiva_uba_agencies');
     if (saved) {
-      try { return JSON.parse(saved); } catch { return INITIAL_AGENCIES; }
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {
+        return INITIAL_AGENCIES;
+      }
     }
     return INITIAL_AGENCIES;
   });

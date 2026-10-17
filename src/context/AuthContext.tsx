@@ -9,7 +9,7 @@ interface AuthContextType {
   login: (email: string, password?: string) => boolean;
   logout: () => void;
   switchUser: (userId: string) => void;
-  createInitialSuperAdmin: (data: { nomComplet: string; email: string; password?: string }) => { success: boolean; message: string };
+  createInitialSuperAdmin: (data: { nomUtilisateur: string; motDePasse: string; email?: string }) => { success: boolean; message: string };
   addUser: (user: Omit<User, 'id' | 'dateCreation'>) => { success: boolean; message: string };
   updateUser: (user: User) => { success: boolean; message: string };
   deleteUser: (targetUserId: string) => { success: boolean; message: string };
@@ -19,13 +19,13 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Purge unique des anciennes données de test si le flag clean n'a pas été posé
+  // Purge unique absolue des anciens comptes pour repartir sur une application 100% vierge
   const [users, setUsers] = useState<User[]>(() => {
-    const isCleaned = localStorage.getItem('archiva_uba_clean_v2');
+    const isCleaned = localStorage.getItem('archiva_uba_clean_v3_blank_users');
     if (!isCleaned) {
       localStorage.removeItem('archiva_uba_users');
       localStorage.removeItem('archiva_uba_current_user');
-      localStorage.setItem('archiva_uba_clean_v2', 'true');
+      localStorage.setItem('archiva_uba_clean_v3_blank_users', 'true');
       return [];
     }
     const saved = localStorage.getItem('archiva_uba_users');
@@ -36,11 +36,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    const isCleaned = localStorage.getItem('archiva_uba_clean_v3_blank_users');
+    if (!isCleaned) {
+      return null;
+    }
     const saved = localStorage.getItem('archiva_uba_current_user');
     if (saved) {
       try { return JSON.parse(saved); } catch { return null; }
     }
-    return null; // Page de connexion en premier
+    return null; // Page de connexion ou configuration initiale requise
   });
 
   const hasSuperAdmin = users.some(u => u.role === 'super_admin');
@@ -57,22 +61,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [currentUser]);
 
-  const createInitialSuperAdmin = (data: { nomComplet: string; email: string; password?: string }): { success: boolean; message: string } => {
+  /**
+   * Création unique du compte Super Administrateur avec SEULEMENT 2 informations :
+   * Nom d'utilisateur et Mot de passe.
+   */
+  const createInitialSuperAdmin = (data: { nomUtilisateur: string; motDePasse: string; email?: string }): { success: boolean; message: string } => {
     if (hasSuperAdmin) {
       return {
         success: false,
-        message: 'Le compte Super Administrateur a déjà été initialisé. La création publique est désormais bloquée.'
+        message: 'Le compte Super Administrateur a déjà été initialisé. La création publique est désormais verrouillée.'
       };
     }
 
-    if (!data.nomComplet.trim() || !data.email.trim()) {
-      return { success: false, message: 'Le nom et l\'adresse email sont obligatoires.' };
+    const nom = data.nomUtilisateur.trim();
+    const mdp = data.motDePasse.trim();
+
+    if (!nom) {
+      return { success: false, message: 'Le nom d\'utilisateur est obligatoire.' };
     }
+    if (!mdp) {
+      return { success: false, message: 'Le mot de passe est obligatoire.' };
+    }
+
+    const emailGen = data.email?.trim() || (nom.includes('@') ? nom.toLowerCase() : `${nom.toLowerCase().replace(/[^a-z0-9]/g, '.')}@uba.local`);
 
     const newSuperAdmin: User = {
       id: `user-super-${Date.now()}`,
-      nomComplet: data.nomComplet.trim(),
-      email: data.email.trim().toLowerCase(),
+      nomComplet: nom,
+      email: emailGen,
       role: 'super_admin',
       titre: 'Super Administrateur des Archives UBA',
       actif: true,
@@ -87,12 +103,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return {
       success: true,
-      message: 'Compte Super Administrateur créé avec succès. L\'accès public à l\'inscription est désormais verrouillé.'
+      message: 'Compte Super Administrateur unique créé avec succès.'
     };
   };
 
-  const login = (email: string, _password?: string): boolean => {
-    const found = users.find(u => u.email.toLowerCase() === email.trim().toLowerCase());
+  /**
+   * Connexion avec Nom d'utilisateur OU Email professionnel
+   */
+  const login = (identifiant: string, _password?: string): boolean => {
+    const query = identifiant.trim().toLowerCase();
+    if (!query) return false;
+
+    const found = users.find(u => 
+      u.nomComplet.toLowerCase() === query ||
+      u.email.toLowerCase() === query ||
+      u.email.split('@')[0].toLowerCase() === query ||
+      u.nomComplet.toLowerCase().replace(/[^a-z0-9]/g, '.') === query
+    );
+
     if (found && found.actif) {
       setCurrentUser(found);
       return true;

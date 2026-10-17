@@ -316,7 +316,7 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="Ex: Jean-Paul Makoundou"
+                  placeholder="Nom et prénom complet de l'agent"
                   value={nomComplet}
                   onChange={e => setNomComplet(e.target.value)}
                   required
@@ -329,7 +329,7 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
                 <input
                   type="email"
                   className="form-input"
-                  placeholder="Ex: jean-paul.makoundou@ubagroup.com"
+                  placeholder="agent@ubagroup.com"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   required

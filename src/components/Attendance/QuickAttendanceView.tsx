@@ -29,8 +29,6 @@ export const QuickAttendanceView: React.FC = () => {
     teamMembers.forEach(m => {
       if (m.site === 'Mazala') {
         initial[m.id] = 'mazala';
-      } else if (m.nomOfficiel === 'Richy' || m.nomOfficiel === 'Beni') {
-        initial[m.id] = 'ordinateur';
       } else {
         initial[m.id] = 'present';
       }

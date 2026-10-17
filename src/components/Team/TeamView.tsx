@@ -262,11 +262,11 @@ export const TeamView: React.FC = () => {
 
             <form onSubmit={handleSave}>
               <div className="form-group">
-                <label className="form-label">Nom officiel *</label>
+                <label className="form-label">Nom officiel de l'agent *</label>
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="Ex: Thony Obaki"
+                  placeholder="Nom et prénom officiel de l'agent"
                   value={nomOfficiel}
                   onChange={e => setNomOfficiel(e.target.value)}
                   required
@@ -274,11 +274,11 @@ export const TeamView: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Alias connus (séparés par une virgule)</label>
+                <label className="form-label">Alias ou nom usuel (séparés par une virgule)</label>
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="Ex: Tony Obaki, Monsieur Tony"
+                  placeholder="Nom usuel ou diminutif"
                   value={aliasStr}
                   onChange={e => setAliasStr(e.target.value)}
                 />

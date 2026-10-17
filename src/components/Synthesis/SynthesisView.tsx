@@ -298,72 +298,102 @@ export const SynthesisView: React.FC = () => {
           </div>
         )}
 
-        {/* CARTOUCHES CHIFFRÉS SOMBRES */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: '10px',
-          marginBottom: '18px'
-        }}>
+        {/* 1. INFORMATIONS GÉNÉRALES (Modèle Officiel UBA) */}
+        <div style={{ marginBottom: '16px' }}>
           <div style={{
-            border: '2px solid #E41E26',
-            borderRadius: '4px',
-            padding: '12px',
-            textAlign: 'center',
-            backgroundColor: 'rgba(227, 30, 36, 0.12)'
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontSize: '10pt',
+            fontWeight: 800,
+            color: '#FFFFFF',
+            marginBottom: '8px'
           }}>
-            <div style={{ fontSize: '20pt', fontWeight: 900, color: 'var(--uba-red-bright)', lineHeight: 1 }}>
-              {formatNumber(synthesis.dossiersTraites)}
-            </div>
-            <div style={{ fontSize: '7.5pt', fontWeight: 800, color: '#FFFFFF', textTransform: 'uppercase', marginTop: '6px' }}>
-              Dossiers Traités
-            </div>
+            <span style={{ display: 'inline-block', width: '4px', height: '14px', backgroundColor: '#E41E26' }} />
+            1. INFORMATIONS GÉNÉRALES
           </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt' }}>
+            <tbody>
+              <tr>
+                <td style={{ width: '25%', padding: '6px 8px', fontWeight: 700, backgroundColor: '#141414', border: '1px solid #282828', color: '#FFFFFF' }}>Structure</td>
+                <td style={{ padding: '6px 8px', border: '1px solid #282828', color: '#FFFFFF' }}>United Bank for Africa (UBA)</td>
+                <td style={{ width: '22%', padding: '6px 8px', fontWeight: 700, backgroundColor: '#141414', border: '1px solid #282828', color: '#FFFFFF' }}>Service</td>
+                <td style={{ padding: '6px 8px', border: '1px solid #282828', color: '#FFFFFF' }}>Archives / Équipe archiviste</td>
+              </tr>
+              <tr>
+                <td style={{ padding: '6px 8px', fontWeight: 700, backgroundColor: '#141414', border: '1px solid #282828', color: '#FFFFFF' }}>Rapporteur</td>
+                <td style={{ padding: '6px 8px', border: '1px solid #282828', color: '#FFFFFF', fontWeight: 700 }}>{synthesis.creePar || currentUser?.nomComplet || 'Chef Archiviste'}</td>
+                <td style={{ padding: '6px 8px', fontWeight: 700, backgroundColor: '#141414', border: '1px solid #282828', color: '#FFFFFF' }}>Période couverte</td>
+                <td style={{ padding: '6px 8px', border: '1px solid #282828', color: '#FFFFFF' }}>Du {formatDate(synthesis.dateDebut)} au {formatDate(synthesis.dateFin)}</td>
+              </tr>
+              <tr>
+                <td style={{ padding: '6px 8px', fontWeight: 700, backgroundColor: '#141414', border: '1px solid #282828', color: '#FFFFFF' }}>Nombre de jours ouvrés</td>
+                <td style={{ padding: '6px 8px', border: '1px solid #282828', color: '#FFFFFF', fontWeight: 700 }}>{synthesis.joursCouverts} jour(s) ouvré(s)</td>
+                <td style={{ padding: '6px 8px', fontWeight: 700, backgroundColor: '#141414', border: '1px solid #282828', color: '#FFFFFF' }}>Date de rédaction</td>
+                <td style={{ padding: '6px 8px', border: '1px solid #282828', color: '#FFFFFF' }}>{formatDate(synthesis.dateCreation.split('T')[0])}</td>
+              </tr>
+              <tr>
+                <td style={{ padding: '6px 8px', fontWeight: 700, backgroundColor: '#141414', border: '1px solid #282828', color: '#FFFFFF' }}>Statut du rapport</td>
+                <td colSpan={3} style={{ padding: '6px 8px', border: '1px solid #282828', color: '#FFFFFF' }}>
+                  <strong style={{ color: 'var(--uba-red-bright)' }}>Définitif</strong> {activeMode === 'chef_confidentiel' && '(Volet Confidentiel Chef)'}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
+        {/* 2. RÉSUMÉ GÉNÉRAL DES ACTIVITÉS (3 Indicateurs Essentiels) */}
+        <div style={{ marginBottom: '18px' }}>
           <div style={{
-            border: '1px solid #303030',
-            borderRadius: '4px',
-            padding: '12px',
-            textAlign: 'center',
-            backgroundColor: '#121212'
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontSize: '10pt',
+            fontWeight: 800,
+            color: '#FFFFFF',
+            marginBottom: '4px'
           }}>
-            <div style={{ fontSize: '20pt', fontWeight: 900, color: '#FFFFFF', lineHeight: 1 }}>
-              {formatNumber(synthesis.dossiersEnAttente)}
-            </div>
-            <div style={{ fontSize: '7.5pt', fontWeight: 800, color: '#D9D9D9', textTransform: 'uppercase', marginTop: '6px' }}>
-              En Attente
-            </div>
+            <span style={{ display: 'inline-block', width: '4px', height: '14px', backgroundColor: '#E41E26' }} />
+            2. RÉSUMÉ GÉNÉRAL DES ACTIVITÉS
           </div>
+          <p style={{ fontSize: '7.8pt', color: '#D9D9D9', margin: '0 0 8px 0', fontStyle: 'italic' }}>
+            Présentation des trois indicateurs essentiels du travail effectué sur la période.
+          </p>
 
-          <div style={{
-            border: '1px solid #303030',
-            borderRadius: '4px',
-            padding: '12px',
-            textAlign: 'center',
-            backgroundColor: '#121212'
-          }}>
-            <div style={{ fontSize: '20pt', fontWeight: 900, color: '#FFFFFF', lineHeight: 1 }}>
-              {formatNumber(synthesis.totalGlobal)}
-            </div>
-            <div style={{ fontSize: '7.5pt', fontWeight: 800, color: '#D9D9D9', textTransform: 'uppercase', marginTop: '6px' }}>
-              Volume Total
-            </div>
-          </div>
-
-          <div style={{
-            border: '2px solid #E41E26',
-            borderRadius: '4px',
-            padding: '12px',
-            textAlign: 'center',
-            backgroundColor: 'rgba(227, 30, 36, 0.12)'
-          }}>
-            <div style={{ fontSize: '20pt', fontWeight: 900, color: 'var(--uba-red-bright)', lineHeight: 1 }}>
-              {synthesis.boitesTotal}
-            </div>
-            <div style={{ fontSize: '7.5pt', fontWeight: 800, color: '#FFFFFF', textTransform: 'uppercase', marginTop: '6px' }}>
-              Boîtes Mazala
-            </div>
-          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt', marginBottom: '14px' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#E41E26', color: '#FFFFFF' }}>
+                <th style={{ padding: '8px 12px', textAlign: 'left', border: '1px solid #E41E26', width: '70%' }}>INDICATEUR MAJEUR</th>
+                <th style={{ padding: '8px 12px', textAlign: 'right', border: '1px solid #E41E26', width: '30%' }}>QUANTITÉ</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style={{ backgroundColor: '#111111', color: '#FFFFFF' }}>
+                <td style={{ padding: '8px 12px', border: '1px solid #282828', fontWeight: 700 }}>
+                  Dossiers traités ou transmis
+                </td>
+                <td style={{ padding: '8px 12px', border: '1px solid #282828', textAlign: 'right', fontWeight: 900, color: 'var(--uba-red-bright)', fontSize: '10.5pt' }}>
+                  {formatNumber(synthesis.dossiersTraites)}
+                </td>
+              </tr>
+              <tr style={{ backgroundColor: '#0B0B0B', color: '#FFFFFF' }}>
+                <td style={{ padding: '8px 12px', border: '1px solid #282828', fontWeight: 700 }}>
+                  Dossiers en attente
+                </td>
+                <td style={{ padding: '8px 12px', border: '1px solid #282828', textAlign: 'right', fontWeight: 900, color: '#D9D9D9', fontSize: '10.5pt' }}>
+                  {formatNumber(synthesis.dossiersEnAttente)}
+                </td>
+              </tr>
+              <tr style={{ backgroundColor: '#161616', color: '#FFFFFF', borderTop: '2px solid #E41E26' }}>
+                <td style={{ padding: '8px 12px', border: '1px solid #282828', fontWeight: 900 }}>
+                  TOTAL GÉNÉRAL
+                </td>
+                <td style={{ padding: '8px 12px', border: '1px solid #282828', textAlign: 'right', fontWeight: 900, color: '#FFFFFF', fontSize: '11pt' }}>
+                  {formatNumber(synthesis.totalGlobal)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
         {/* TABLEAU PAR AGENCE — NOIR & ROUGE & BLANC */}
@@ -540,7 +570,7 @@ export const SynthesisView: React.FC = () => {
               LE CHEF D'ÉQUIPE DES ARCHIVES
             </div>
             <div style={{ fontSize: '9pt', color: 'var(--uba-red-bright)', fontWeight: 800, marginTop: '16px' }}>
-              Thony OBAKI
+              {currentUser?.nomComplet || synthesis.creePar || 'Le Chef d\'équipe'}
             </div>
           </div>
         </div>

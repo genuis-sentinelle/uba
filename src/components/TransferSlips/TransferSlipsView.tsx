@@ -24,23 +24,30 @@ export const TransferSlipsView: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingSlip, setEditingSlip] = useState<TransferSlip | null>(null);
 
-  // Form states
+  // Form states — Propres et dynamiques
   const [dateTransfert, setDateTransfert] = useState(new Date().toISOString().split('T')[0]);
-  const [chauffeurNom, setChauffeurNom] = useState('Jean-Pierre Ondaye');
-  const [vehicule, setVehicule] = useState('Camionnette UBA - Immat 248-TT-01');
-  const [responsableDepart, setResponsableDepart] = useState('Thony Obaki (Chef d\'équipe)');
-  const [responsableArrivee, setResponsableArrivee] = useState('Duskane (Archiviste Mazala)');
-  const [observations, setObservations] = useState('Chargement sécurisé et contrôlé.');
+  const [chauffeurNom, setChauffeurNom] = useState('');
+  const [vehicule, setVehicule] = useState('');
+  const [responsableDepart, setResponsableDepart] = useState(
+    currentUser ? `${currentUser.nomComplet} (${currentUser.titre || 'Chef de mission'})` : ''
+  );
+  const [responsableArrivee, setResponsableArrivee] = useState('');
+  const [observations, setObservations] = useState('');
 
   const [lignes, setLignes] = useState<TransferSlipLine[]>([
-    { agenceNom: agencies[0]?.nom || 'City-Center', code: agencies[0]?.code || '901', exercice: 2018, boites: 10, conventions: 1200, traitement: 'Trié & Contrôlé' }
+    { agenceNom: agencies[0]?.nom || 'City Center', code: agencies[0]?.code || '901', exercice: 2022, boites: 0, conventions: 0, traitement: 'Trié & Contrôlé' }
   ]);
 
   const handleOpenAdd = () => {
     setEditingSlip(null);
     setDateTransfert(new Date().toISOString().split('T')[0]);
+    setResponsableDepart(currentUser ? `${currentUser.nomComplet} (${currentUser.titre || 'Chef de mission'})` : '');
+    setChauffeurNom('');
+    setVehicule('');
+    setResponsableArrivee('');
+    setObservations('');
     setLignes([
-      { agenceNom: agencies[0]?.nom || 'City-Center', code: agencies[0]?.code || '901', exercice: 2018, boites: 10, conventions: 1200, traitement: 'Trié & Contrôlé' }
+      { agenceNom: agencies[0]?.nom || 'City Center', code: agencies[0]?.code || '901', exercice: 2022, boites: 0, conventions: 0, traitement: 'Trié & Contrôlé' }
     ]);
     setShowModal(true);
   };

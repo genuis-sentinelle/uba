@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { vault } from '../../utils/vault';
-import { Lock, Mail, Eye, EyeOff, ArrowRight, ShieldCheck, CheckCircle2, AlertTriangle, KeyRound, UserPlus, Check } from 'lucide-react';
+import { Lock, Mail, Eye, EyeOff, ArrowRight, ShieldCheck, CheckCircle2, AlertTriangle, KeyRound, UserPlus, Check, User as UserIcon } from 'lucide-react';
 
 export const LoginView: React.FC = () => {
   const { login, users, hasSuperAdmin, createInitialSuperAdmin } = useAuth();
@@ -39,16 +39,14 @@ export const LoginView: React.FC = () => {
 
   // Initial Super Admin setup states (si aucun compte n'existe)
   const [setupNom, setSetupNom] = useState('');
-  const [setupEmail, setSetupEmail] = useState('');
   const [setupPassword, setSetupPassword] = useState('');
-  const [setupConfirmPassword, setSetupConfirmPassword] = useState('');
   const [setupSuccess, setSetupSuccess] = useState('');
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (!email.trim()) {
-      setError('Veuillez saisir votre adresse email professionnelle.');
+      setError('Veuillez saisir votre nom d\'utilisateur ou adresse email.');
       return;
     }
     const success = login(email.trim(), password);
@@ -58,10 +56,13 @@ export const LoginView: React.FC = () => {
       } else if (!rememberMe) {
         vault.removePassword(email.trim());
       }
-      const u = users.find(usr => usr.email.toLowerCase() === email.trim().toLowerCase());
+      const u = users.find(usr => 
+        usr.email.toLowerCase() === email.trim().toLowerCase() ||
+        usr.nomComplet.toLowerCase() === email.trim().toLowerCase()
+      );
       addLog('Connexion', `Session ouverte : ${u?.nomComplet} (${u?.role})`, 'auth');
     } else {
-      setError('Identifiants non reconnus ou compte inactif. Vérifiez votre adresse email.');
+      setError('Identifiants non reconnus ou compte inactif. Vérifiez vos identifiants.');
     }
   };
 
@@ -70,35 +71,30 @@ export const LoginView: React.FC = () => {
     setError('');
     setSetupSuccess('');
 
-    if (!setupNom.trim() || !setupEmail.trim()) {
-      setError('Veuillez renseigner votre nom complet et votre adresse email.');
+    if (!setupNom.trim()) {
+      setError('Veuillez renseigner votre nom d\'utilisateur.');
       return;
     }
-    if (!setupEmail.includes('@')) {
-      setError('Veuillez saisir une adresse email professionnelle valide.');
+    if (!setupPassword) {
+      setError('Veuillez saisir votre mot de passe.');
       return;
     }
-    if (setupPassword.length < 6) {
-      setError('Le mot de passe doit comporter au moins 6 caractères.');
-      return;
-    }
-    if (setupPassword !== setupConfirmPassword) {
-      setError('Les mots de passe saisis ne correspondent pas.');
+    if (setupPassword.length < 4) {
+      setError('Le mot de passe doit comporter au moins 4 caractères.');
       return;
     }
 
     const res = createInitialSuperAdmin({
-      nomComplet: setupNom.trim(),
-      email: setupEmail.trim(),
-      password: setupPassword
+      nomUtilisateur: setupNom.trim(),
+      motDePasse: setupPassword
     });
 
     if (res.success) {
       if (setupPassword) {
-        vault.savePassword(setupEmail.trim(), setupPassword, true);
+        vault.savePassword(setupNom.trim(), setupPassword, true);
       }
       setSetupSuccess(res.message);
-      addLog('Initialisation Système', `Création du Super Administrateur : ${setupNom} (${setupEmail})`, 'auth');
+      addLog('Initialisation Système', `Création du Super Administrateur : ${setupNom}`, 'auth');
     } else {
       setError(res.message);
     }
@@ -237,46 +233,31 @@ export const LoginView: React.FC = () => {
             )}
 
             <form onSubmit={handleSetupSuperAdmin}>
-              <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label className="form-label" style={{ fontSize: '0.86rem', color: 'var(--uba-silver-light)' }}>
-                  Nom complet du Super Administrateur *
-                </label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Ex: Thony Obaki (Chef Archiviste)"
-                  value={setupNom}
-                  onChange={e => setSetupNom(e.target.value)}
-                  required
-                  style={{ height: '44px' }}
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label className="form-label" style={{ fontSize: '0.86rem', color: 'var(--uba-silver-light)' }}>
-                  Adresse Email Professionnelle UBA *
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label className="form-label" style={{ fontSize: '0.86rem', color: '#FFFFFF', fontWeight: 600 }}>
+                  Nom d'utilisateur du Super Administrateur *
                 </label>
                 <div style={{ position: 'relative' }}>
-                  <Mail
+                  <UserIcon
                     size={17}
                     color="var(--uba-silver-dark)"
                     style={{ position: 'absolute', left: '12px', top: '13px' }}
                   />
                   <input
-                    type="email"
+                    type="text"
                     className="form-input"
-                    placeholder="thony.obaki@ubagroup.com"
-                    value={setupEmail}
-                    onChange={e => setSetupEmail(e.target.value)}
+                    placeholder="Créer votre nom d'utilisateur"
+                    value={setupNom}
+                    onChange={e => setSetupNom(e.target.value)}
                     required
                     style={{ paddingLeft: '38px', height: '44px' }}
                   />
                 </div>
               </div>
 
-              <div className="form-group" style={{ marginBottom: '14px' }}>
-                <label className="form-label" style={{ fontSize: '0.86rem', color: 'var(--uba-silver-light)' }}>
-                  Mot de passe principal *
+              <div className="form-group" style={{ marginBottom: '22px' }}>
+                <label className="form-label" style={{ fontSize: '0.86rem', color: '#FFFFFF', fontWeight: 600 }}>
+                  Mot de passe *
                 </label>
                 <div style={{ position: 'relative' }}>
                   <Lock
@@ -287,7 +268,7 @@ export const LoginView: React.FC = () => {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     className="form-input"
-                    placeholder="Minimum 6 caractères"
+                    placeholder="Créer votre mot de passe"
                     value={setupPassword}
                     onChange={e => setSetupPassword(e.target.value)}
                     required
@@ -311,28 +292,6 @@ export const LoginView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="form-group" style={{ marginBottom: '22px' }}>
-                <label className="form-label" style={{ fontSize: '0.86rem', color: 'var(--uba-silver-light)' }}>
-                  Confirmer le mot de passe *
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <KeyRound
-                    size={17}
-                    color="var(--uba-silver-dark)"
-                    style={{ position: 'absolute', left: '12px', top: '13px' }}
-                  />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    className="form-input"
-                    placeholder="Confirmez votre mot de passe"
-                    value={setupConfirmPassword}
-                    onChange={e => setSetupConfirmPassword(e.target.value)}
-                    required
-                    style={{ paddingLeft: '38px', height: '44px' }}
-                  />
-                </div>
-              </div>
-
               <button
                 type="submit"
                 className="btn btn-primary"
@@ -347,7 +306,7 @@ export const LoginView: React.FC = () => {
                   gap: '8px'
                 }}
               >
-                <UserPlus size={18} /> Créer le Super Administrateur & Verrouiller
+                <UserPlus size={18} /> Créer le compte Super Administrateur
               </button>
             </form>
           </div>
@@ -396,20 +355,20 @@ export const LoginView: React.FC = () => {
             <form onSubmit={handleLoginSubmit} autoComplete="on">
               <div className="form-group" style={{ marginBottom: '16px' }}>
                 <label className="form-label" style={{ fontSize: '0.86rem', color: '#FFFFFF', fontWeight: 600 }}>
-                  Email Professionnel *
+                  Nom d'utilisateur ou Email *
                 </label>
                 <div style={{ position: 'relative' }}>
-                  <Mail
+                  <UserIcon
                     size={17}
                     color="var(--uba-silver-dark)"
                     style={{ position: 'absolute', left: '12px', top: '13px' }}
                   />
                   <input
-                    type="email"
+                    type="text"
                     name="username"
                     autoComplete="username"
                     className="form-input"
-                    placeholder="votre.nom@ubagroup.com"
+                    placeholder="Entrez votre nom d'utilisateur ou email"
                     value={email}
                     onChange={e => handleEmailChange(e.target.value)}
                     required
