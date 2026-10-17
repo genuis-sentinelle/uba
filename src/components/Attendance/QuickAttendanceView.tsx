@@ -16,6 +16,7 @@ import {
 export const QuickAttendanceView: React.FC = () => {
   const { teamMembers, addLog } = useData();
   const { currentUser } = useAuth();
+  const isStagiaire = currentUser?.role === 'stagiaire' || currentUser?.role === 'user';
 
   const [datePointage, setDatePointage] = useState(new Date().toISOString().split('T')[0]);
 
@@ -89,10 +90,10 @@ export const QuickAttendanceView: React.FC = () => {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px', flexWrap: 'wrap', gap: '14px' }}>
         <div>
-          <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
+          <h1 style={{ fontSize: '1.55rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
             Pointage Rapide du Matin (7h30)
           </h1>
-          <div style={{ fontSize: '0.95rem', color: '#D9D9D9', marginTop: '4px' }}>
+          <div style={{ fontSize: '0.92rem', color: '#D9D9D9', marginTop: '4px' }}>
             Appel et répartition opérationnelle de l'équipe archiviste (Maya-Maya & Mazala)
           </div>
         </div>
@@ -218,15 +219,16 @@ export const QuickAttendanceView: React.FC = () => {
                       }}>
                         <button
                           type="button"
+                          disabled={isStagiaire}
                           onClick={() => handleStatusChange(m.id, 'present')}
                           style={{
                             border: '1px solid',
                             borderColor: currentStatus === 'present' ? 'var(--uba-silver-metal)' : 'transparent',
-                            padding: '6px 12px',
+                            padding: '5px 10px',
                             borderRadius: '4px',
-                            fontSize: '0.82rem',
+                            fontSize: '0.8rem',
                             fontWeight: 700,
-                            cursor: 'pointer',
+                            cursor: isStagiaire ? 'default' : 'pointer',
                             backgroundColor: currentStatus === 'present' ? 'var(--uba-anthracite)' : 'transparent',
                             color: '#FFFFFF',
                             transition: 'all 0.15s ease'
@@ -237,15 +239,16 @@ export const QuickAttendanceView: React.FC = () => {
 
                         <button
                           type="button"
+                          disabled={isStagiaire}
                           onClick={() => handleStatusChange(m.id, 'mazala')}
                           style={{
                             border: '1px solid',
                             borderColor: currentStatus === 'mazala' ? 'var(--uba-red)' : 'transparent',
-                            padding: '6px 12px',
+                            padding: '5px 10px',
                             borderRadius: '4px',
-                            fontSize: '0.82rem',
+                            fontSize: '0.8rem',
                             fontWeight: 700,
-                            cursor: 'pointer',
+                            cursor: isStagiaire ? 'default' : 'pointer',
                             backgroundColor: currentStatus === 'mazala' ? 'var(--uba-red)' : 'transparent',
                             color: '#FFFFFF',
                             transition: 'all 0.15s ease'
@@ -256,15 +259,16 @@ export const QuickAttendanceView: React.FC = () => {
 
                         <button
                           type="button"
+                          disabled={isStagiaire}
                           onClick={() => handleStatusChange(m.id, 'ordinateur')}
                           style={{
                             border: '1px solid',
                             borderColor: currentStatus === 'ordinateur' ? 'var(--uba-silver-metal)' : 'transparent',
-                            padding: '6px 12px',
+                            padding: '5px 10px',
                             borderRadius: '4px',
-                            fontSize: '0.82rem',
+                            fontSize: '0.8rem',
                             fontWeight: 700,
-                            cursor: 'pointer',
+                            cursor: isStagiaire ? 'default' : 'pointer',
                             backgroundColor: currentStatus === 'ordinateur' ? 'var(--uba-graphite)' : 'transparent',
                             color: '#FFFFFF',
                             transition: 'all 0.15s ease'
@@ -275,15 +279,16 @@ export const QuickAttendanceView: React.FC = () => {
 
                         <button
                           type="button"
+                          disabled={isStagiaire}
                           onClick={() => handleStatusChange(m.id, 'absent')}
                           style={{
                             border: '1px solid',
                             borderColor: currentStatus === 'absent' ? 'var(--uba-red-dark)' : 'transparent',
-                            padding: '6px 12px',
+                            padding: '5px 10px',
                             borderRadius: '4px',
-                            fontSize: '0.82rem',
+                            fontSize: '0.8rem',
                             fontWeight: 700,
-                            cursor: 'pointer',
+                            cursor: isStagiaire ? 'default' : 'pointer',
                             backgroundColor: currentStatus === 'absent' ? 'var(--uba-red-dark)' : 'transparent',
                             color: '#FFFFFF',
                             transition: 'all 0.15s ease'
@@ -294,14 +299,18 @@ export const QuickAttendanceView: React.FC = () => {
                       </div>
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <button
-                        onClick={() => handleDeleteMember(m.id, m.nomOfficiel)}
-                        className="btn btn-secondary btn-sm"
-                        style={{ padding: '6px 10px', color: 'var(--uba-red-bright)' }}
-                        title="Supprimer cette affectation de l'appel"
-                      >
-                        <Trash2 size={15} /> Supprimer
-                      </button>
+                      {!isStagiaire ? (
+                        <button
+                          onClick={() => handleDeleteMember(m.id, m.nomOfficiel)}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '5px 8px', color: 'var(--uba-red-bright)' }}
+                          title="Supprimer cette affectation de l'appel"
+                        >
+                          <Trash2 size={14} /> Supprimer
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: '0.8rem', color: 'var(--uba-silver-dark)' }}>Consultation</span>
+                      )}
                     </td>
                   </tr>
                 );

@@ -19,8 +19,9 @@ import {
 export const SynthesisView: React.FC = () => {
   const { synthesisReports, compileSynthesisFromReports } = useData();
   const { currentUser } = useAuth();
+  const isStagiaire = currentUser?.role === 'stagiaire' || currentUser?.role === 'user';
 
-  const [activeMode, setActiveMode] = useState<'chef_confidentiel' | 'equipe_public'>('chef_confidentiel');
+  const [activeMode, setActiveMode] = useState<'chef_confidentiel' | 'equipe_public'>(isStagiaire ? 'equipe_public' : 'chef_confidentiel');
   const [showCompilerModal, setShowCompilerModal] = useState(false);
 
   // Compiler form states
@@ -29,7 +30,6 @@ export const SynthesisView: React.FC = () => {
   const [compilFeedback, setCompilFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const synthesis = synthesisReports[0];
-  const isStagiaire = currentUser?.role === 'user';
 
   const handleDownloadPdf = async () => {
     if (!synthesis) return;
@@ -82,9 +82,11 @@ export const SynthesisView: React.FC = () => {
               0 synthèse enregistrée
             </div>
           </div>
-          <button onClick={() => setShowCompilerModal(true)} className="btn btn-primary btn-sm">
-            <Sparkles size={16} /> + Compiler automatiquement depuis les rapports
-          </button>
+          {!isStagiaire && (
+            <button onClick={() => setShowCompilerModal(true)} className="btn btn-primary btn-sm">
+              <Sparkles size={16} /> + Compiler automatiquement depuis les rapports
+            </button>
+          )}
         </div>
         <div className="card" style={{ padding: '48px', textAlign: 'center', color: '#D9D9D9' }}>
           Aucune synthèse disponible. Cliquez sur le bouton ci-dessus pour compiler les rapports journaliers.
@@ -173,9 +175,11 @@ export const SynthesisView: React.FC = () => {
             </button>
           </div>
 
-          <button onClick={() => setShowCompilerModal(true)} className="btn btn-secondary btn-sm">
-            <Sparkles size={15} /> Compiler automatique
-          </button>
+          {!isStagiaire && (
+            <button onClick={() => setShowCompilerModal(true)} className="btn btn-secondary btn-sm">
+              <Sparkles size={15} /> Compiler automatique
+            </button>
+          )}
           <button onClick={handleExportWord} className="btn btn-secondary btn-sm">
             <FileCode size={15} /> Export Word (.doc)
           </button>

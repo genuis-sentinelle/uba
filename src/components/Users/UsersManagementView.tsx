@@ -143,10 +143,10 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <h1 style={{ fontSize: '1.65rem', fontWeight: 800, color: '#0F172A', margin: 0 }}>
+          <h1 style={{ fontSize: '1.55rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
             Utilisateurs & Droits d'Accès
           </h1>
-          <div style={{ fontSize: '0.9rem', color: '#64748B', marginTop: '2px' }}>
+          <div style={{ fontSize: '0.92rem', color: '#D9D9D9', marginTop: '2px' }}>
             {users.length} compte(s) enregistré(s)
           </div>
         </div>

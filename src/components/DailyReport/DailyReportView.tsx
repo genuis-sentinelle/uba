@@ -100,10 +100,10 @@ export const DailyReportView: React.FC<DailyReportViewProps> = ({ openedReportId
       {/* Clean Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px', flexWrap: 'wrap', gap: '14px' }}>
         <div>
-          <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
+          <h1 style={{ fontSize: '1.55rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
             Rapports Journaliers d'Activité (R1)
           </h1>
-          <div style={{ fontSize: '1rem', color: '#D9D9D9', marginTop: '4px' }}>
+          <div style={{ fontSize: '0.92rem', color: '#D9D9D9', marginTop: '4px' }}>
             {dailyReports.length} rapport(s) d'activité enregistré(s)
           </div>
         </div>

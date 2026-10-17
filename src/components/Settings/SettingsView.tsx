@@ -73,10 +73,10 @@ export const SettingsView: React.FC = () => {
     <div style={{ padding: '28px 32px', maxWidth: '1000px', margin: '0 auto' }}>
       {/* Header */}
       <div style={{ marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
+        <h1 style={{ fontSize: '1.55rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
           Paramètres & Gestion des Données
         </h1>
-        <div style={{ fontSize: '0.95rem', color: '#D9D9D9', marginTop: '4px' }}>
+        <div style={{ fontSize: '0.92rem', color: '#D9D9D9', marginTop: '4px' }}>
           Contrôle des volumes de données, réinitialisation à l'état vierge et sauvegardes.
         </div>
       </div>

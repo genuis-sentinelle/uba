@@ -24,10 +24,10 @@ export const ConventionsView: React.FC = () => {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px', flexWrap: 'wrap', gap: '14px' }}>
         <div>
-          <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
+          <h1 style={{ fontSize: '1.55rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
             Conventions & Matrice de Suivi
           </h1>
-          <div style={{ fontSize: '0.95rem', color: '#D9D9D9', marginTop: '4px' }}>
+          <div style={{ fontSize: '0.92rem', color: '#D9D9D9', marginTop: '4px' }}>
             Exercices 2015 à 2024 · Traitement certifié UBA Congo
           </div>
         </div>
@@ -59,29 +59,29 @@ export const ConventionsView: React.FC = () => {
 
       {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-        <div className="card" style={{ padding: '18px 22px', borderLeft: '4px solid var(--uba-red)' }}>
+        <div className="card" style={{ padding: '16px 20px', borderLeft: '4px solid var(--uba-red)' }}>
           <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#D9D9D9', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Traitées (T)
           </div>
-          <div style={{ fontSize: '2rem', fontWeight: 900, color: 'var(--uba-red-bright)', marginTop: '4px' }}>
+          <div style={{ fontSize: '1.65rem', fontWeight: 900, color: 'var(--uba-red-bright)', marginTop: '4px' }}>
             {formatNumber(synthesis.dossiersTraites)}
           </div>
         </div>
 
-        <div className="card" style={{ padding: '18px 22px', borderLeft: '4px solid var(--uba-silver-dark)' }}>
+        <div className="card" style={{ padding: '16px 20px', borderLeft: '4px solid var(--uba-silver-dark)' }}>
           <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#D9D9D9', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             En Attente (A)
           </div>
-          <div style={{ fontSize: '2rem', fontWeight: 900, color: '#FFFFFF', marginTop: '4px' }}>
+          <div style={{ fontSize: '1.65rem', fontWeight: 900, color: '#FFFFFF', marginTop: '4px' }}>
             {formatNumber(synthesis.dossiersEnAttente)}
           </div>
         </div>
 
-        <div className="card" style={{ padding: '18px 22px', borderLeft: '4px solid var(--uba-red-dark)' }}>
+        <div className="card" style={{ padding: '16px 20px', borderLeft: '4px solid var(--uba-red-dark)' }}>
           <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#D9D9D9', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Oubliés Probables (O)
           </div>
-          <div style={{ fontSize: '2rem', fontWeight: 900, color: 'var(--uba-red-bright)', marginTop: '4px' }}>
+          <div style={{ fontSize: '1.65rem', fontWeight: 900, color: 'var(--uba-red-bright)', marginTop: '4px' }}>
             3 alertes
           </div>
         </div>

@@ -60,10 +60,10 @@ export const AuditLogsView: React.FC = () => {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px', flexWrap: 'wrap', gap: '14px' }}>
         <div>
-          <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
+          <h1 style={{ fontSize: '1.55rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
             Journal d'Audit
           </h1>
-          <div style={{ fontSize: '0.95rem', color: '#D9D9D9', marginTop: '4px' }}>
+          <div style={{ fontSize: '0.92rem', color: '#D9D9D9', marginTop: '4px' }}>
             {filteredLogs.length} action(s) enregistrée(s)
           </div>
         </div>

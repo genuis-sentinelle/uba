@@ -31,6 +31,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 }) => {
   const { agencies, dailyReports, synthesisReports, cartons, incidents, teamMembers, loadDemoData, deleteDailyReport } = useData();
   const { currentUser } = useAuth();
+  const isStagiaire = currentUser?.role === 'stagiaire' || currentUser?.role === 'user';
 
   // Dynamic calculations from actual data
   const totalConventionsAgences = agencies.reduce((acc, a) => acc + (a.conventionsCount || 0), 0);
@@ -49,36 +50,42 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const isEmpty = agencies.length === 0 && dailyReports.length === 0;
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: '1440px', margin: '0 auto' }}>
+    <div style={{ padding: '24px 28px', maxWidth: '1440px', margin: '0 auto' }}>
       {/* Clean Top Header */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: '26px',
+        marginBottom: '22px',
         flexWrap: 'wrap',
-        gap: '16px'
+        gap: '14px'
       }}>
         <div>
-          <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--uba-white-cool)', margin: 0 }}>
+          <h1 style={{ fontSize: '1.55rem', fontWeight: 800, color: 'var(--uba-white-cool)', margin: 0 }}>
             Poste de Pilotage des Archives UBA
           </h1>
-          <div style={{ fontSize: '0.98rem', color: 'var(--uba-silver-light)', marginTop: '4px' }}>
+          <div style={{ fontSize: '0.92rem', color: 'var(--uba-silver-light)', marginTop: '4px' }}>
             Session active : <strong>{currentUser?.nomComplet}</strong> ({currentUser?.titre || currentUser?.role})
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-          {isEmpty && (
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {isEmpty && !isStagiaire && (
             <button onClick={loadDemoData} className="btn btn-secondary">
-              <RotateCcw size={17} /> Charger modèle UBA
+              <RotateCcw size={16} /> Charger modèle UBA
             </button>
           )}
-          <button onClick={() => onNavigate('daily-reports')} className="btn btn-primary">
-            <Plus size={18} /> + Rapport Journalier
-          </button>
+          {!isStagiaire ? (
+            <button onClick={() => onNavigate('daily-reports')} className="btn btn-primary">
+              <Plus size={16} /> + Rapport Journalier
+            </button>
+          ) : (
+            <span className="badge badge-black" style={{ padding: '7px 12px', fontSize: '0.82rem', border: '1px solid var(--uba-anthracite)' }}>
+              Mode Consultation (Lecture seule)
+            </span>
+          )}
           <button onClick={() => onNavigate('attendance')} className="btn btn-secondary">
-            <CheckCircle2 size={18} /> Pointage 7h30
+            <CheckCircle2 size={16} /> Pointage 7h30
           </button>
           {(currentUser?.role === 'super_admin' || currentUser?.role === 'admin') && (
             <button
@@ -100,53 +107,53 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         marginBottom: '24px'
       }}>
         {/* Dossiers Traités */}
-        <div className="card" style={{ padding: '22px', borderLeft: '4px solid var(--uba-red)' }}>
-          <div style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--uba-silver-metal)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        <div className="card" style={{ padding: '18px 20px', borderLeft: '4px solid var(--uba-red)' }}>
+          <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--uba-silver-metal)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Dossiers Traités
           </div>
-          <div style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--uba-red-bright)', marginTop: '6px', lineHeight: 1.1 }}>
+          <div style={{ fontSize: '1.85rem', fontWeight: 900, color: 'var(--uba-red-bright)', marginTop: '4px', lineHeight: 1.1 }}>
             {formatNumber(dossiersTraites)}
           </div>
-          <div style={{ fontSize: '0.88rem', color: 'var(--uba-white-cool)', fontWeight: 700, marginTop: '8px' }}>
+          <div style={{ fontSize: '0.82rem', color: 'var(--uba-white-cool)', fontWeight: 700, marginTop: '6px' }}>
             {tauxGlobal > 0 ? `${tauxGlobal}% du volume total` : '0 convention'}
           </div>
         </div>
 
         {/* En Attente */}
-        <div className="card" style={{ padding: '22px', borderLeft: '4px solid var(--uba-silver-metal)' }}>
-          <div style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--uba-silver-metal)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        <div className="card" style={{ padding: '18px 20px', borderLeft: '4px solid var(--uba-silver-metal)' }}>
+          <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--uba-silver-metal)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             En Attente de Tri
           </div>
-          <div style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--uba-white-cool)', marginTop: '6px', lineHeight: 1.1 }}>
+          <div style={{ fontSize: '1.85rem', fontWeight: 900, color: 'var(--uba-white-cool)', marginTop: '4px', lineHeight: 1.1 }}>
             {formatNumber(dossiersAttente)}
           </div>
-          <div style={{ fontSize: '0.88rem', color: 'var(--uba-silver-dark)', marginTop: '8px' }}>
+          <div style={{ fontSize: '0.82rem', color: 'var(--uba-silver-dark)', marginTop: '6px' }}>
             Exercices programmés
           </div>
         </div>
 
         {/* Boîtes Conditionnées */}
-        <div className="card" style={{ padding: '22px', borderLeft: '4px solid var(--uba-graphite)' }}>
-          <div style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--uba-silver-metal)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        <div className="card" style={{ padding: '18px 20px', borderLeft: '4px solid var(--uba-graphite)' }}>
+          <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--uba-silver-metal)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Boîtes Conditionnées
           </div>
-          <div style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--uba-white-cool)', marginTop: '6px', lineHeight: 1.1 }}>
+          <div style={{ fontSize: '1.85rem', fontWeight: 900, color: 'var(--uba-white-cool)', marginTop: '4px', lineHeight: 1.1 }}>
             {formatNumber(totalBoites)}
           </div>
-          <div style={{ fontSize: '0.88rem', color: 'var(--uba-silver-dark)', marginTop: '8px' }}>
+          <div style={{ fontSize: '0.82rem', color: 'var(--uba-silver-dark)', marginTop: '6px' }}>
             Site de Mazala
           </div>
         </div>
 
         {/* Agences Référencées */}
-        <div className="card" style={{ padding: '22px', borderLeft: '4px solid var(--uba-red-dark)' }}>
-          <div style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--uba-silver-metal)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        <div className="card" style={{ padding: '18px 20px', borderLeft: '4px solid var(--uba-red-dark)' }}>
+          <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--uba-silver-metal)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Agences Référencées
           </div>
-          <div style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--uba-white-cool)', marginTop: '6px', lineHeight: 1.1 }}>
+          <div style={{ fontSize: '1.85rem', fontWeight: 900, color: 'var(--uba-white-cool)', marginTop: '4px', lineHeight: 1.1 }}>
             {agencies.length}
           </div>
-          <div style={{ fontSize: '0.88rem', color: 'var(--uba-silver-dark)', marginTop: '8px' }}>
+          <div style={{ fontSize: '0.82rem', color: 'var(--uba-silver-dark)', marginTop: '6px' }}>
             Points de tri actifs
           </div>
         </div>
@@ -154,16 +161,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         {/* Incidents & Anomalies */}
         <div
           className="card"
-          style={{ padding: '22px', borderLeft: `4px solid ${incidentsCritiques.length > 0 ? 'var(--uba-red)' : 'var(--uba-anthracite)'}`, cursor: 'pointer' }}
+          style={{ padding: '18px 20px', borderLeft: `4px solid ${incidentsCritiques.length > 0 ? 'var(--uba-red)' : 'var(--uba-anthracite)'}`, cursor: 'pointer' }}
           onClick={() => onNavigate('incidents')}
         >
-          <div style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--uba-silver-metal)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--uba-silver-metal)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Incidents en cours
           </div>
-          <div style={{ fontSize: '2.5rem', fontWeight: 900, color: incidentsCritiques.length > 0 ? 'var(--uba-red-bright)' : 'var(--uba-white-cool)', marginTop: '6px', lineHeight: 1.1 }}>
+          <div style={{ fontSize: '1.85rem', fontWeight: 900, color: incidentsCritiques.length > 0 ? 'var(--uba-red-bright)' : 'var(--uba-white-cool)', marginTop: '4px', lineHeight: 1.1 }}>
             {incidentsOuverts.length}
           </div>
-          <div style={{ fontSize: '0.88rem', color: incidentsCritiques.length > 0 ? 'var(--uba-red-bright)' : 'var(--uba-silver-dark)', marginTop: '8px', fontWeight: 700 }}>
+          <div style={{ fontSize: '0.82rem', color: incidentsCritiques.length > 0 ? 'var(--uba-red-bright)' : 'var(--uba-silver-dark)', marginTop: '6px', fontWeight: 700 }}>
             {incidentsCritiques.length > 0 ? `${incidentsCritiques.length} critique(s)` : 'Tous maîtrisés'}
           </div>
         </div>
@@ -357,18 +364,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       >
                         <Printer size={14} />
                       </button>
-                      <button
-                        onClick={() => {
-                          if (window.confirm(`Supprimer le rapport "${rep.titre}" ?`)) {
-                            deleteDailyReport(rep.id);
-                          }
-                        }}
-                        className="btn btn-secondary btn-sm"
-                        style={{ padding: '5px 8px', color: 'var(--uba-red-bright)' }}
-                        title="Supprimer"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {!isStagiaire && (
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Supprimer le rapport "${rep.titre}" ?`)) {
+                              deleteDailyReport(rep.id);
+                            }
+                          }}
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '5px 8px', color: 'var(--uba-red-bright)' }}
+                          title="Supprimer"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
