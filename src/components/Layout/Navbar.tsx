@@ -26,11 +26,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   const getRoleBadge = (role?: string) => {
     switch (role) {
       case 'super_admin':
-        return <span className="badge badge-red" style={{ fontWeight: 800 }}>Super Admin</span>;
+        return <span className="badge-role">SUPER ADMIN</span>;
       case 'admin':
-        return <span className="badge badge-silver" style={{ fontWeight: 800 }}>Admin</span>;
+        return <span className="badge-role">ADMIN</span>;
       default:
-        return <span className="badge badge-black" style={{ fontWeight: 700 }}>Archiviste</span>;
+        return <span className="badge-role">ARCHIVISTE</span>;
     }
   };
 

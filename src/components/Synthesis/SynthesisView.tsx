@@ -366,18 +366,18 @@ export const SynthesisView: React.FC = () => {
               3. AVANCEMENT PAR AGENCE
             </div>
 
-            <div className="uba-table-container" style={{ border: '1px solid #E5E7EB' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#F3F4F6', color: '#111111' }}>
-                    <th style={{ padding: '7px 10px', textAlign: 'left', border: '1px solid #E5E7EB', fontWeight: 700 }}>AGENCE</th>
-                    <th style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #E5E7EB', fontWeight: 700 }}>CODE</th>
-                    <th style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid #E5E7EB', fontWeight: 700 }}>TRAITÉ</th>
-                    <th style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid #E5E7EB', fontWeight: 700 }}>EN ATTENTE</th>
-                    <th style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid #E5E7EB', fontWeight: 700 }}>TOTAL</th>
-                    <th style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid #E5E7EB', fontWeight: 700 }}>TAUX</th>
-                  </tr>
-                </thead>
+              <div className="uba-table-container">
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: 'var(--red)', color: '#FFFFFF' }}>
+                      <th style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 700 }}>AGENCE</th>
+                      <th style={{ padding: '7px 10px', textAlign: 'center', fontWeight: 700 }}>CODE</th>
+                      <th style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700 }}>TRAITÉ</th>
+                      <th style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700 }}>EN ATTENTE</th>
+                      <th style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700 }}>TOTAL</th>
+                      <th style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 700 }}>TAUX</th>
+                    </tr>
+                  </thead>
                 <tbody>
                   {currentSynthesis.repartitionAgences.map((ag, idx) => (
                     <tr key={idx} style={{ backgroundColor: idx % 2 === 1 ? '#FAFAFA' : '#FFFFFF' }}>
@@ -413,19 +413,19 @@ export const SynthesisView: React.FC = () => {
                 <div style={{ fontSize: '7.5pt', display: 'flex', gap: '10px', fontWeight: 700 }}>
                   <span><strong style={{ color: 'var(--brand)' }}>● T</strong> = Traité</span>
                   <span><strong style={{ color: '#4B5563' }}>● A</strong> = En Attente</span>
-                  <span><strong style={{ color: '#DC2626' }}>● O</strong> = Oublié</span>
+                  <span><strong style={{ color: 'var(--red)' }}>● O</strong> = Oublié</span>
                 </div>
               </div>
 
-              <div className="uba-table-container uba-table--scroll" style={{ border: '1px solid #E5E7EB' }}>
+              <div className="uba-table-container uba-table--scroll">
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8pt', textAlign: 'center' }}>
                   <thead>
-                    <tr style={{ backgroundColor: '#F3F4F6', color: '#111111' }}>
-                      <th style={{ padding: '6px', textAlign: 'left', width: '140px', border: '1px solid #E5E7EB', position: 'sticky', left: 0, backgroundColor: '#F3F4F6' }}>
+                    <tr style={{ backgroundColor: 'var(--red)', color: '#FFFFFF' }}>
+                      <th style={{ padding: '6px', textAlign: 'left', width: '140px', position: 'sticky', left: 0, backgroundColor: 'var(--red)', color: '#FFFFFF' }}>
                         AGENCE
                       </th>
                       {Object.keys(currentSynthesis.matrice[0]?.annees || {}).map(yr => (
-                        <th key={yr} style={{ padding: '6px', border: '1px solid #E5E7EB' }}>{yr}</th>
+                        <th key={yr} style={{ padding: '6px', color: '#FFFFFF' }}>{yr}</th>
                       ))}
                     </tr>
                   </thead>

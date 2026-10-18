@@ -156,41 +156,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     if (onCloseMobile) onCloseMobile();
                   }}
                   title={isCollapsed ? item.label : undefined}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: isCollapsed ? 'center' : 'flex-start',
-                    gap: isCollapsed ? 0 : '12px',
-                    padding: isCollapsed ? '12px' : '10px 14px',
-                    borderRadius: 'var(--radius-sm)',
-                    border: '1px solid',
-                    borderColor: isActive ? 'var(--uba-red)' : 'transparent',
-                    background: isActive ? 'var(--uba-red)' : 'transparent',
-                    color: isActive ? 'var(--uba-white-pure)' : 'var(--uba-silver-light)',
-                    fontWeight: isActive ? 800 : 600,
-                    fontSize: '0.94rem',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    transition: 'all 0.15s ease',
-                    width: '100%',
-                    boxShadow: isActive ? 'var(--glow-red)' : 'none'
-                  }}
-                  onMouseEnter={e => {
-                    if (!isActive) {
-                      e.currentTarget.style.backgroundColor = 'var(--uba-black-smoke)';
-                      e.currentTarget.style.borderColor = 'var(--uba-graphite)';
-                      e.currentTarget.style.color = 'var(--uba-white-pure)';
-                    }
-                  }}
-                  onMouseLeave={e => {
-                    if (!isActive) {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.borderColor = 'transparent';
-                      e.currentTarget.style.color = 'var(--uba-silver-light)';
-                    }
-                  }}
+                  className="nav-item"
+                  aria-current={isActive ? 'page' : undefined}
+                  style={isCollapsed ? { justifyContent: 'center', padding: '0' } : undefined}
                 >
-                  <Icon size={19} color={isActive ? 'var(--uba-white-pure)' : 'var(--uba-silver-metal)'} />
+                  <Icon size={19} color="var(--red)" />
                   {!isCollapsed && <span>{item.label}</span>}
                 </button>
               );

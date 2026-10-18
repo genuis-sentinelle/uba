@@ -169,19 +169,19 @@ export const TransferSlipPrintPreview: React.FC<TransferSlipPrintPreviewProps> =
             color: '#FFFFFF',
             marginBottom: '10px'
           }}>
-            <span style={{ display: 'inline-block', width: '4px', height: '16px', backgroundColor: '#E41E26' }} />
+            <span style={{ display: 'inline-block', width: '4px', height: '16px', backgroundColor: 'var(--red)' }} />
             LOTS ET AGENCES TRANSFÉRÉS
           </div>
 
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt' }}>
             <thead>
-              <tr style={{ backgroundColor: '#E41E26', color: '#FFFFFF' }}>
-                <th style={{ padding: '7px 10px', textAlign: 'left', border: '1px solid #E41E26' }}>AGENCE</th>
-                <th style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #E41E26', width: '70px' }}>CODE</th>
-                <th style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #E41E26', width: '80px' }}>EXERCICE</th>
-                <th style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid #E41E26', width: '90px' }}>BOÎTES</th>
-                <th style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid #E41E26', width: '120px' }}>CONVENTIONS</th>
-                <th style={{ padding: '7px 10px', textAlign: 'left', border: '1px solid #E41E26' }}>CONTRÔLE / ÉTAT</th>
+              <tr style={{ backgroundColor: 'var(--red)', color: '#FFFFFF' }}>
+                <th style={{ padding: '7px 10px', textAlign: 'left', border: '1px solid var(--red)' }}>AGENCE</th>
+                <th style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid var(--red)', width: '70px' }}>CODE</th>
+                <th style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid var(--red)', width: '80px' }}>EXERCICE</th>
+                <th style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid var(--red)', width: '90px' }}>BOÎTES</th>
+                <th style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid var(--red)', width: '120px' }}>CONVENTIONS</th>
+                <th style={{ padding: '7px 10px', textAlign: 'left', border: '1px solid var(--red)' }}>CONTRÔLE / ÉTAT</th>
               </tr>
             </thead>
             <tbody>
@@ -197,7 +197,7 @@ export const TransferSlipPrintPreview: React.FC<TransferSlipPrintPreviewProps> =
                   <td style={{ padding: '7px 10px', border: '1px solid #282828', color: '#FFFFFF' }}>{l.traitement}</td>
                 </tr>
               ))}
-              <tr style={{ backgroundColor: '#141414', fontWeight: 900, borderTop: '2px solid #E41E26', color: '#FFFFFF' }}>
+              <tr style={{ backgroundColor: '#141414', fontWeight: 900, borderTop: '2px solid var(--red)', color: '#FFFFFF' }}>
                 <td colSpan={3} style={{ padding: '8px 10px', border: '1px solid #282828', textAlign: 'right' }}>
                   TOTAL CHARGEMENT :
                 </td>
