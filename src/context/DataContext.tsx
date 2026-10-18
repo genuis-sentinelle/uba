@@ -30,6 +30,8 @@ import {
   deleteAgencyRemote,
   pushDailyReport,
   deleteDailyReportRemote,
+  pushSynthesisReport,
+  deleteSynthesisReportRemote,
   pushTransferSlip,
   deleteTransferSlipRemote,
   pushCarton,
@@ -111,29 +113,27 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser } = useAuth();
 
-  // Purge unique des anciennes données fictives et chargement automatique des 7 agences officielles UBA
+  // Initialisation des données opérationnelles réelles (13 au 16 octobre 2026)
   useEffect(() => {
-    const isCleaned = localStorage.getItem('archiva_uba_data_clean_v3_blank');
-    if (!isCleaned) {
+    const isSeeded = localStorage.getItem('archiva_uba_seed_v4_octobre_2026');
+    if (!isSeeded) {
       localStorage.setItem('archiva_uba_agencies', JSON.stringify(INITIAL_AGENCIES));
-      localStorage.removeItem('archiva_uba_members');
-      localStorage.removeItem('archiva_uba_daily_reports');
-      localStorage.removeItem('archiva_uba_synthesis_reports');
-      localStorage.removeItem('archiva_uba_incidents');
-      localStorage.removeItem('archiva_uba_cartons');
-      localStorage.removeItem('archiva_uba_slips');
-      localStorage.removeItem('archiva_uba_logs');
-      localStorage.removeItem('archiva_uba_attendance');
-      localStorage.setItem('archiva_uba_data_clean_v3_blank', 'true');
+      localStorage.setItem('archiva_uba_members', JSON.stringify(INITIAL_MEMBERS));
+      localStorage.setItem('archiva_uba_daily_reports', JSON.stringify(INITIAL_DAILY_REPORTS));
+      localStorage.setItem('archiva_uba_synthesis_reports', JSON.stringify(INITIAL_SYNTHESIS_REPORTS));
+      localStorage.setItem('archiva_uba_incidents', JSON.stringify(INITIAL_INCIDENTS));
+      localStorage.setItem('archiva_uba_cartons', JSON.stringify(INITIAL_CARTONS));
+      localStorage.setItem('archiva_uba_slips', JSON.stringify(INITIAL_SLIPS));
+      localStorage.setItem('archiva_uba_logs', JSON.stringify(INITIAL_LOGS));
+      localStorage.setItem('archiva_uba_seed_v4_octobre_2026', 'true');
       setAgencies(INITIAL_AGENCIES);
-      setTeamMembers([]);
-      setDailyReports([]);
-      setSynthesisReports([]);
-      setIncidents([]);
-      setCartons([]);
-      setTransferSlips([]);
-      setLogs([]);
-      setAttendance([]);
+      setTeamMembers(INITIAL_MEMBERS);
+      setDailyReports(INITIAL_DAILY_REPORTS);
+      setSynthesisReports(INITIAL_SYNTHESIS_REPORTS);
+      setIncidents(INITIAL_INCIDENTS);
+      setCartons(INITIAL_CARTONS);
+      setTransferSlips(INITIAL_SLIPS);
+      setLogs(INITIAL_LOGS);
     }
   }, []);
 
@@ -275,6 +275,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setAttendance(prev => {
           const map = new Map(prev.map(a => [`${a.date}_${a.memberId}`, a]));
           remote.attendance!.forEach(a => map.set(`${a.date}_${a.memberId}`, a));
+          return Array.from(map.values());
+        });
+      }
+      if (remote.synthesisReports && remote.synthesisReports.length > 0) {
+        setSynthesisReports(prev => {
+          const map = new Map(prev.map(s => [s.id, s]));
+          remote.synthesisReports!.forEach(s => map.set(s.id, s));
           return Array.from(map.values());
         });
       }
@@ -458,18 +465,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     setSynthesisReports(prev => [newSynthesis, ...prev]);
     addLog('Création Synthèse', `Synthèse de période : ${newSynthesis.titre}`, 'rapport');
+    pushSynthesisReport(newSynthesis);
     return { success: true, reportId: newSynthesis.id };
   };
 
   const updateSynthesisReport = (synthesis: SynthesisReport) => {
     setSynthesisReports(prev => prev.map(s => s.id === synthesis.id ? synthesis : s));
     addLog('Modification Synthèse', `Mise à jour : ${synthesis.titre}`, 'rapport');
+    pushSynthesisReport(synthesis);
     return { success: true, message: 'Synthèse mise à jour.' };
   };
 
   const deleteSynthesisReport = (id: string) => {
     setSynthesisReports(prev => prev.filter(s => s.id !== id));
     addLog('Suppression Synthèse', `Suppression synthèse ID ${id}`, 'rapport');
+    deleteSynthesisReportRemote(id);
     return { success: true, message: 'Synthèse supprimée.' };
   };
 
@@ -497,6 +507,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       `Synthèse certifiée (${type === 'chef_confidentiel' ? 'Confidentielle' : 'Publique Équipe'}) générée pour la période ${dateDebut} au ${dateFin} (${newSynthesis.dossiersTraites} conventions)`,
       'rapport'
     );
+    pushSynthesisReport(newSynthesis);
     return {
       success: true,
       reportId: newSynthesis.id,

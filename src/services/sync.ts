@@ -2,6 +2,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import {
   Agency,
   DailyReport,
+  SynthesisReport,
   CartonInventory,
   TransferSlip,
   ArchiveIncident,
@@ -165,6 +166,36 @@ export const deleteDailyReportRemote = (id: string) => {
   return pushSync({ table: 'daily_reports', kind: 'delete', id });
 };
 
+export const pushSynthesisReport = (synthesis: SynthesisReport) => {
+  return pushSync({
+    table: 'synthesis_reports',
+    kind: 'upsert',
+    row: {
+      id: synthesis.id,
+      titre: synthesis.titre,
+      date_debut: synthesis.dateDebut,
+      date_fin: synthesis.dateFin,
+      type: synthesis.type,
+      dossiers_traites: synthesis.dossiersTraites,
+      dossiers_en_attente: synthesis.dossiersEnAttente,
+      total_global: synthesis.totalGlobal,
+      boites_total: synthesis.boitesTotal,
+      agences_count: synthesis.agencesCount,
+      jours_couverts: synthesis.joursCouverts,
+      jours_manquants: synthesis.joursManquants,
+      matrice: synthesis.matrice,
+      repartition_agences: synthesis.repartitionAgences,
+      points_a_confirmer: synthesis.pointsAConfirmer,
+      cree_par: synthesis.creePar,
+      created_at: synthesis.dateCreation
+    }
+  });
+};
+
+export const deleteSynthesisReportRemote = (id: string) => {
+  return pushSync({ table: 'synthesis_reports', kind: 'delete', id });
+};
+
 export const pushTransferSlip = (slip: TransferSlip) => {
   return pushSync({
     table: 'transfer_slips',
@@ -281,6 +312,7 @@ export async function fetchAllRemote(): Promise<{
   agencies?: Agency[];
   teamMembers?: TeamMember[];
   dailyReports?: DailyReport[];
+  synthesisReports?: SynthesisReport[];
   cartons?: CartonInventory[];
   transferSlips?: TransferSlip[];
   incidents?: ArchiveIncident[];
@@ -288,20 +320,22 @@ export async function fetchAllRemote(): Promise<{
 } | null> {
   if (!isSupabaseConfigured || !supabase) return null;
   try {
-    const [agRes, tmRes, drRes, crRes, tsRes, inRes, atRes] = await Promise.allSettled([
+    const [agRes, tmRes, drRes, crRes, tsRes, inRes, atRes, synRes] = await Promise.allSettled([
       supabase.from('agencies').select('*'),
       supabase.from('team_members').select('*'),
       supabase.from('daily_reports').select('*'),
       supabase.from('cartons').select('*'),
       supabase.from('transfer_slips').select('*'),
       supabase.from('incidents').select('*'),
-      supabase.from('attendance_records').select('*')
+      supabase.from('attendance_records').select('*'),
+      supabase.from('synthesis_reports').select('*')
     ]);
 
     const result: {
       agencies?: Agency[];
       teamMembers?: TeamMember[];
       dailyReports?: DailyReport[];
+      synthesisReports?: SynthesisReport[];
       cartons?: CartonInventory[];
       transferSlips?: TransferSlip[];
       incidents?: ArchiveIncident[];
@@ -425,6 +459,28 @@ export async function fetchAllRemote(): Promise<{
         memberId: r.member_id,
         statut: r.statut,
         motif: r.motif || undefined
+      }));
+    }
+
+    if (synRes.status === 'fulfilled' && synRes.value.data && synRes.value.data.length > 0) {
+      result.synthesisReports = synRes.value.data.map((r: any) => ({
+        id: r.id,
+        titre: r.titre,
+        dateDebut: r.date_debut,
+        dateFin: r.date_fin,
+        type: r.type || 'chef_confidentiel',
+        dossiersTraites: r.dossiers_traites ?? 0,
+        dossiersEnAttente: r.dossiers_en_attente ?? 0,
+        totalGlobal: r.total_global ?? 0,
+        boitesTotal: r.boites_total ?? 0,
+        agencesCount: r.agences_count ?? 7,
+        joursCouverts: r.jours_couverts ?? 0,
+        joursManquants: r.jours_manquants || [],
+        matrice: r.matrice || [],
+        repartitionAgences: r.repartition_agences || [],
+        pointsAConfirmer: r.points_a_confirmer || [],
+        creePar: r.cree_par || 'Système',
+        dateCreation: r.created_at || new Date().toISOString()
       }));
     }
 

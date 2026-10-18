@@ -9,7 +9,7 @@ interface BottomNavProps {
 }
 
 const ITEMS: { id: NavigationTab; label: string; Icon: LucideIcon }[] = [
-  { id: 'dashboard', label: 'Accueil', Icon: LayoutDashboard },
+  { id: 'dashboard', label: 'Bord', Icon: LayoutDashboard },
   { id: 'daily-reports', label: 'Rapports', Icon: FileText },
   { id: 'attendance', label: 'Pointage', Icon: CheckCircle2 },
   { id: 'cartons', label: 'Cartons', Icon: Package }

@@ -70,6 +70,7 @@ const MainApp: React.FC = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
       <Navbar
+        currentTab={currentTab}
         onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
         onNavigate={setCurrentTab}
         onOpenCreateUser={handleOpenCreateUser}

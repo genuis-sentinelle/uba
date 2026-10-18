@@ -102,6 +102,27 @@ CREATE TABLE IF NOT EXISTS public.daily_reports (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
+-- 6bis. Synthèses Périodiques d'Activité
+CREATE TABLE IF NOT EXISTS public.synthesis_reports (
+    id TEXT PRIMARY KEY,
+    titre TEXT NOT NULL,
+    date_debut DATE NOT NULL,
+    date_fin DATE NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('chef_confidentiel', 'equipe_public')),
+    dossiers_traites INTEGER NOT NULL DEFAULT 0,
+    dossiers_en_attente INTEGER NOT NULL DEFAULT 0,
+    total_global INTEGER NOT NULL DEFAULT 0,
+    boites_total INTEGER NOT NULL DEFAULT 0,
+    agences_count INTEGER NOT NULL DEFAULT 7,
+    jours_couverts INTEGER NOT NULL DEFAULT 0,
+    jours_manquants JSONB DEFAULT '[]',
+    matrice JSONB DEFAULT '[]',
+    repartition_agences JSONB DEFAULT '[]',
+    points_a_confirmer JSONB DEFAULT '[]',
+    cree_par TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
 -- 7. Bordereaux de Transfert & Décharge
 CREATE TABLE IF NOT EXISTS public.transfer_slips (
     id TEXT PRIMARY KEY,
@@ -178,6 +199,7 @@ ALTER TABLE public.team_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.lots ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mouvements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.daily_reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.synthesis_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transfer_slips ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cartons ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.incidents ENABLE ROW LEVEL SECURITY;
@@ -200,6 +222,7 @@ CREATE POLICY "Lecture autorisée pour utilisateurs authentifiés" ON public.tea
 CREATE POLICY "Lecture autorisée pour utilisateurs authentifiés" ON public.lots FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Lecture autorisée pour utilisateurs authentifiés" ON public.mouvements FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Lecture autorisée pour utilisateurs authentifiés" ON public.daily_reports FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Lecture autorisée pour utilisateurs authentifiés" ON public.synthesis_reports FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Lecture autorisée pour utilisateurs authentifiés" ON public.transfer_slips FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Lecture autorisée pour utilisateurs authentifiés" ON public.cartons FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Lecture autorisée pour utilisateurs authentifiés" ON public.incidents FOR SELECT TO authenticated USING (true);
@@ -214,10 +237,11 @@ CREATE POLICY "Écriture membres réservée admin" ON public.team_members FOR AL
 CREATE POLICY "Écriture lots réservée admin" ON public.lots FOR ALL TO authenticated USING (is_admin_or_super()) WITH CHECK (is_admin_or_super());
 CREATE POLICY "Écriture mouvements réservée admin" ON public.mouvements FOR ALL TO authenticated USING (is_admin_or_super()) WITH CHECK (is_admin_or_super());
 CREATE POLICY "Écriture rapports réservée admin" ON public.daily_reports FOR ALL TO authenticated USING (is_admin_or_super()) WITH CHECK (is_admin_or_super());
+CREATE POLICY "Écriture synthèses réservée admin" ON public.synthesis_reports FOR ALL TO authenticated USING (is_admin_or_super()) WITH CHECK (is_admin_or_super());
 CREATE POLICY "Écriture bordereaux réservée admin" ON public.transfer_slips FOR ALL TO authenticated USING (is_admin_or_super()) WITH CHECK (is_admin_or_super());
 CREATE POLICY "Écriture cartons réservée admin" ON public.cartons FOR ALL TO authenticated USING (is_admin_or_super()) WITH CHECK (is_admin_or_super());
 CREATE POLICY "Écriture incidents réservée admin" ON public.incidents FOR ALL TO authenticated USING (is_admin_or_super()) WITH CHECK (is_admin_or_super());
 CREATE POLICY "Insertion logs autorisée" ON public.audit_logs FOR INSERT TO authenticated WITH CHECK (true);
 
 -- Synchronisation Realtime pour multi-sites
-ALTER PUBLICATION supabase_realtime ADD TABLE public.agencies, public.daily_reports, public.transfer_slips, public.cartons, public.incidents, public.lots;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.agencies, public.daily_reports, public.synthesis_reports, public.transfer_slips, public.cartons, public.incidents, public.lots;

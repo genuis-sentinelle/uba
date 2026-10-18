@@ -14,11 +14,12 @@ import {
   FileCode,
   CheckCircle2,
   AlertTriangle,
-  ChevronDown
+  ChevronDown,
+  Edit2
 } from 'lucide-react';
 
 export const SynthesisView: React.FC = () => {
-  const { synthesisReports, compileSynthesisFromReports } = useData();
+  const { synthesisReports, compileSynthesisFromReports, updateSynthesisReport } = useData();
   const { currentUser } = useAuth();
   const { toast } = useFeedback();
 
@@ -31,6 +32,12 @@ export const SynthesisView: React.FC = () => {
     isStagiaire ? 'equipe_public' : 'chef_confidentiel'
   );
   const [showCompilerModal, setShowCompilerModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editTitre, setEditTitre] = useState('');
+  const [editTraites, setEditTraites] = useState(0);
+  const [editAttente, setEditAttente] = useState(0);
+  const [editBoites, setEditBoites] = useState(0);
+  const [editPoints, setEditPoints] = useState('');
 
   // Dynamic default dates for current month
   const [dateDebutCompil, setDateDebutCompil] = useState(() => {
@@ -40,6 +47,34 @@ export const SynthesisView: React.FC = () => {
   const [dateFinCompil, setDateFinCompil] = useState(todayLocal());
 
   const currentSynthesis = synthesisReports.find(s => s.id === selectedReportId) || synthesisReports[0];
+
+  const openEditModal = () => {
+    if (!currentSynthesis) return;
+    setEditTitre(currentSynthesis.titre);
+    setEditTraites(currentSynthesis.dossiersTraites);
+    setEditAttente(currentSynthesis.dossiersEnAttente);
+    setEditBoites(currentSynthesis.boitesTotal);
+    setEditPoints((currentSynthesis.pointsAConfirmer || []).join('\n'));
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentSynthesis) return;
+    const totalGlobal = Number(editTraites) + Number(editAttente);
+    const updated = {
+      ...currentSynthesis,
+      titre: editTitre,
+      dossiersTraites: Number(editTraites),
+      dossiersEnAttente: Number(editAttente),
+      totalGlobal,
+      boitesTotal: Number(editBoites),
+      pointsAConfirmer: editPoints.split('\n').map(p => p.trim()).filter(Boolean)
+    };
+    updateSynthesisReport(updated);
+    toast('Synthèse mise à jour avec succès.', 'success');
+    setShowEditModal(false);
+  };
 
   const handleDownloadPdf = async () => {
     if (!currentSynthesis) return;
@@ -157,12 +192,23 @@ export const SynthesisView: React.FC = () => {
           </div>
 
           {!isStagiaire && (
-            <button
-              onClick={() => setShowCompilerModal(true)}
-              className="btn btn-ai ai-border btn-sm"
-            >
-              <Sparkles size={15} /> Compiler une synthèse
-            </button>
+            <>
+              {currentSynthesis && (
+                <button
+                  onClick={openEditModal}
+                  className="btn btn-secondary btn-sm"
+                  title="Modifier directement les données de la synthèse"
+                >
+                  <Edit2 size={15} /> Modifier
+                </button>
+              )}
+              <button
+                onClick={() => setShowCompilerModal(true)}
+                className="btn btn-ai ai-border btn-sm"
+              >
+                <Sparkles size={15} /> Compiler une synthèse
+              </button>
+            </>
           )}
 
           {currentSynthesis && (
@@ -567,6 +613,96 @@ export const SynthesisView: React.FC = () => {
                 </button>
                 <button type="submit" className="btn btn-primary btn-sm">
                   <Sparkles size={15} /> Lancer la compilation
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Éditer la Synthèse */}
+      {showEditModal && currentSynthesis && (
+        <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '620px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Edit2 size={20} color="var(--red)" />
+                <h3 style={{ margin: 0 }}>Modifier la Synthèse Opérationnelle</h3>
+              </div>
+              <button onClick={() => setShowEditModal(false)} className="btn btn-ghost btn-icon">
+                <X size={20} />
+              </button>
+            </div>
+
+            <p className="text-muted text-sm" style={{ marginBottom: '16px' }}>
+              Modifiez les chiffres et observations clés. Les modifications sont sauvegardées immédiatement en base de données et synchronisées en backend.
+            </p>
+
+            <form onSubmit={handleSaveEdit}>
+              <div className="form-group">
+                <label className="form-label">Titre de la Synthèse *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={editTitre}
+                  onChange={e => setEditTitre(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="grid-3" style={{ marginBottom: '16px' }}>
+                <div className="form-group">
+                  <label className="form-label">Dossiers Traités *</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={editTraites}
+                    onChange={e => setEditTraites(Number(e.target.value))}
+                    required
+                    min={0}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Dossiers en Attente *</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={editAttente}
+                    onChange={e => setEditAttente(Number(e.target.value))}
+                    required
+                    min={0}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Boîtes Total *</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    value={editBoites}
+                    onChange={e => setEditBoites(Number(e.target.value))}
+                    required
+                    min={0}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Points d'attention & Observations (1 par ligne)</label>
+                <textarea
+                  className="form-textarea"
+                  rows={6}
+                  value={editPoints}
+                  onChange={e => setEditPoints(e.target.value)}
+                  placeholder="Inscrivez les observations clés, une par ligne..."
+                />
+              </div>
+
+              <div className="modal-actions">
+                <button type="button" onClick={() => setShowEditModal(false)} className="btn btn-secondary btn-sm">
+                  Annuler
+                </button>
+                <button type="submit" className="btn btn-primary btn-sm">
+                  <CheckCircle2 size={15} /> Enregistrer les modifications
                 </button>
               </div>
             </form>

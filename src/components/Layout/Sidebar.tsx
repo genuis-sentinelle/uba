@@ -73,22 +73,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }, [isOpenMobile, onCloseMobile]);
 
   const navItems = [
-    { id: 'dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
-    { id: 'daily-reports', label: 'Rapports Journaliers', icon: FileText },
-    { id: 'synthesis', label: 'Synthèses de Période', icon: Files },
-    { id: 'transfer-slips', label: 'Bordereaux de Décharge', icon: Truck },
-    { id: 'cartons', label: 'Inventaire Cartons', icon: Package },
-    { id: 'attendance', label: 'Pointage Rapide (7h30)', icon: CheckCircle2 },
-    { id: 'incidents', label: 'Incidents & Anomalies', icon: AlertTriangle },
-    { id: 'agencies', label: 'Agences', icon: Building2 },
-    { id: 'conventions', label: 'Conventions & Matrice', icon: FolderArchive },
-    { id: 'team', label: 'Équipe Archiviste', icon: Users },
-    { id: 'audit-logs', label: 'Journal d\'Audit', icon: History },
-    { id: 'users', label: 'Utilisateurs & Droits', icon: ShieldCheck, adminOnly: true },
-    { id: 'settings', label: 'Paramètres & Données', icon: Settings }
+    { id: 'dashboard', label: 'Tableau de bord', shortLabel: 'Bord', icon: LayoutDashboard },
+    { id: 'daily-reports', label: 'Rapports Journaliers', shortLabel: 'Rapports', icon: FileText },
+    { id: 'synthesis', label: 'Synthèses de Période', shortLabel: 'Synthèse', icon: Files },
+    { id: 'transfer-slips', label: 'Bordereaux de Décharge', shortLabel: 'Décharge', icon: Truck },
+    { id: 'cartons', label: 'Inventaire Cartons', shortLabel: 'Cartons', icon: Package },
+    { id: 'attendance', label: 'Pointage Rapide (7h30)', shortLabel: 'Pointage', icon: CheckCircle2 },
+    { id: 'incidents', label: 'Incidents & Anomalies', shortLabel: 'Incidents', icon: AlertTriangle },
+    { id: 'agencies', label: 'Agences', shortLabel: 'Agences', icon: Building2 },
+    { id: 'conventions', label: 'Conventions & Matrice', shortLabel: 'Matrice', icon: FolderArchive },
+    { id: 'team', label: 'Équipe Archiviste', shortLabel: 'Équipe', icon: Users },
+    { id: 'audit-logs', label: 'Journal d\'Audit', shortLabel: 'Audit', icon: History },
+    { id: 'users', label: 'Utilisateurs & Droits', shortLabel: 'Droits', icon: ShieldCheck, adminOnly: true },
+    { id: 'settings', label: 'Paramètres & Données', shortLabel: 'Config', icon: Settings }
   ];
 
-  const sidebarWidth = isCollapsed ? '76px' : '255px';
+  const sidebarWidth = isCollapsed ? '84px' : '255px';
 
   return (
     <>
@@ -155,13 +155,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     onSelectTab(item.id as NavigationTab);
                     if (onCloseMobile) onCloseMobile();
                   }}
-                  title={isCollapsed ? item.label : undefined}
+                  title={item.label}
                   className="nav-item"
                   aria-current={isActive ? 'page' : undefined}
-                  style={isCollapsed ? { justifyContent: 'center', padding: '0' } : undefined}
+                  style={isCollapsed ? {
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '8px 2px',
+                    minHeight: '52px',
+                    textAlign: 'center'
+                  } : undefined}
                 >
-                  <Icon size={19} color="var(--red)" />
-                  {!isCollapsed && <span>{item.label}</span>}
+                  <Icon size={isCollapsed ? 18 : 19} color="var(--red)" />
+                  {isCollapsed ? (
+                    <span style={{
+                      fontSize: '0.625rem',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                      lineHeight: 1,
+                      color: isActive ? 'var(--white)' : 'var(--white-70)'
+                    }}>
+                      {item.shortLabel}
+                    </span>
+                  ) : (
+                    <span>{item.label}</span>
+                  )}
                 </button>
               );
             })}

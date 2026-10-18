@@ -4,13 +4,31 @@ import { useData } from '../../context/DataContext';
 import { LogOut, ChevronDown, Menu, UserPlus, Search, X, User as UserIcon } from 'lucide-react';
 
 interface NavbarProps {
+  currentTab?: string;
   onToggleMobileMenu?: () => void;
   onNavigate?: (tab: any) => void;
   onOpenCreateUser?: () => void;
   onOpenProfile?: () => void;
 }
 
+const TAB_MODULE_NAMES: Record<string, string> = {
+  dashboard: 'Tableau de Bord',
+  'daily-reports': 'Rapports Journaliers',
+  synthesis: 'Synthèse de Période',
+  'transfer-slips': 'Bordereaux de Décharge',
+  cartons: 'Inventaire Cartons',
+  attendance: 'Pointage 7h30',
+  incidents: 'Incidents & Anomalies',
+  agencies: 'Agences',
+  conventions: 'Matrice Conventions',
+  team: 'Équipe Archiviste',
+  'audit-logs': 'Journal d\'Audit',
+  users: 'Utilisateurs & Droits',
+  settings: 'Paramètres'
+};
+
 export const Navbar: React.FC<NavbarProps> = ({
+  currentTab,
   onToggleMobileMenu,
   onNavigate,
   onOpenCreateUser,
@@ -90,6 +108,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                 Sites Maya-Maya & Mazala
               </div>
             </div>
+            {currentTab && TAB_MODULE_NAMES[currentTab] && (
+              <div style={{ display: 'flex', alignItems: 'center', marginLeft: '4px' }}>
+                <span className="badge-role" style={{ fontSize: '0.6875rem', padding: '3px 8px' }}>
+                  {TAB_MODULE_NAMES[currentTab]}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
