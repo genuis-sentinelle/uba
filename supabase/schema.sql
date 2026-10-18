@@ -241,6 +241,7 @@ CREATE POLICY "Écriture synthèses réservée admin" ON public.synthesis_report
 CREATE POLICY "Écriture bordereaux réservée admin" ON public.transfer_slips FOR ALL TO authenticated USING (is_admin_or_super()) WITH CHECK (is_admin_or_super());
 CREATE POLICY "Écriture cartons réservée admin" ON public.cartons FOR ALL TO authenticated USING (is_admin_or_super()) WITH CHECK (is_admin_or_super());
 CREATE POLICY "Écriture incidents réservée admin" ON public.incidents FOR ALL TO authenticated USING (is_admin_or_super()) WITH CHECK (is_admin_or_super());
+CREATE POLICY "Écriture profiles réservée admin" ON public.profiles FOR ALL TO authenticated USING (is_admin_or_super()) WITH CHECK (is_admin_or_super());
 CREATE POLICY "Insertion logs autorisée" ON public.audit_logs FOR INSERT TO authenticated WITH CHECK (true);
 
 -- Synchronisation Realtime pour multi-sites

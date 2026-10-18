@@ -63,6 +63,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [currentUser]);
 
+  // Synchronisation continue des profils Supabase et vérification de sécurité (déconnexion immédiate si bloqué)
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return;
+    const client = supabase;
+
+    const syncProfiles = async () => {
+      try {
+        const { data: profiles, error } = await client.from('profiles').select('*');
+        if (!error && profiles && profiles.length > 0) {
+          setUsers(prev => {
+            const updated = [...prev];
+            profiles.forEach(p => {
+              const idx = updated.findIndex(u => u.email.toLowerCase() === p.email.toLowerCase() || u.id === p.id);
+              if (idx >= 0) {
+                updated[idx] = {
+                  ...updated[idx],
+                  nomComplet: p.nom_complet || updated[idx].nomComplet,
+                  role: p.role || updated[idx].role,
+                  titre: p.titre || updated[idx].titre,
+                  actif: p.actif !== undefined ? p.actif : updated[idx].actif
+                };
+              } else {
+                updated.push({
+                  id: p.id,
+                  nomComplet: p.nom_complet,
+                  email: p.email,
+                  role: p.role,
+                  titre: p.titre || 'Archiviste Opérationnel',
+                  actif: p.actif ?? true,
+                  dateCreation: p.created_at || new Date().toISOString()
+                });
+              }
+            });
+            return updated;
+          });
+
+          // Si l'utilisateur connecté est devenu inactif sur le serveur, déconnexion immédiate
+          if (currentUser) {
+            const myProfile = profiles.find(p => p.email.toLowerCase() === currentUser.email.toLowerCase() || p.id === currentUser.id);
+            if (myProfile && myProfile.actif === false) {
+              console.warn('[ARCHIVA UBA] Compte bloqué détecté par le serveur. Déconnexion immédiate.');
+              logout();
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[ARCHIVA UBA] Erreur lors de la synchronisation des profils:', err);
+      }
+    };
+
+    syncProfiles();
+    const interval = setInterval(syncProfiles, 15000); // Polling de sécurité toutes les 15s
+    return () => clearInterval(interval);
+  }, [currentUser]);
+
   /**
    * Création unique du Super Administrateur avec mot de passe haché de manière sécurisée
    */
@@ -103,6 +158,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('archiva_uba_users', JSON.stringify(nextUsers));
     localStorage.setItem('archiva_uba_current_user', JSON.stringify(newSuperAdmin));
 
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.from('profiles').upsert({
+          nom_complet: newSuperAdmin.nomComplet,
+          email: newSuperAdmin.email,
+          role: newSuperAdmin.role,
+          titre: newSuperAdmin.titre,
+          actif: true,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'email' });
+      } catch (err) {
+        console.warn('[ARCHIVA UBA] Super Admin profil non synchronisé sur Supabase:', err);
+      }
+    }
+
     return {
       success: true,
       message: 'Compte Super Administrateur unique initialisé avec succès.'
@@ -110,25 +180,82 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   /**
-   * Connexion sécurisée : vérifie le mot de passe réel (Local SHA-256 + Supabase Auth si configuré)
+   * Connexion sécurisée avec vérification stricte du statut actif/bloqué (Local SHA-256 + Supabase Auth)
    */
   const login = async (identifiant: string, password: string): Promise<{ success: boolean; message: string }> => {
     const query = identifiant.trim().toLowerCase();
     if (!query) return { success: false, message: 'Veuillez saisir votre identifiant.' };
     if (!password) return { success: false, message: 'Veuillez saisir votre mot de passe.' };
 
-    // 1. Si Supabase est actif, tenter l'authentification officielle
+    const emailAuth = query.includes('@') ? query : `${query.replace(/[^a-z0-9]/g, '.')}@uba.local`;
+
+    // 1. Si Supabase est actif, vérifier le statut actif sur la table profiles
     if (isSupabaseConfigured && supabase) {
       try {
-        const emailAuth = query.includes('@') ? query : `${query.replace(/[^a-z0-9]/g, '.')}@uba.local`;
+        const { data: remoteProfile } = await supabase
+          .from('profiles')
+          .select('*')
+          .or(`email.ilike.${emailAuth},nom_complet.ilike.${query}`)
+          .maybeSingle();
+
+        if (remoteProfile && remoteProfile.actif === false) {
+          await supabase.auth.signOut().catch(() => {});
+          return {
+            success: false,
+            message: 'Ce compte utilisateur a été bloqué par le Super Administrateur. Accès strictement refusé.'
+          };
+        }
+
         const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
           email: emailAuth,
           password: password
         });
+
         if (authData?.user && !authError) {
+          const { data: verifiedProfile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', authData.user.id)
+            .maybeSingle();
+
+          if (verifiedProfile && verifiedProfile.actif === false) {
+            await supabase.auth.signOut().catch(() => {});
+            return {
+              success: false,
+              message: 'Ce compte utilisateur a été bloqué par le Super Administrateur. Accès strictement refusé.'
+            };
+          }
+
           const found = users.find(u => u.email.toLowerCase() === emailAuth.toLowerCase() || u.id === authData.user.id);
           if (found) {
+            if (!found.actif) {
+              await supabase.auth.signOut().catch(() => {});
+              return {
+                success: false,
+                message: 'Ce compte utilisateur a été bloqué par le Super Administrateur. Accès strictement refusé.'
+              };
+            }
             setCurrentUser(found);
+            return { success: true, message: 'Connexion réussie.' };
+          } else if (verifiedProfile) {
+            const syncdUser: User = {
+              id: verifiedProfile.id,
+              nomComplet: verifiedProfile.nom_complet,
+              email: verifiedProfile.email,
+              role: verifiedProfile.role,
+              titre: verifiedProfile.titre || 'Archiviste Opérationnel',
+              actif: verifiedProfile.actif ?? true,
+              dateCreation: verifiedProfile.created_at || new Date().toISOString()
+            };
+            if (!syncdUser.actif) {
+              await supabase.auth.signOut().catch(() => {});
+              return {
+                success: false,
+                message: 'Ce compte utilisateur a été bloqué par le Super Administrateur. Accès strictement refusé.'
+              };
+            }
+            setUsers(prev => [syncdUser, ...prev.filter(u => u.email !== syncdUser.email)]);
+            setCurrentUser(syncdUser);
             return { success: true, message: 'Connexion réussie.' };
           }
         }
@@ -149,8 +276,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, message: 'Identifiant introuvable ou inexistant.' };
     }
 
+    // SÉCURITÉ STRICTE : Si le compte est désactivé ou bloqué, interdiction formelle d'accès
     if (!found.actif) {
-      return { success: false, message: 'Ce compte utilisateur a été désactivé par l\'administrateur.' };
+      if (isSupabaseConfigured && supabase) {
+        supabase.auth.signOut().catch(() => {});
+      }
+      return {
+        success: false,
+        message: 'Ce compte utilisateur a été bloqué par le Super Administrateur. Accès strictement refusé.'
+      };
     }
 
     // Vérification cryptographique du hash
@@ -229,6 +363,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     setUsers(prev => prev.filter(u => u.id !== targetUserId));
+
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      client.from('profiles').delete().eq('email', target.email).then(null, () => {});
+    }
+
     return { success: true, message: `L'utilisateur ${target.nomComplet} a été supprimé avec succès.` };
   };
 
@@ -236,8 +376,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!currentUser || (currentUser.role !== 'super_admin' && currentUser.role !== 'admin')) {
       return { success: false, message: 'Seuls les administrateurs peuvent ajouter des utilisateurs.' };
     }
-    if (currentUser.role === 'admin' && userData.role === 'super_admin') {
-      return { success: false, message: 'Un administrateur ne peut pas créer un Super Administrateur.' };
+    // RÈGLE STRICTE : Seul le Super Administrateur peut créer un autre Super Administrateur
+    if (userData.role === 'super_admin' && currentUser.role !== 'super_admin') {
+      return { success: false, message: 'Seul le Super Administrateur a le droit de créer un autre compte Super Administrateur.' };
     }
     const exists = users.some(u => u.email.toLowerCase() === userData.email.toLowerCase());
     if (exists) {
@@ -262,15 +403,69 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     setUsers(prev => [newUser, ...prev]);
+
+    // Synchronisation sur Supabase profiles
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      client.from('profiles').upsert({
+        nom_complet: newUser.nomComplet,
+        email: newUser.email,
+        role: newUser.role,
+        titre: newUser.titre,
+        actif: newUser.actif,
+        created_at: newUser.dateCreation,
+        updated_at: newUser.dateCreation
+      }, { onConflict: 'email' }).then(null, () => {});
+    }
+
     return { success: true, message: `Utilisateur ${newUser.nomComplet} créé avec succès.` };
   };
 
   const updateUser = (updatedUser: User): { success: boolean; message: string } => {
-    setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
-    if (currentUser?.id === updatedUser.id) {
-      setCurrentUser(updatedUser);
+    // RÈGLE STRICTE : Un admin standard ne peut pas promouvoir un utilisateur en super_admin
+    if (updatedUser.role === 'super_admin' && currentUser?.role !== 'super_admin') {
+      return { success: false, message: 'Seul le Super Administrateur peut accorder le rôle de Super Administrateur.' };
     }
-    return { success: true, message: `Compte de ${updatedUser.nomComplet} mis à jour.` };
+
+    setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+
+    // Si le compte de l'utilisateur connecté est désactivé/bloqué, déconnexion immédiate
+    if (currentUser?.id === updatedUser.id) {
+      if (!updatedUser.actif) {
+        logout();
+      } else {
+        setCurrentUser(updatedUser);
+      }
+    }
+
+    // Synchronisation immédiate du statut (actif/bloqué, rôle, nom) dans Supabase
+    if (isSupabaseConfigured && supabase) {
+      const client = supabase;
+      client
+        .from('profiles')
+        .update({
+          nom_complet: updatedUser.nomComplet,
+          role: updatedUser.role,
+          titre: updatedUser.titre,
+          actif: updatedUser.actif,
+          updated_at: new Date().toISOString()
+        })
+        .eq('email', updatedUser.email)
+        .then(({ error }: { error: any }) => {
+          if (error) {
+            console.warn('[ARCHIVA UBA] Échec mise à jour Supabase profile:', error.message);
+          }
+        }, (err: unknown) => {
+          console.warn('[ARCHIVA UBA] Erreur réseau mise à jour profil:', err);
+        });
+    }
+
+    return {
+      success: true,
+      message: updatedUser.actif
+        ? `Compte de ${updatedUser.nomComplet} activé et mis à jour.`
+        : `Compte de ${updatedUser.nomComplet} BLOQUÉ avec succès. L'accès au logiciel est désormais strictement interdit.`
+    };
   };
 
   return (

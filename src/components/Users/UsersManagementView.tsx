@@ -94,17 +94,28 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
     }
   };
 
-  const handleToggleActif = (u: User) => {
+  const handleToggleActif = async (u: User) => {
     if (u.id === currentUser?.id) {
-      toast('Vous ne pouvez pas désactiver votre propre compte.', 'error');
+      toast('Vous ne pouvez pas bloquer ou désactiver votre propre compte.', 'error');
       return;
     }
+
+    if (u.actif) {
+      const ok = await confirm({
+        title: `Bloquer l'utilisateur "${u.nomComplet}" ?`,
+        message: `Êtes-vous sûr de vouloir bloquer ce compte (${u.email}) ? L'utilisateur sera immédiatement déconnecté et ne pourra plus du tout se connecter au logiciel ARCHIVA tant qu'il n'aura pas été débloqué.`,
+        confirmLabel: 'Bloquer l\'accès',
+        danger: true
+      });
+      if (!ok) return;
+    }
+
     const updated = { ...u, actif: !u.actif };
-    updateUser(updated);
-    toast(`Compte ${u.nomComplet} ${updated.actif ? 'activé' : 'désactivé'}.`, 'info');
+    const res = updateUser(updated);
+    toast(res.message, updated.actif ? 'success' : 'info');
     addLog(
-      'Statut Utilisateur',
-      `Compte ${u.nomComplet} ${updated.actif ? 'activé' : 'désactivé'}`,
+      'Sécurité Utilisateur',
+      `Compte ${u.nomComplet} (${u.role}) ${updated.actif ? 'DÉBLOQUÉ et activé' : 'BLOQUÉ et accès interdit'}`,
       'utilisateur'
     );
   };
@@ -210,9 +221,15 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
                     {u.titre}
                   </td>
                   <td data-label="État">
-                    <span className={u.actif ? 'badge badge-green' : 'badge badge-silver'}>
-                      {u.actif ? 'Actif' : 'Désactivé'}
-                    </span>
+                    {u.actif ? (
+                      <span className="badge badge-green" style={{ fontWeight: 700 }}>
+                        ● Actif
+                      </span>
+                    ) : (
+                      <span className="badge badge-red" style={{ fontWeight: 800, letterSpacing: '0.02em' }}>
+                        ● Bloqué (Interdit)
+                      </span>
+                    )}
                   </td>
                   <td data-label="Actions" style={{ textAlign: 'right' }}>
                     <div style={{ display: 'inline-flex', gap: '6px' }}>
@@ -227,7 +244,8 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
                       <button
                         onClick={() => handleToggleActif(u)}
                         className="btn btn-secondary btn-sm btn-icon"
-                        title={u.actif ? 'Désactiver le compte' : 'Activer le compte'}
+                        style={{ color: u.actif ? 'var(--danger)' : 'var(--green)' }}
+                        title={u.actif ? 'Bloquer l\'accès au compte' : 'Débloquer l\'accès au compte'}
                       >
                         <Power size={14} />
                       </button>

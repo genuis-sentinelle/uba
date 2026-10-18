@@ -69,51 +69,52 @@ export const TransferSlipPrintPreview: React.FC<TransferSlipPrintPreviewProps> =
         </div>
       </div>
 
-      {/* A4 Printable Sheet — Noir, Rouge, Blanc */}
+      {/* A4 Printable Sheet — Blanc, Rouge, Noir officiel */}
       <div
         id="transfer-slip-printable-doc"
         ref={previewRef}
-        className="a4-page"
+        className="a4-page doc-light card"
         style={{
           width: '210mm',
           minHeight: '297mm',
           margin: '0 auto',
-          backgroundColor: '#080808',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
+          backgroundColor: '#FFFFFF',
+          border: '1px solid #E5E7EB',
           borderRadius: '4px',
-          padding: '18mm 16mm',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.85)',
-          color: '#FFFFFF',
-          fontFamily: 'Arial, sans-serif',
+          padding: '16mm 14mm',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+          color: '#111111',
+          fontFamily: 'var(--font-sans), Arial, sans-serif',
           fontSize: '9.5pt',
-          lineHeight: '1.4'
+          lineHeight: '1.45'
         }}
       >
         {/* BANDEAU ROUGE UBA */}
         <div style={{
-          backgroundColor: '#E41E26',
+          backgroundColor: 'var(--brand)',
           color: '#FFFFFF',
           padding: '14px 20px',
-          borderRadius: '2px',
+          borderRadius: '4px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '20px'
+          marginBottom: '18px'
         }}>
           <div>
-            <div style={{ fontSize: '14pt', fontWeight: 900, letterSpacing: '0.04em' }}>
+            <div style={{ fontSize: '13pt', fontWeight: 900, letterSpacing: '0.03em', color: '#FFFFFF' }}>
               BORDEREAU OFFICIEL DE TRANSFERT & DÉCHARGE D'ARCHIVES
             </div>
-            <div style={{ fontSize: '8.5pt', fontWeight: 600, opacity: 0.95 }}>
+            <div style={{ fontSize: '8.5pt', fontWeight: 600, opacity: 0.95, color: '#FFFFFF', marginTop: '2px' }}>
               ROTATION LOGISTIQUE SÉCURISÉE · MAYA-MAYA ⇄ MAZALA
             </div>
           </div>
           <div style={{
-            fontSize: '18pt',
+            fontSize: '16pt',
             fontWeight: 900,
             border: '2px solid #FFFFFF',
             padding: '2px 10px',
-            borderRadius: '4px'
+            borderRadius: '4px',
+            color: '#FFFFFF'
           }}>
             UBA
           </div>
@@ -121,93 +122,93 @@ export const TransferSlipPrintPreview: React.FC<TransferSlipPrintPreviewProps> =
 
         {/* Cadre Métadonnées Bordereau */}
         <div style={{
-          border: '1px solid #303030',
-          borderRadius: '4px',
+          border: '1px solid #E5E7EB',
+          borderRadius: '6px',
           padding: '12px 16px',
-          marginBottom: '20px',
-          backgroundColor: '#121212'
+          marginBottom: '18px',
+          backgroundColor: '#F9FAFB'
         }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', fontSize: '9pt' }}>
             <div>
-              <strong>N° Bordereau :</strong> <span style={{ color: 'var(--uba-red-bright)', fontWeight: 800 }}>{slip.numeroBordereau}</span>
+              <strong style={{ color: '#4B5563' }}>N° Bordereau :</strong> <span style={{ color: 'var(--brand)', fontWeight: 800 }}>{slip.numeroBordereau}</span>
             </div>
             <div>
-              <strong>Date d'expédition :</strong> {formatDate(slip.dateTransfert)}
+              <strong style={{ color: '#4B5563' }}>Date d'expédition :</strong> <span style={{ color: '#111111' }}>{formatDate(slip.dateTransfert)}</span>
             </div>
             <div>
-              <strong>Statut :</strong> <span className="badge badge-white">Conforme & Certifié</span>
+              <strong style={{ color: '#4B5563' }}>Statut :</strong> <span className="badge badge-black">Conforme & Certifié</span>
             </div>
             <div>
-              <strong>Site d'Origine (Départ) :</strong> {slip.siteDepart}
+              <strong style={{ color: '#4B5563' }}>Site d'Origine (Départ) :</strong> <span style={{ color: '#111111' }}>{slip.siteDepart}</span>
             </div>
             <div>
-              <strong>Site de Destination (Arrivée) :</strong> {slip.siteArrivee}
+              <strong style={{ color: '#4B5563' }}>Site de Destination (Arrivée) :</strong> <span style={{ color: '#111111' }}>{slip.siteArrivee}</span>
             </div>
             <div>
-              <strong>Véhicule / Immat. :</strong> {slip.vehicule}
+              <strong style={{ color: '#4B5563' }}>Véhicule / Immat. :</strong> <span style={{ color: '#111111' }}>{slip.vehicule}</span>
             </div>
             <div>
-              <strong>Transporteur / Chauffeur :</strong> {slip.chauffeurNom}
+              <strong style={{ color: '#4B5563' }}>Transporteur / Chauffeur :</strong> <span style={{ color: '#111111' }}>{slip.chauffeurNom}</span>
             </div>
             <div>
-              <strong>Total Boîtes Transférées :</strong> <strong>{slip.totalBoites} cartons</strong>
+              <strong style={{ color: '#4B5563' }}>Total Boîtes Transférées :</strong> <strong style={{ color: '#111111' }}>{slip.totalBoites} cartons</strong>
             </div>
             <div>
-              <strong>Total Conventions :</strong> <strong style={{ color: 'var(--uba-red-bright)' }}>{formatNumber(slip.totalConventions)}</strong>
+              <strong style={{ color: '#4B5563' }}>Total Conventions :</strong> <strong style={{ color: 'var(--brand)' }}>{formatNumber(slip.totalConventions)}</strong>
             </div>
           </div>
         </div>
 
         {/* Détail des Liasses & Boîtes */}
-        <div style={{ marginBottom: '24px' }}>
+        <div style={{ marginBottom: '20px' }}>
           <div style={{
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
             fontSize: '10.5pt',
             fontWeight: 800,
-            color: '#FFFFFF',
-            marginBottom: '10px'
+            color: '#111111',
+            marginBottom: '8px'
           }}>
-            <span style={{ display: 'inline-block', width: '4px', height: '16px', backgroundColor: 'var(--red)' }} />
+            <span style={{ display: 'inline-block', width: '4px', height: '14px', backgroundColor: 'var(--brand)', borderRadius: '2px' }} />
             LOTS ET AGENCES TRANSFÉRÉS
           </div>
 
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt' }}>
             <thead>
-              <tr style={{ backgroundColor: 'var(--red)', color: '#FFFFFF' }}>
-                <th style={{ padding: '7px 10px', textAlign: 'left', border: '1px solid var(--red)' }}>AGENCE</th>
-                <th style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid var(--red)', width: '70px' }}>CODE</th>
-                <th style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid var(--red)', width: '80px' }}>EXERCICE</th>
-                <th style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid var(--red)', width: '90px' }}>BOÎTES</th>
-                <th style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid var(--red)', width: '120px' }}>CONVENTIONS</th>
-                <th style={{ padding: '7px 10px', textAlign: 'left', border: '1px solid var(--red)' }}>CONTRÔLE / ÉTAT</th>
+              <tr style={{ backgroundColor: 'var(--brand)', color: '#FFFFFF' }}>
+                <th style={{ padding: '7px 10px', textAlign: 'left', border: '1px solid var(--brand)', color: '#FFFFFF' }}>AGENCE</th>
+                <th style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid var(--brand)', width: '70px', color: '#FFFFFF' }}>CODE</th>
+                <th style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid var(--brand)', width: '80px', color: '#FFFFFF' }}>EXERCICE</th>
+                <th style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid var(--brand)', width: '90px', color: '#FFFFFF' }}>BOÎTES</th>
+                <th style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid var(--brand)', width: '120px', color: '#FFFFFF' }}>CONVENTIONS</th>
+                <th style={{ padding: '7px 10px', textAlign: 'left', border: '1px solid var(--brand)', color: '#FFFFFF' }}>CONTRÔLE / ÉTAT</th>
               </tr>
             </thead>
             <tbody>
               {slip.lignes.map((l, idx) => (
-                <tr key={idx} style={{ backgroundColor: idx % 2 === 1 ? '#141414' : '#0B0B0B', color: '#FFFFFF' }}>
-                  <td style={{ padding: '7px 10px', border: '1px solid #282828', fontWeight: 700 }}>{l.agenceNom}</td>
-                  <td style={{ padding: '7px 10px', border: '1px solid #282828', textAlign: 'center', color: '#D9D9D9' }}>{l.code}</td>
-                  <td style={{ padding: '7px 10px', border: '1px solid #282828', textAlign: 'center', color: '#D9D9D9' }}>{l.exercice}</td>
-                  <td style={{ padding: '7px 10px', border: '1px solid #282828', textAlign: 'right', fontWeight: 700 }}>{l.boites}</td>
-                  <td style={{ padding: '7px 10px', border: '1px solid #282828', textAlign: 'right', fontWeight: 800, color: 'var(--uba-red-bright)' }}>
+                <tr key={idx} style={{ backgroundColor: idx % 2 === 1 ? '#FAFAFA' : '#FFFFFF', color: '#111111' }}>
+                  <td style={{ padding: '7px 10px', border: '1px solid #E5E7EB', fontWeight: 700, color: '#111111' }}>{l.agenceNom}</td>
+                  <td style={{ padding: '7px 10px', border: '1px solid #E5E7EB', textAlign: 'center', color: '#4B5563' }}>{l.code}</td>
+                  <td style={{ padding: '7px 10px', border: '1px solid #E5E7EB', textAlign: 'center', color: '#4B5563' }}>{l.exercice}</td>
+                  <td style={{ padding: '7px 10px', border: '1px solid #E5E7EB', textAlign: 'right', fontWeight: 700, color: '#111111' }}>{l.boites}</td>
+                  <td style={{ padding: '7px 10px', border: '1px solid #E5E7EB', textAlign: 'right', fontWeight: 800, color: 'var(--brand)' }}>
                     {formatNumber(l.conventions)}
                   </td>
-                  <td style={{ padding: '7px 10px', border: '1px solid #282828', color: '#FFFFFF' }}>{l.traitement}</td>
+                  <td style={{ padding: '7px 10px', border: '1px solid #E5E7EB', color: '#111111' }}>{l.traitement}</td>
                 </tr>
               ))}
-              <tr style={{ backgroundColor: '#141414', fontWeight: 900, borderTop: '2px solid var(--red)', color: '#FFFFFF' }}>
-                <td colSpan={3} style={{ padding: '8px 10px', border: '1px solid #282828', textAlign: 'right' }}>
+              <tr style={{ backgroundColor: '#F9FAFB', fontWeight: 900, borderTop: '2px solid var(--brand)', color: '#111111' }}>
+                <td colSpan={3} style={{ padding: '8px 10px', border: '1px solid #E5E7EB', textAlign: 'right', color: '#111111' }}>
                   TOTAL CHARGEMENT :
                 </td>
-                <td style={{ padding: '8px 10px', border: '1px solid #282828', textAlign: 'right', fontSize: '9.5pt' }}>
+                <td style={{ padding: '8px 10px', border: '1px solid #E5E7EB', textAlign: 'right', fontSize: '9.5pt', color: '#111111', fontWeight: 800 }}>
                   {slip.totalBoites}
                 </td>
-                <td style={{ padding: '8px 10px', border: '1px solid #282828', textAlign: 'right', color: 'var(--uba-red-bright)', fontSize: '10pt' }}>
+                <td style={{ padding: '8px 10px', border: '1px solid #E5E7EB', textAlign: 'right', color: 'var(--brand)', fontSize: '10pt', fontWeight: 900 }}>
                   {formatNumber(slip.totalConventions)}
                 </td>
-                <td style={{ padding: '8px 10px', border: '1px solid #282828', color: '#FFFFFF' }}>
+                <td style={{ padding: '8px 10px', border: '1px solid #E5E7EB', color: '#059669', fontWeight: 700 }}>
                   ✓ Validé à la sortie
                 </td>
               </tr>
@@ -218,15 +219,15 @@ export const TransferSlipPrintPreview: React.FC<TransferSlipPrintPreviewProps> =
         {/* Observations */}
         {slip.observations && (
           <div style={{
-            border: '1px solid #303030',
+            border: '1px solid #E5E7EB',
             borderRadius: '4px',
             padding: '10px 14px',
-            marginBottom: '28px',
-            backgroundColor: '#121212',
+            marginBottom: '24px',
+            backgroundColor: '#F9FAFB',
             fontSize: '8.5pt',
-            color: '#D9D9D9'
+            color: '#374151'
           }}>
-            <strong style={{ color: '#FFFFFF' }}>Observations de transport :</strong> {slip.observations}
+            <strong style={{ color: '#111111' }}>Observations de transport :</strong> {slip.observations}
           </div>
         )}
 
@@ -235,47 +236,47 @@ export const TransferSlipPrintPreview: React.FC<TransferSlipPrintPreviewProps> =
           display: 'grid',
           gridTemplateColumns: 'repeat(3, 1fr)',
           gap: '14px',
-          marginTop: '36px',
-          marginBottom: '30px'
+          marginTop: '28px',
+          marginBottom: '24px'
         }}>
           {/* Départ */}
-          <div style={{ border: '1px solid #303030', backgroundColor: '#121212', borderRadius: '4px', padding: '12px', textAlign: 'center' }}>
-            <div style={{ fontWeight: 800, fontSize: '8.5pt', color: '#FFFFFF' }}>
+          <div style={{ border: '1px solid #E5E7EB', backgroundColor: '#F9FAFB', borderRadius: '4px', padding: '12px', textAlign: 'center' }}>
+            <div style={{ fontWeight: 800, fontSize: '8.5pt', color: '#111111' }}>
               EXPÉDITION (MAYA-MAYA)
             </div>
-            <div style={{ fontSize: '7.5pt', color: '#A6A6A6', marginTop: '2px' }}>
+            <div style={{ fontSize: '7.5pt', color: '#6B7280', marginTop: '2px' }}>
               Visa du Chef d'équipe
             </div>
-            <div style={{ height: '45px' }} />
-            <div style={{ fontWeight: 700, fontSize: '8.5pt', color: 'var(--uba-red-bright)', borderTop: '1px dashed #303030', paddingTop: '4px' }}>
+            <div style={{ height: '40px' }} />
+            <div style={{ fontWeight: 700, fontSize: '8.5pt', color: 'var(--brand)', borderTop: '1px dashed #D1D5DB', paddingTop: '4px' }}>
               {slip.responsableDepart}
             </div>
           </div>
 
           {/* Transporteur */}
-          <div style={{ border: '1px solid #303030', backgroundColor: '#121212', borderRadius: '4px', padding: '12px', textAlign: 'center' }}>
-            <div style={{ fontWeight: 800, fontSize: '8.5pt', color: '#FFFFFF' }}>
+          <div style={{ border: '1px solid #E5E7EB', backgroundColor: '#F9FAFB', borderRadius: '4px', padding: '12px', textAlign: 'center' }}>
+            <div style={{ fontWeight: 800, fontSize: '8.5pt', color: '#111111' }}>
               PRISE EN CHARGE CHAUFFEUR
             </div>
-            <div style={{ fontSize: '7.5pt', color: '#A6A6A6', marginTop: '2px' }}>
+            <div style={{ fontSize: '7.5pt', color: '#6B7280', marginTop: '2px' }}>
               Signature du transporteur
             </div>
-            <div style={{ height: '45px' }} />
-            <div style={{ fontWeight: 700, fontSize: '8.5pt', color: '#FFFFFF', borderTop: '1px dashed #303030', paddingTop: '4px' }}>
+            <div style={{ height: '40px' }} />
+            <div style={{ fontWeight: 700, fontSize: '8.5pt', color: '#111111', borderTop: '1px dashed #D1D5DB', paddingTop: '4px' }}>
               {slip.chauffeurNom}
             </div>
           </div>
 
           {/* Réception */}
-          <div style={{ border: '1px solid #303030', backgroundColor: '#121212', borderRadius: '4px', padding: '12px', textAlign: 'center' }}>
-            <div style={{ fontWeight: 800, fontSize: '8.5pt', color: '#FFFFFF' }}>
+          <div style={{ border: '1px solid #E5E7EB', backgroundColor: '#F9FAFB', borderRadius: '4px', padding: '12px', textAlign: 'center' }}>
+            <div style={{ fontWeight: 800, fontSize: '8.5pt', color: '#111111' }}>
               DÉCHARGE / RÉCEPTION (MAZALA)
             </div>
-            <div style={{ fontSize: '7.5pt', color: '#A6A6A6', marginTop: '2px' }}>
+            <div style={{ fontSize: '7.5pt', color: '#6B7280', marginTop: '2px' }}>
               Contrôle et émargement
             </div>
-            <div style={{ height: '45px' }} />
-            <div style={{ fontWeight: 700, fontSize: '8.5pt', color: '#FFFFFF', borderTop: '1px dashed #303030', paddingTop: '4px' }}>
+            <div style={{ height: '40px' }} />
+            <div style={{ fontWeight: 700, fontSize: '8.5pt', color: '#111111', borderTop: '1px dashed #D1D5DB', paddingTop: '4px' }}>
               {slip.responsableArrivee}
             </div>
           </div>
@@ -284,12 +285,12 @@ export const TransferSlipPrintPreview: React.FC<TransferSlipPrintPreviewProps> =
         {/* PIED DE PAGE */}
         <div style={{
           marginTop: 'auto',
-          borderTop: '1px solid #E41E26',
+          borderTop: '1px solid var(--brand)',
           paddingTop: '6px',
           display: 'flex',
           justifyContent: 'space-between',
           fontSize: '7.5pt',
-          color: '#A6A6A6'
+          color: '#6B7280'
         }}>
           <span>ARCHIVA — Gestion des Archives UBA Congo</span>
           <span>Bordereau officiel de décharge juridique</span>
