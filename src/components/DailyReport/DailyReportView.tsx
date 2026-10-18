@@ -16,6 +16,8 @@ import {
   Filter
 } from 'lucide-react';
 
+import { useFeedback } from '../ui/Feedback';
+
 interface DailyReportViewProps {
   openedReportId?: string | null;
 }
@@ -23,6 +25,8 @@ interface DailyReportViewProps {
 export const DailyReportView: React.FC<DailyReportViewProps> = ({ openedReportId }) => {
   const { dailyReports, addDailyReport, updateDailyReport, deleteDailyReport } = useData();
   const { currentUser } = useAuth();
+  const { confirm, toast } = useFeedback();
+  const isStagiaire = currentUser?.role === 'stagiaire';
 
   const [isEditing, setIsEditing] = useState(false);
   const [editingReport, setEditingReport] = useState<DailyReport | null>(null);
@@ -109,7 +113,7 @@ export const DailyReportView: React.FC<DailyReportViewProps> = ({ openedReportId
         </div>
 
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-          {currentUser?.role === 'stagiaire' || currentUser?.role === 'user' ? (
+          {isStagiaire ? (
             <span className="badge badge-black" style={{ padding: '8px 14px', fontSize: '0.85rem', border: '1px solid var(--uba-anthracite)' }}>
               Mode Consultation (Lecture seule)
             </span>
@@ -215,7 +219,7 @@ export const DailyReportView: React.FC<DailyReportViewProps> = ({ openedReportId
                         <Printer size={15} /> Imprimer
                       </button>
 
-                      {currentUser?.role !== 'stagiaire' && currentUser?.role !== 'user' && (
+                      {!isStagiaire && (
                         <>
                           <button
                             onClick={() => handleDuplicate(rep)}
@@ -232,9 +236,16 @@ export const DailyReportView: React.FC<DailyReportViewProps> = ({ openedReportId
                             <Edit2 size={15} />
                           </button>
                           <button
-                            onClick={() => {
-                              if (window.confirm(`Supprimer définitivement le rapport "${rep.titre}" ?`)) {
+                            onClick={async () => {
+                              const ok = await confirm({
+                                title: 'Supprimer ce rapport ?',
+                                message: `Supprimer définitivement le rapport "${rep.titre}" ?`,
+                                confirmLabel: 'Supprimer',
+                                danger: true
+                              });
+                              if (ok) {
                                 deleteDailyReport(rep.id);
+                                toast(`Rapport "${rep.titre}" supprimé.`, 'info');
                               }
                             }}
                             className="btn btn-secondary btn-sm"

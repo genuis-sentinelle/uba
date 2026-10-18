@@ -4,10 +4,13 @@ import { useAuth } from '../../context/AuthContext';
 import { TeamMember } from '../../types';
 import { Users, Plus, Edit2, Trash2, Search, X, MapPin } from 'lucide-react';
 
+import { useFeedback } from '../ui/Feedback';
+
 export const TeamView: React.FC = () => {
   const { teamMembers, addTeamMember, updateTeamMember, deleteTeamMember } = useData();
   const { currentUser } = useAuth();
-  const isStagiaire = currentUser?.role === 'stagiaire' || currentUser?.role === 'user';
+  const { confirm, toast } = useFeedback();
+  const isStagiaire = currentUser?.role === 'stagiaire';
 
   const [search, setSearch] = useState('');
   const [filterSite, setFilterSite] = useState<'all' | 'Maya-Maya' | 'Mazala'>('all');
@@ -73,9 +76,16 @@ export const TeamView: React.FC = () => {
     setShowModal(false);
   };
 
-  const handleDelete = (m: TeamMember) => {
-    if (window.confirm(`Supprimer ${m.nomOfficiel} de la liste de l'équipe ?`)) {
+  const handleDelete = async (m: TeamMember) => {
+    const ok = await confirm({
+      title: 'Supprimer ce membre ?',
+      message: `Supprimer ${m.nomOfficiel} de la liste de l'équipe ?`,
+      confirmLabel: 'Supprimer',
+      danger: true
+    });
+    if (ok) {
       deleteTeamMember(m.id);
+      toast(`${m.nomOfficiel} a été retiré de l'équipe.`, 'info');
     }
   };
 

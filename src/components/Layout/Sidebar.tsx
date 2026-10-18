@@ -93,48 +93,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <>
       {/* Mobile backdrop */}
-      {isOpenMobile && (
-        <div
-          onClick={onCloseMobile}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(3, 3, 3, 0.75)',
-            zIndex: 40,
-            backdropFilter: 'blur(4px)'
-          }}
-          aria-hidden="true"
-        />
-      )}
+      <div
+        className={`sidebar-backdrop ${isOpenMobile ? 'is-open' : ''}`}
+        onClick={onCloseMobile}
+        aria-hidden="true"
+      />
 
-      <aside style={{
-        width: isOpenMobile ? '280px' : sidebarWidth,
-        backgroundColor: 'var(--uba-black-deep)',
-        borderRight: '1px solid var(--uba-anthracite)',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        padding: isCollapsed ? '16px 8px' : '18px 12px',
-        flexShrink: 0,
-        minHeight: 'calc(100vh - 66px)',
-        position: isOpenMobile ? 'fixed' : 'relative',
-        top: isOpenMobile ? 0 : undefined,
-        bottom: isOpenMobile ? 0 : undefined,
-        left: isOpenMobile ? 0 : undefined,
-        zIndex: isOpenMobile ? 50 : 10,
-        boxShadow: isOpenMobile ? 'var(--shadow-lg)' : 'none',
-        transition: 'width 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
-      }}>
+      <aside
+        className={`app-sidebar ${isOpenMobile ? 'is-open' : ''} ${isCollapsed ? 'is-collapsed' : ''}`}
+        aria-label="Navigation latérale"
+      >
         <div>
           {isOpenMobile && (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', padding: '0 8px' }}>
-              <img src="/images/uba-app-logo.png" alt="UBA Logo" style={{ height: '28px', objectFit: 'contain' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <img src="/images/uba-app-badge.png" alt="UBA Logo" style={{ height: '32px', width: '32px', borderRadius: '8px', objectFit: 'cover' }} />
+                <span style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-1)' }}>ARCHIVA UBA</span>
+              </div>
               <button
+                type="button"
                 onClick={onCloseMobile}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', color: 'var(--uba-silver-metal)' }}
+                className="btn btn-ghost btn-icon"
                 aria-label="Fermer le menu"
               >
-                <X size={22} />
+                <X size={20} />
               </button>
             </div>
           )}
@@ -154,7 +136,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             )}
 
             {navItems.map(item => {
-              const isStagiaire = currentUser?.role === 'stagiaire' || currentUser?.role === 'user';
+              const isStagiaire = currentUser?.role === 'stagiaire';
               // Les stagiaires n'ont pas accès aux logs, aux utilisateurs, ni aux paramètres
               if (isStagiaire && (item.id === 'audit-logs' || item.id === 'users' || item.id === 'settings')) {
                 return null;

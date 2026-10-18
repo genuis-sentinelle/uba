@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import {
   Agency,
   TeamMember,
@@ -8,7 +8,8 @@ import {
   Role,
   ArchiveIncident,
   CartonInventory,
-  TransferSlip
+  TransferSlip,
+  AttendanceRecord
 } from '../types';
 import {
   INITIAL_AGENCIES,
@@ -23,7 +24,25 @@ import {
 import { useAuth } from './AuthContext';
 import { selectSynthesisData } from '../domain/selectors';
 import { eventBus } from '../domain/events';
-import { supabaseSync } from '../services/supabaseSync';
+import {
+  pushLog,
+  pushAgency,
+  deleteAgencyRemote,
+  pushDailyReport,
+  deleteDailyReportRemote,
+  pushTransferSlip,
+  deleteTransferSlipRemote,
+  pushCarton,
+  deleteCartonRemote,
+  pushIncident,
+  deleteIncidentRemote,
+  pushTeamMember,
+  deleteTeamMemberRemote,
+  pushAttendanceRecord,
+  fetchAllRemote
+} from '../services/sync';
+import { newId, nextSlipNumber } from '../utils/ids';
+import { todayLocal } from '../utils/dates';
 
 interface DataContextType {
   agencies: Agency[];
@@ -34,10 +53,15 @@ interface DataContextType {
   cartons: CartonInventory[];
   transferSlips: TransferSlip[];
   logs: LogEntry[];
+  attendance: AttendanceRecord[];
 
   // Logs
   addLog: (action: string, details: string, category: LogEntry['category']) => void;
   clearLogs: () => void;
+
+  // Attendance
+  saveAttendance: (date: string, entries: { memberId: string; statut: AttendanceRecord['statut']; motif?: string }[]) => { success: boolean; message: string };
+  getAttendance: (date: string) => AttendanceRecord[];
 
   // Agencies CRUD
   addAgency: (agency: Omit<Agency, 'id' | 'dateCreation'>) => { success: boolean; message: string };
@@ -75,8 +99,8 @@ interface DataContextType {
   updateTransferSlip: (slip: TransferSlip) => { success: boolean; message: string };
   deleteTransferSlip: (id: string) => { success: boolean; message: string };
 
-  // Global Data Controls (Vierge vs Démo)
-  clearAllData: () => void;
+  // Global Data Controls
+  clearAllData: () => { success: boolean; message: string };
   loadDemoData: () => void;
   exportDataToJson: () => void;
   importDataFromJson: (jsonStr: string) => { success: boolean; message: string };
@@ -99,6 +123,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem('archiva_uba_cartons');
       localStorage.removeItem('archiva_uba_slips');
       localStorage.removeItem('archiva_uba_logs');
+      localStorage.removeItem('archiva_uba_attendance');
       localStorage.setItem('archiva_uba_data_clean_v3_blank', 'true');
       setAgencies(INITIAL_AGENCIES);
       setTeamMembers([]);
@@ -108,6 +133,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCartons([]);
       setTransferSlips([]);
       setLogs([]);
+      setAttendance([]);
     }
   }, []);
 
@@ -180,7 +206,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return INITIAL_LOGS;
   });
 
-  // Persistent storage
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => {
+    const saved = localStorage.getItem('archiva_uba_attendance');
+    if (saved) {
+      try { return JSON.parse(saved); } catch { return []; }
+    }
+    return [];
+  });
+
+  // Persistent storage (local first)
   useEffect(() => { localStorage.setItem('archiva_uba_agencies', JSON.stringify(agencies)); }, [agencies]);
   useEffect(() => { localStorage.setItem('archiva_uba_members', JSON.stringify(teamMembers)); }, [teamMembers]);
   useEffect(() => { localStorage.setItem('archiva_uba_daily_reports', JSON.stringify(dailyReports)); }, [dailyReports]);
@@ -188,48 +222,116 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => { localStorage.setItem('archiva_uba_incidents', JSON.stringify(incidents)); }, [incidents]);
   useEffect(() => { localStorage.setItem('archiva_uba_cartons', JSON.stringify(cartons)); }, [cartons]);
   useEffect(() => { localStorage.setItem('archiva_uba_slips', JSON.stringify(transferSlips)); }, [transferSlips]);
-  // Chargement initial depuis Supabase si disponible à distance
+  useEffect(() => { localStorage.setItem('archiva_uba_logs', JSON.stringify(logs.slice(0, 2000))); }, [logs]);
+  useEffect(() => { localStorage.setItem('archiva_uba_attendance', JSON.stringify(attendance)); }, [attendance]);
+
+  // Synchronisation distante initiale
   useEffect(() => {
-    supabaseSync.fetchAll().then(remote => {
+    fetchAllRemote().then(remote => {
       if (!remote) return;
       if (remote.agencies && remote.agencies.length > 0) {
-        setAgencies(prev => prev.length === 0 ? remote.agencies! : prev);
+        setAgencies(prev => {
+          const map = new Map(prev.map(a => [a.id, a]));
+          remote.agencies!.forEach(a => map.set(a.id, a));
+          return Array.from(map.values());
+        });
       }
       if (remote.teamMembers && remote.teamMembers.length > 0) {
-        setTeamMembers(prev => prev.length === 0 ? remote.teamMembers! : prev);
+        setTeamMembers(prev => {
+          const map = new Map(prev.map(m => [m.id, m]));
+          remote.teamMembers!.forEach(m => map.set(m.id, m));
+          return Array.from(map.values());
+        });
       }
       if (remote.dailyReports && remote.dailyReports.length > 0) {
-        setDailyReports(prev => prev.length === 0 ? remote.dailyReports! : prev);
+        setDailyReports(prev => {
+          const map = new Map(prev.map(r => [r.id, r]));
+          remote.dailyReports!.forEach(r => map.set(r.id, r));
+          return Array.from(map.values());
+        });
       }
       if (remote.cartons && remote.cartons.length > 0) {
-        setCartons(prev => prev.length === 0 ? remote.cartons! : prev);
+        setCartons(prev => {
+          const map = new Map(prev.map(c => [c.id, c]));
+          remote.cartons!.forEach(c => map.set(c.id, c));
+          return Array.from(map.values());
+        });
       }
       if (remote.transferSlips && remote.transferSlips.length > 0) {
-        setTransferSlips(prev => prev.length === 0 ? remote.transferSlips! : prev);
+        setTransferSlips(prev => {
+          const map = new Map(prev.map(s => [s.id, s]));
+          remote.transferSlips!.forEach(s => map.set(s.id, s));
+          return Array.from(map.values());
+        });
       }
       if (remote.incidents && remote.incidents.length > 0) {
-        setIncidents(prev => prev.length === 0 ? remote.incidents! : prev);
+        setIncidents(prev => {
+          const map = new Map(prev.map(i => [i.id, i]));
+          remote.incidents!.forEach(i => map.set(i.id, i));
+          return Array.from(map.values());
+        });
+      }
+      if (remote.attendance && remote.attendance.length > 0) {
+        setAttendance(prev => {
+          const map = new Map(prev.map(a => [`${a.date}_${a.memberId}`, a]));
+          remote.attendance!.forEach(a => map.set(`${a.date}_${a.memberId}`, a));
+          return Array.from(map.values());
+        });
       }
     });
   }, []);
 
-  const addLog = (action: string, details: string, category: LogEntry['category']) => {
+  const addLog = useCallback((action: string, details: string, category: LogEntry['category']) => {
     const newLog: LogEntry = {
-      id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: newId('log'),
       timestamp: new Date().toISOString(),
       userId: currentUser?.id || 'system',
       userName: currentUser?.nomComplet || 'Système',
-      userRole: (currentUser?.role || 'user') as Role,
+      userRole: (currentUser?.role || 'stagiaire') as Role,
       action,
       details,
       category
     };
-    setLogs(prev => [newLog, ...prev]);
-    supabaseSync.syncLog(newLog);
-  };
+    setLogs(prev => [newLog, ...prev].slice(0, 2000));
+    pushLog(newLog);
+  }, [currentUser]);
 
   const clearLogs = () => {
     setLogs([]);
+    addLog('Journal vidé', `Historique d'audit vidé par ${currentUser?.nomComplet || 'Utilisateur'}`, 'systeme');
+  };
+
+  // Pointage (Attendance)
+  const saveAttendance = (date: string, entries: { memberId: string; statut: AttendanceRecord['statut']; motif?: string }[]) => {
+    const newRecords: AttendanceRecord[] = entries.map(e => ({
+      id: `att-${date}-${e.memberId}`,
+      date,
+      memberId: e.memberId,
+      statut: e.statut,
+      motif: e.motif
+    }));
+
+    setAttendance(prev => {
+      const rest = prev.filter(a => a.date !== date);
+      return [...rest, ...newRecords];
+    });
+
+    // Pousser chaque pointage vers Supabase
+    newRecords.forEach(r => pushAttendanceRecord(r));
+
+    addLog(
+      'Pointage des présences',
+      `Pointage du ${date} enregistré pour ${entries.length} membre(s)`,
+      'equipe'
+    );
+    const presCount = entries.filter(e => e.statut !== 'absent').length;
+    const absCount = entries.filter(e => e.statut === 'absent').length;
+    eventBus.emit({ type: 'pointage.enregistre', date, presents: presCount, absents: absCount });
+    return { success: true, message: `Pointage du ${date} enregistré avec succès.` };
+  };
+
+  const getAttendance = (date: string) => {
+    return attendance.filter(a => a.date === date);
   };
 
   // Agency CRUD
@@ -241,20 +343,20 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const newAgency: Agency = {
       ...agencyData,
-      id: `ag-${Date.now()}`,
-      dateCreation: new Date().toISOString().split('T')[0]
+      id: newId('ag'),
+      dateCreation: todayLocal()
     };
 
     setAgencies(prev => [...prev, newAgency]);
     addLog('Création d\'agence', `Ajout de l'agence ${newAgency.nom} (Code ${newAgency.code})`, 'agence');
-    supabaseSync.syncAgency(newAgency);
+    pushAgency(newAgency);
     return { success: true, message: `L'agence ${newAgency.nom} a été ajoutée.` };
   };
 
   const updateAgency = (updatedAgency: Agency) => {
     setAgencies(prev => prev.map(a => a.id === updatedAgency.id ? updatedAgency : a));
     addLog('Modification d\'agence', `Mise à jour de l'agence ${updatedAgency.nom} (Code ${updatedAgency.code})`, 'agence');
-    supabaseSync.syncAgency(updatedAgency);
+    pushAgency(updatedAgency);
     return { success: true, message: `Agence ${updatedAgency.nom} mise à jour.` };
   };
 
@@ -262,9 +364,21 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const target = agencies.find(a => a.id === agencyId);
     if (!target) return { success: false, message: 'Agence introuvable.' };
 
+    const usedCartons = cartons.filter(c => c.agenceId === agencyId || c.agenceNom === target.nom).length;
+    const usedIncidents = incidents.filter(i => i.agenceId === agencyId || i.agenceNom === target.nom).length;
+    const usedReports = dailyReports.filter(r => r.transferts.some(t => t.agenceId === agencyId || t.agenceNom === target.nom)).length;
+    const totalUsed = usedCartons + usedIncidents + usedReports;
+
+    if (totalUsed > 0) {
+      return {
+        success: false,
+        message: `Suppression impossible : ${totalUsed} élément(s) liés (${usedCartons} cartons, ${usedIncidents} incidents, ${usedReports} rapports). Veuillez marquer l'agence comme "terminée" à la place.`
+      };
+    }
+
     setAgencies(prev => prev.filter(a => a.id !== agencyId));
     addLog('Suppression d\'agence', `Suppression de l'agence ${target.nom} (Code ${target.code})`, 'agence');
-    supabaseSync.deleteAgency(agencyId);
+    deleteAgencyRemote(agencyId);
     return { success: true, message: `Agence ${target.nom} supprimée.` };
   };
 
@@ -272,18 +386,18 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const addTeamMember = (memberData: Omit<TeamMember, 'id'>) => {
     const newMember: TeamMember = {
       ...memberData,
-      id: `m-${Date.now()}`
+      id: newId('m')
     };
     setTeamMembers(prev => [...prev, newMember]);
     addLog('Ajout Membre', `Nouveau membre : ${newMember.nomOfficiel} (${newMember.site})`, 'equipe');
-    supabaseSync.syncTeamMember(newMember);
+    pushTeamMember(newMember);
     return { success: true, message: `Membre ${newMember.nomOfficiel} ajouté.` };
   };
 
   const updateTeamMember = (member: TeamMember) => {
     setTeamMembers(prev => prev.map(m => m.id === member.id ? member : m));
     addLog('Modification Membre', `Mise à jour : ${member.nomOfficiel}`, 'equipe');
-    supabaseSync.syncTeamMember(member);
+    pushTeamMember(member);
     return { success: true, message: `Membre ${member.nomOfficiel} modifié.` };
   };
 
@@ -292,7 +406,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!target) return { success: false, message: 'Membre introuvable.' };
     setTeamMembers(prev => prev.filter(m => m.id !== memberId));
     addLog('Suppression Membre', `Suppression : ${target.nomOfficiel}`, 'equipe');
-    supabaseSync.deleteTeamMember(memberId);
+    deleteTeamMemberRemote(memberId);
     return { success: true, message: `Membre ${target.nomOfficiel} retiré.` };
   };
 
@@ -300,17 +414,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const addDailyReport = (reportData: Omit<DailyReport, 'id' | 'dateCreation' | 'version'>) => {
     const newReport: DailyReport = {
       ...reportData,
-      id: `rep-${Date.now()}`,
+      id: newId('rep'),
       version: 1,
       dateCreation: new Date().toISOString()
     };
     setDailyReports(prev => [newReport, ...prev]);
-    addLog('Création Rapport', `Nouveau rapport journalier (${newReport.titre})`, 'rapport');
+    addLog('Création Rapport', `Nouveau rapport journalier (${newReport.titre}) [Statut: ${newReport.statut}]`, 'rapport');
     eventBus.emit({ type: 'rapport.cree', rapportId: newReport.id });
     if (newReport.statut === 'valide') {
       eventBus.emit({ type: 'rapport.valide', rapportId: newReport.id, date: newReport.dateDebut });
     }
-    supabaseSync.syncDailyReport(newReport);
+    pushDailyReport(newReport);
     return { success: true, reportId: newReport.id };
   };
 
@@ -321,7 +435,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (report.statut === 'valide') {
       eventBus.emit({ type: 'rapport.valide', rapportId: report.id, date: report.dateDebut });
     }
-    supabaseSync.syncDailyReport(updated);
+    pushDailyReport(updated);
     return { success: true, message: 'Rapport mis à jour avec succès.' };
   };
 
@@ -331,7 +445,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (report) {
       addLog('Suppression Rapport', `Suppression du rapport : ${report.titre}`, 'rapport');
     }
-    supabaseSync.deleteDailyReport(id);
+    deleteDailyReportRemote(id);
     return { success: true, message: 'Rapport supprimé.' };
   };
 
@@ -339,7 +453,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const addSynthesisReport = (synthesisData: Omit<SynthesisReport, 'id' | 'dateCreation'>) => {
     const newSynthesis: SynthesisReport = {
       ...synthesisData,
-      id: `syn-${Date.now()}`,
+      id: newId('syn'),
       dateCreation: new Date().toISOString()
     };
     setSynthesisReports(prev => [newSynthesis, ...prev]);
@@ -359,7 +473,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true, message: 'Synthèse supprimée.' };
   };
 
-  // Compilation certifiée et déterministe (zéro chiffre inventé)
+  // Compilation certifiée et déterministe avec calcul cumulé
   const compileSynthesisFromReports = (dateDebut: string, dateFin: string, type: 'chef_confidentiel' | 'equipe_public') => {
     const reportsInRange = dailyReports.filter(r => r.dateDebut >= dateDebut && r.dateFin <= dateFin);
     if (reportsInRange.length === 0) {
@@ -373,13 +487,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       dateFin,
       type,
       currentUser?.nomComplet || 'Compilation Automatique',
-      cartons
+      cartons,
+      dailyReports // Passage de tous les rapports pour calcul d'attente cumulé
     );
 
     setSynthesisReports(prev => [newSynthesis, ...prev]);
     addLog(
       'Compilation Synthèse',
-      `Synthèse certifiée générée pour la période ${dateDebut} au ${dateFin} (${newSynthesis.dossiersTraites} conventions)`,
+      `Synthèse certifiée (${type === 'chef_confidentiel' ? 'Confidentielle' : 'Publique Équipe'}) générée pour la période ${dateDebut} au ${dateFin} (${newSynthesis.dossiersTraites} conventions)`,
       'rapport'
     );
     return {
@@ -393,26 +508,26 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const addIncident = (incData: Omit<ArchiveIncident, 'id' | 'dateSignalement'>) => {
     const newInc: ArchiveIncident = {
       ...incData,
-      id: `inc-${Date.now()}`,
-      dateSignalement: new Date().toISOString().split('T')[0]
+      id: newId('inc'),
+      dateSignalement: todayLocal()
     };
     setIncidents(prev => [newInc, ...prev]);
     addLog('Signalement Incident', `Incident : ${newInc.titre} (${newInc.severite})`, 'systeme');
-    supabaseSync.syncIncident(newInc);
+    pushIncident(newInc);
     return { success: true, message: 'Incident enregistré.' };
   };
 
   const updateIncident = (inc: ArchiveIncident) => {
     setIncidents(prev => prev.map(i => i.id === inc.id ? inc : i));
     addLog('Mise à jour Incident', `Incident ${inc.titre} passé au statut ${inc.statut}`, 'systeme');
-    supabaseSync.syncIncident(inc);
+    pushIncident(inc);
     return { success: true, message: 'Incident mis à jour.' };
   };
 
   const deleteIncident = (id: string) => {
     setIncidents(prev => prev.filter(i => i.id !== id));
     addLog('Suppression Incident', `Incident ID ${id} supprimé`, 'systeme');
-    supabaseSync.deleteIncident(id);
+    deleteIncidentRemote(id);
     return { success: true, message: 'Incident supprimé.' };
   };
 
@@ -420,26 +535,26 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const addCarton = (cartonData: Omit<CartonInventory, 'id' | 'dateEnregistrement'>) => {
     const newCarton: CartonInventory = {
       ...cartonData,
-      id: `cart-${Date.now()}`,
-      dateEnregistrement: new Date().toISOString().split('T')[0]
+      id: newId('cart'),
+      dateEnregistrement: todayLocal()
     };
     setCartons(prev => [newCarton, ...prev]);
     addLog('Inventaire Carton', `Nouveau carton répertorié : ${newCarton.numeroCarton}`, 'agence');
-    supabaseSync.syncCarton(newCarton);
+    pushCarton(newCarton);
     return { success: true, message: 'Carton enregistré à l\'inventaire.' };
   };
 
   const updateCarton = (carton: CartonInventory) => {
     setCartons(prev => prev.map(c => c.id === carton.id ? carton : c));
     addLog('Modification Carton', `Carton ${carton.numeroCarton} mis à jour (${carton.emplacement})`, 'agence');
-    supabaseSync.syncCarton(carton);
+    pushCarton(carton);
     return { success: true, message: 'Carton mis à jour.' };
   };
 
   const deleteCarton = (id: string) => {
     setCartons(prev => prev.filter(c => c.id !== id));
     addLog('Suppression Carton', `Carton ${id} retiré de l'inventaire`, 'agence');
-    supabaseSync.deleteCarton(id);
+    deleteCartonRemote(id);
     return { success: true, message: 'Carton supprimé.' };
   };
 
@@ -447,31 +562,35 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const addTransferSlip = (slipData: Omit<TransferSlip, 'id' | 'numeroBordereau'>) => {
     const newSlip: TransferSlip = {
       ...slipData,
-      id: `slip-${Date.now()}`,
-      numeroBordereau: `BORD-${new Date().toISOString().split('T')[0]}-${Math.floor(Math.random() * 90 + 10)}`
+      id: newId('slip'),
+      numeroBordereau: nextSlipNumber(transferSlips, slipData.siteDepart || 'Maya-Maya')
     };
     setTransferSlips(prev => [newSlip, ...prev]);
     addLog('Bordereau de Transfert', `Bordereau officiel émis : ${newSlip.numeroBordereau} (${newSlip.totalBoites} boîtes)`, 'rapport');
-    supabaseSync.syncTransferSlip(newSlip);
+    pushTransferSlip(newSlip);
     return { success: true, slipId: newSlip.id, message: 'Bordereau de décharge créé avec succès.' };
   };
 
   const updateTransferSlip = (slip: TransferSlip) => {
     setTransferSlips(prev => prev.map(s => s.id === slip.id ? slip : s));
     addLog('Mise à jour Bordereau', `Bordereau ${slip.numeroBordereau} mis à jour (${slip.statut})`, 'rapport');
-    supabaseSync.syncTransferSlip(slip);
+    pushTransferSlip(slip);
     return { success: true, message: 'Bordereau mis à jour.' };
   };
 
   const deleteTransferSlip = (id: string) => {
     setTransferSlips(prev => prev.filter(s => s.id !== id));
     addLog('Suppression Bordereau', `Bordereau ID ${id} supprimé`, 'rapport');
-    supabaseSync.deleteTransferSlip(id);
+    deleteTransferSlipRemote(id);
     return { success: true, message: 'Bordereau supprimé.' };
   };
 
-  // Reset to Clean Blank State
+  // Reset to Clean Blank State (Restricted to Super Admin)
   const clearAllData = () => {
+    if (currentUser?.role !== 'super_admin') {
+      return { success: false, message: 'Action réservée au Super Administrateur.' };
+    }
+
     setAgencies([]);
     setTeamMembers([]);
     setDailyReports([]);
@@ -479,6 +598,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIncidents([]);
     setCartons([]);
     setTransferSlips([]);
+    setAttendance([]);
     setLogs([]);
     localStorage.removeItem('archiva_uba_agencies');
     localStorage.removeItem('archiva_uba_members');
@@ -487,27 +607,26 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('archiva_uba_incidents');
     localStorage.removeItem('archiva_uba_cartons');
     localStorage.removeItem('archiva_uba_slips');
+    localStorage.removeItem('archiva_uba_attendance');
     localStorage.removeItem('archiva_uba_logs');
-    addLog('Réinitialisation', 'Toutes les données ont été vidées. Logiciel vierge initialisé.', 'systeme');
+    addLog('Réinitialisation Locale', 'Toutes les données locales de cet appareil ont été effacées.', 'systeme');
+    return { success: true, message: 'Données locales effacées avec succès.' };
   };
 
-  // Reload Reference Sample
+  // Reload Reference Sample (Restricted & safe)
   const loadDemoData = () => {
-    setAgencies(INITIAL_AGENCIES);
-    setTeamMembers(INITIAL_MEMBERS);
-    setDailyReports(INITIAL_DAILY_REPORTS);
-    setSynthesisReports(INITIAL_SYNTHESIS_REPORTS);
-    setIncidents(INITIAL_INCIDENTS);
-    setCartons(INITIAL_CARTONS);
-    setTransferSlips(INITIAL_SLIPS);
-    setLogs(INITIAL_LOGS);
-    addLog('Chargement Démo', 'Jeu de données de référence UBA chargé.', 'systeme');
+    // Non destructif : charge uniquement les agences de référence si vides
+    if (agencies.length === 0) {
+      setAgencies(INITIAL_AGENCIES);
+      INITIAL_AGENCIES.forEach(a => pushAgency(a));
+      addLog('Chargement Référence', 'Agences officielles UBA réinitialisées.', 'systeme');
+    }
   };
 
   // Export JSON
   const exportDataToJson = () => {
     const backup = {
-      version: '1.2',
+      version: '2.0',
       exportedAt: new Date().toISOString(),
       agencies,
       teamMembers,
@@ -516,33 +635,64 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       incidents,
       cartons,
       transferSlips,
+      attendance,
       logs
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `archiva_uba_backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `archiva_uba_backup_${todayLocal()}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  // Import JSON
+  // Import JSON with validation
   const importDataFromJson = (jsonStr: string) => {
+    if (currentUser?.role === 'stagiaire') {
+      return { success: false, message: 'Droits insuffisants pour importer une sauvegarde.' };
+    }
     try {
       const data = JSON.parse(jsonStr);
-      if (data.agencies) setAgencies(data.agencies);
-      if (data.teamMembers) setTeamMembers(data.teamMembers);
-      if (data.dailyReports) setDailyReports(data.dailyReports);
-      if (data.synthesisReports) setSynthesisReports(data.synthesisReports);
-      if (data.incidents) setIncidents(data.incidents);
-      if (data.cartons) setCartons(data.cartons);
-      if (data.transferSlips) setTransferSlips(data.transferSlips);
-      if (data.logs) setLogs(data.logs);
-      addLog('Import JSON', 'Données restaurées depuis une sauvegarde externe.', 'systeme');
-      return { success: true, message: 'Sauvegarde importée avec succès !' };
+      if (typeof data !== 'object' || data === null) {
+        return { success: false, message: 'Format de fichier de sauvegarde invalide.' };
+      }
+
+      if (Array.isArray(data.agencies)) {
+        setAgencies(data.agencies);
+        data.agencies.forEach((a: Agency) => pushAgency(a));
+      }
+      if (Array.isArray(data.teamMembers)) {
+        setTeamMembers(data.teamMembers);
+        data.teamMembers.forEach((m: TeamMember) => pushTeamMember(m));
+      }
+      if (Array.isArray(data.dailyReports)) {
+        setDailyReports(data.dailyReports);
+        data.dailyReports.forEach((r: DailyReport) => pushDailyReport(r));
+      }
+      if (Array.isArray(data.synthesisReports)) setSynthesisReports(data.synthesisReports);
+      if (Array.isArray(data.incidents)) {
+        setIncidents(data.incidents);
+        data.incidents.forEach((i: ArchiveIncident) => pushIncident(i));
+      }
+      if (Array.isArray(data.cartons)) {
+        setCartons(data.cartons);
+        data.cartons.forEach((c: CartonInventory) => pushCarton(c));
+      }
+      if (Array.isArray(data.transferSlips)) {
+        setTransferSlips(data.transferSlips);
+        data.transferSlips.forEach((s: TransferSlip) => pushTransferSlip(s));
+      }
+      if (Array.isArray(data.attendance)) {
+        setAttendance(data.attendance);
+        data.attendance.forEach((a: AttendanceRecord) => pushAttendanceRecord(a));
+      }
+      if (Array.isArray(data.logs)) setLogs(data.logs);
+
+      addLog('Import Sauvegarde', 'Données restaurées et synchronisées depuis un fichier JSON.', 'systeme');
+      return { success: true, message: 'Sauvegarde importée et synchronisée avec succès !' };
     } catch {
-      return { success: false, message: 'Fichier JSON invalide.' };
+      return { success: false, message: 'Erreur d\'analyse : le fichier JSON est corrompu.' };
     }
   };
 
@@ -557,8 +707,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         cartons,
         transferSlips,
         logs,
+        attendance,
         addLog,
         clearLogs,
+        saveAttendance,
+        getAttendance,
         addAgency,
         updateAgency,
         deleteAgency,

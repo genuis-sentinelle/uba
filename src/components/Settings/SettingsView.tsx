@@ -1,15 +1,15 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
+import { useFeedback } from '../ui/Feedback';
+import { can } from '../../utils/permissions';
 import {
-  RotateCcw,
   Trash2,
   Download,
   Upload,
-  CheckCircle,
-  AlertTriangle,
   Database,
-  Layers
+  Layers,
+  ShieldAlert
 } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
@@ -20,35 +20,45 @@ export const SettingsView: React.FC = () => {
     synthesisReports,
     logs,
     clearAllData,
-    loadDemoData,
     clearLogs,
     exportDataToJson,
     importDataFromJson
   } = useData();
 
   const { currentUser } = useAuth();
+  const { toast, confirm } = useFeedback();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const handleClearAll = async () => {
+    if (currentUser?.role !== 'super_admin') {
+      toast('Action réservée au Super Administrateur.', 'error');
+      return;
+    }
 
-  const handleClearAll = () => {
-    if (window.confirm('ATTENTION : Voulez-vous vraiment effacer TOUTES les données (agences, rapports, équipe) pour obtenir un logiciel entièrement VIERGE ?')) {
-      clearAllData();
-      setMessage({ type: 'success', text: 'Toutes les données de test ont été supprimées. L\'application est désormais vierge.' });
+    const ok = await confirm({
+      title: 'Effacer les données locales ?',
+      message: 'ATTENTION : Cette action réinitialise la mémoire locale de ce navigateur. Les données distantes archivées sur Supabase sont conservées.',
+      confirmLabel: 'Réinitialiser la mémoire locale',
+      danger: true
+    });
+
+    if (ok) {
+      const res = clearAllData();
+      toast(res.message, res.success ? 'success' : 'error');
     }
   };
 
-  const handleLoadDemo = () => {
-    if (window.confirm('Recharger le jeu de données d\'exemple UBA (rapports du 28/09 au 09/10, agences 901, 902, 904, 907) ?')) {
-      loadDemoData();
-      setMessage({ type: 'success', text: 'Modèle de démonstration UBA rechargé avec succès.' });
-    }
-  };
+  const handleClearLogs = async () => {
+    const ok = await confirm({
+      title: 'Vider le journal d\'audit ?',
+      message: 'Voulez-vous réinitialiser le journal d\'audit local ? Une ligne de traçabilité sera enregistrée.',
+      confirmLabel: 'Vider le journal',
+      danger: true
+    });
 
-  const handleClearLogs = () => {
-    if (window.confirm('Vider l\'historique des logs d\'audit ?')) {
+    if (ok) {
       clearLogs();
-      setMessage({ type: 'success', text: 'Historique des logs réinitialisé.' });
+      toast('Journal d\'audit local réinitialisé.', 'info');
     }
   };
 
@@ -60,174 +70,102 @@ export const SettingsView: React.FC = () => {
     reader.onload = (event) => {
       const content = event.target?.result as string;
       const res = importDataFromJson(content);
-      if (res.success) {
-        setMessage({ type: 'success', text: res.message });
-      } else {
-        setMessage({ type: 'error', text: res.message });
-      }
+      toast(res.message, res.success ? 'success' : 'error');
+      if (fileInputRef.current) fileInputRef.current.value = '';
     };
     reader.readAsText(file);
   };
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: '1000px', margin: '0 auto' }}>
+    <div className="page" style={{ maxWidth: '1000px' }}>
       {/* Header */}
-      <div style={{ marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '1.55rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
-          Paramètres & Gestion des Données
-        </h1>
-        <div style={{ fontSize: '0.92rem', color: '#D9D9D9', marginTop: '4px' }}>
-          Contrôle des volumes de données, réinitialisation à l'état vierge et sauvegardes.
+      <div className="page-head">
+        <div>
+          <h1>Paramètres & Données</h1>
+          <p className="text-muted text-sm" style={{ marginTop: '4px' }}>
+            Contrôle des volumes de données, sauvegardes JSON et maintenance.
+          </p>
         </div>
       </div>
 
-      {message && (
-        <div style={{
-          padding: '12px 16px',
-          borderRadius: 'var(--radius-sm)',
-          marginBottom: '20px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          backgroundColor: 'var(--uba-anthracite)',
-          color: '#FFFFFF',
-          border: '1px solid var(--uba-silver-dark)'
-        }}>
-          {message.type === 'success' ? <CheckCircle size={16} color="var(--uba-red-bright)" /> : <AlertTriangle size={16} color="var(--uba-red)" />}
-          <span style={{ fontSize: '0.92rem', fontWeight: 700 }}>{message.text}</span>
-          <button
-            onClick={() => setMessage(null)}
-            style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 800, color: '#FFFFFF' }}
-          >
-            ✕
-          </button>
-        </div>
-      )}
-
       {/* Grid: Actions */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        {/* Card: État vierge vs Démo */}
-        <div className="card" style={{ padding: '24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-            <Database size={20} color="var(--uba-red-bright)" />
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
-              Initialisation & État du Logiciel
-            </h2>
-          </div>
-          <p style={{ fontSize: '0.88rem', color: '#D9D9D9', marginBottom: '20px' }}>
-            Permet de basculer entre une base entièrement neuve sans aucune donnée de test, ou de recharger le jeu d'exemple UBA.
-          </p>
-
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-            gap: '16px'
-          }}>
-            <div style={{
-              border: '1px solid rgba(227, 30, 36, 0.4)',
-              borderRadius: 'var(--radius-sm)',
-              padding: '18px',
-              backgroundColor: 'rgba(227, 30, 36, 0.08)',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between'
-            }}>
-              <div>
-                <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--uba-red-bright)', marginBottom: '6px' }}>
-                  Vider toutes les données (Logiciel Vierge)
-                </div>
-                <div style={{ fontSize: '0.82rem', color: '#D9D9D9', marginBottom: '16px', lineHeight: 1.4 }}>
-                  Supprime l'intégralité des agences, rapports, équipes et historiques pour démarrer une utilisation réelle.
-                </div>
-              </div>
-              <button onClick={handleClearAll} className="btn btn-danger btn-sm" style={{ alignSelf: 'flex-start' }}>
-                <Trash2 size={14} /> Réinitialiser à zéro
-              </button>
-            </div>
-
-            <div style={{
-              border: '1px solid rgba(255, 255, 255, 0.12)',
-              borderRadius: 'var(--radius-sm)',
-              padding: '18px',
-              backgroundColor: 'rgba(14, 14, 14, 0.85)',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'space-between'
-            }}>
-              <div>
-                <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#FFFFFF', marginBottom: '6px' }}>
-                  Recharger le modèle de démonstration
-                </div>
-                <div style={{ fontSize: '0.82rem', color: '#D9D9D9', marginBottom: '16px', lineHeight: 1.4 }}>
-                  Recharge les agences (901, 902, 904, 907) et les rapports types pour tester le fonctionnement.
-                </div>
-              </div>
-              <button onClick={handleLoadDemo} className="btn btn-secondary btn-sm" style={{ alignSelf: 'flex-start' }}>
-                <RotateCcw size={14} /> Recharger la démo
-              </button>
-            </div>
-          </div>
-        </div>
-
+      <div className="stack">
         {/* Card: Export / Import JSON */}
-        <div className="card" style={{ padding: '24px' }}>
+        <div className="card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-            <Layers size={20} color="var(--uba-red-bright)" />
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
-              Sauvegardes & Restauration
-            </h2>
+            <Layers size={20} color="var(--brand-hi)" />
+            <h2 style={{ fontSize: '1.2rem', margin: 0 }}>Sauvegardes & Restauration</h2>
           </div>
-          <p style={{ fontSize: '0.88rem', color: '#D9D9D9', marginBottom: '20px' }}>
-            Sauvegardez l'état complet du logiciel sur votre disque dur ou restaurez une sauvegarde précédente.
+          <p className="text-muted text-sm" style={{ marginBottom: '16px' }}>
+            Sauvegardez l'intégralité des données en fichier JSON ou importez une archive précédente.
           </p>
 
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <div className="row">
             <button onClick={exportDataToJson} className="btn btn-primary btn-sm">
               <Download size={14} /> Exporter la sauvegarde (JSON)
             </button>
 
-            <button onClick={() => fileInputRef.current?.click()} className="btn btn-secondary btn-sm">
-              <Upload size={14} /> Importer un fichier JSON
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".json"
-              style={{ display: 'none' }}
-              onChange={handleFileUpload}
-            />
+            {can.manageUsers(currentUser?.role) && (
+              <>
+                <button onClick={() => fileInputRef.current?.click()} className="btn btn-secondary btn-sm">
+                  <Upload size={14} /> Importer une sauvegarde
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json"
+                  style={{ display: 'none' }}
+                  onChange={handleFileUpload}
+                />
+              </>
+            )}
 
-            <button onClick={handleClearLogs} className="btn btn-secondary btn-sm" style={{ color: '#DC2626' }}>
-              Vider uniquement les logs
+            <button onClick={handleClearLogs} className="btn btn-ghost btn-sm" style={{ color: 'var(--danger)' }}>
+              Vider le journal d'audit
             </button>
           </div>
         </div>
 
+        {/* Card: Réinitialisation (Super Admin Only) */}
+        {can.clearAll(currentUser?.role) && (
+          <div className="card" style={{ borderColor: 'rgba(255, 69, 58, 0.3)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+              <ShieldAlert size={20} color="var(--danger)" />
+              <h2 style={{ fontSize: '1.2rem', margin: 0, color: 'var(--danger)' }}>Zone d'Administration Sensible</h2>
+            </div>
+            <p className="text-muted text-sm" style={{ marginBottom: '16px' }}>
+              Réservé au Super Administrateur. Permet d'effacer les données mises en cache sur cet appareil.
+            </p>
+
+            <button onClick={handleClearAll} className="btn btn-danger btn-sm">
+              <Trash2 size={14} /> Vider le stockage local de l'appareil
+            </button>
+          </div>
+        )}
+
         {/* Current Volume Stats */}
-        <div className="card" style={{ padding: '20px' }}>
-          <h3 style={{ fontSize: '0.82rem', fontWeight: 800, color: '#D9D9D9', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '14px' }}>
-            Statistiques actuelles de la base locale
-          </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
-            <div style={{ padding: '12px', backgroundColor: 'rgba(6, 6, 6, 0.85)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: 'var(--radius-sm)' }}>
-              <div style={{ fontSize: '0.75rem', color: '#D9D9D9' }}>Agences</div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--uba-red-bright)', marginTop: '2px' }}>{agencies.length}</div>
+        <div className="card">
+          <h3 className="uba-section-title">Statistiques de la base de données</h3>
+          <div className="grid-auto">
+            <div className="card" style={{ backgroundColor: 'var(--surface-2)', padding: '14px' }}>
+              <div className="text-muted text-sm">Agences</div>
+              <div className="num" style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--brand-hi)', marginTop: '4px' }}>{agencies.length}</div>
             </div>
-            <div style={{ padding: '12px', backgroundColor: 'rgba(6, 6, 6, 0.85)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: 'var(--radius-sm)' }}>
-              <div style={{ fontSize: '0.75rem', color: '#D9D9D9' }}>Rapports journaliers</div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 900, color: '#FFFFFF', marginTop: '2px' }}>{dailyReports.length}</div>
+            <div className="card" style={{ backgroundColor: 'var(--surface-2)', padding: '14px' }}>
+              <div className="text-muted text-sm">Rapports journaliers</div>
+              <div className="num" style={{ fontSize: '1.5rem', fontWeight: 700, marginTop: '4px' }}>{dailyReports.length}</div>
             </div>
-            <div style={{ padding: '12px', backgroundColor: 'rgba(6, 6, 6, 0.85)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: 'var(--radius-sm)' }}>
-              <div style={{ fontSize: '0.75rem', color: '#D9D9D9' }}>Synthèses</div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--uba-red-bright)', marginTop: '2px' }}>{synthesisReports.length}</div>
+            <div className="card" style={{ backgroundColor: 'var(--surface-2)', padding: '14px' }}>
+              <div className="text-muted text-sm">Synthèses</div>
+              <div className="num" style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--brand-hi)', marginTop: '4px' }}>{synthesisReports.length}</div>
             </div>
-            <div style={{ padding: '12px', backgroundColor: 'rgba(6, 6, 6, 0.85)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: 'var(--radius-sm)' }}>
-              <div style={{ fontSize: '0.75rem', color: '#D9D9D9' }}>Membres d'équipe</div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 900, color: '#FFFFFF', marginTop: '2px' }}>{teamMembers.length}</div>
+            <div className="card" style={{ backgroundColor: 'var(--surface-2)', padding: '14px' }}>
+              <div className="text-muted text-sm">Membres d'équipe</div>
+              <div className="num" style={{ fontSize: '1.5rem', fontWeight: 700, marginTop: '4px' }}>{teamMembers.length}</div>
             </div>
-            <div style={{ padding: '12px', backgroundColor: 'rgba(6, 6, 6, 0.85)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: 'var(--radius-sm)' }}>
-              <div style={{ fontSize: '0.75rem', color: '#D9D9D9' }}>Entrées d'audit</div>
-              <div style={{ fontSize: '1.4rem', fontWeight: 900, color: 'var(--uba-red-bright)', marginTop: '2px' }}>{logs.length}</div>
+            <div className="card" style={{ backgroundColor: 'var(--surface-2)', padding: '14px' }}>
+              <div className="text-muted text-sm">Entrées d'audit</div>
+              <div className="num" style={{ fontSize: '1.5rem', fontWeight: 700, marginTop: '4px' }}>{logs.length}</div>
             </div>
           </div>
         </div>

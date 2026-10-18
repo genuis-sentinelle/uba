@@ -15,10 +15,13 @@ import {
   CheckCircle2
 } from 'lucide-react';
 
+import { useFeedback } from '../ui/Feedback';
+
 export const TransferSlipsView: React.FC = () => {
   const { transferSlips, agencies, addTransferSlip, updateTransferSlip, deleteTransferSlip } = useData();
   const { currentUser } = useAuth();
-  const isStagiaire = currentUser?.role === 'stagiaire' || currentUser?.role === 'user';
+  const { confirm, toast } = useFeedback();
+  const isStagiaire = currentUser?.role === 'stagiaire';
 
   const [previewSlip, setPreviewSlip] = useState<TransferSlip | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -215,9 +218,16 @@ export const TransferSlipsView: React.FC = () => {
                             <Edit2 size={13} /> Modifier
                           </button>
                           <button
-                            onClick={() => {
-                              if (window.confirm(`Supprimer le bordereau ${slip.numeroBordereau} ?`)) {
+                            onClick={async () => {
+                              const ok = await confirm({
+                                title: 'Supprimer ce bordereau ?',
+                                message: `Supprimer le bordereau ${slip.numeroBordereau} ?`,
+                                confirmLabel: 'Supprimer',
+                                danger: true
+                              });
+                              if (ok) {
                                 deleteTransferSlip(slip.id);
+                                toast(`Bordereau ${slip.numeroBordereau} supprimé.`, 'info');
                               }
                             }}
                             className="btn btn-secondary btn-sm"

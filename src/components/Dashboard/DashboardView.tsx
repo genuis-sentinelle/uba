@@ -17,6 +17,8 @@ import {
   UserCheck
 } from 'lucide-react';
 
+import { useFeedback } from '../ui/Feedback';
+
 interface DashboardViewProps {
   onNavigate: (tab: any) => void;
   onOpenReport: (reportId: string) => void;
@@ -31,7 +33,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 }) => {
   const { agencies, dailyReports, synthesisReports, cartons, incidents, teamMembers, loadDemoData, deleteDailyReport } = useData();
   const { currentUser } = useAuth();
-  const isStagiaire = currentUser?.role === 'stagiaire' || currentUser?.role === 'user';
+  const { confirm, toast } = useFeedback();
+  const isStagiaire = currentUser?.role === 'stagiaire';
 
   // Dynamic calculations from actual data
   const totalConventionsAgences = agencies.reduce((acc, a) => acc + (a.conventionsCount || 0), 0);
@@ -366,13 +369,20 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       </button>
                       {!isStagiaire && (
                         <button
-                          onClick={() => {
-                            if (window.confirm(`Supprimer le rapport "${rep.titre}" ?`)) {
+                          onClick={async () => {
+                            const ok = await confirm({
+                              title: 'Supprimer ce rapport ?',
+                              message: `Supprimer le rapport "${rep.titre}" ?`,
+                              confirmLabel: 'Supprimer',
+                              danger: true
+                            });
+                            if (ok) {
                               deleteDailyReport(rep.id);
+                              toast(`Rapport "${rep.titre}" supprimé.`, 'info');
                             }
                           }}
                           className="btn btn-secondary btn-sm"
-                          style={{ padding: '5px 8px', color: 'var(--uba-red-bright)' }}
+                          style={{ padding: '5px 8px', color: 'var(--brand-hi)' }}
                           title="Supprimer"
                         >
                           <Trash2 size={14} />

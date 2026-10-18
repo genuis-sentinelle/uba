@@ -1,4 +1,4 @@
-export type Role = 'super_admin' | 'admin' | 'stagiaire' | 'user';
+export type Role = 'super_admin' | 'admin' | 'stagiaire';
 
 export interface User {
   id: string;
@@ -8,6 +8,16 @@ export interface User {
   titre: string;
   actif: boolean;
   dateCreation: string;
+  passwordHash?: string;
+  salt?: string;
+}
+
+export interface AttendanceRecord {
+  id: string;
+  date: string;
+  memberId: string;
+  statut: 'present' | 'mazala' | 'ordinateur' | 'absent';
+  motif?: string;
 }
 
 export interface LogEntry {

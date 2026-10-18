@@ -1,6 +1,3 @@
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
-
 export async function exportElementToPdf(elementId: string, filename: string): Promise<boolean> {
   const element = document.getElementById(elementId);
   if (!element) {
@@ -9,11 +6,17 @@ export async function exportElementToPdf(elementId: string, filename: string): P
   }
 
   try {
+    const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+      import('jspdf'),
+      import('html2canvas')
+    ]);
+
     const canvas = await html2canvas(element, {
-      scale: 2, // High resolution
+      scale: 2,
       useCORS: true,
       logging: false,
-      backgroundColor: '#ffffff'
+      backgroundColor: '#ffffff',
+      windowWidth: 794 // Standard A4 width reference in pixels
     });
 
     const imgData = canvas.toDataURL('image/png');
@@ -23,8 +26,8 @@ export async function exportElementToPdf(elementId: string, filename: string): P
       format: 'a4'
     });
 
-    const imgWidth = 210; // A4 width in mm
-    const pageHeight = 297; // A4 height in mm
+    const imgWidth = 210;
+    const pageHeight = 297;
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
     let heightLeft = imgHeight;
     let position = 0;
@@ -43,8 +46,6 @@ export async function exportElementToPdf(elementId: string, filename: string): P
     return true;
   } catch (error) {
     console.error('Erreur lors de la génération du PDF :', error);
-    // Fallback à l'impression navigateur
-    window.print();
     return false;
   }
 }

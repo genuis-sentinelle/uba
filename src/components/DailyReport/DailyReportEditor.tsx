@@ -2,7 +2,10 @@ import React, { useState } from 'react';
 import { DailyReport, DailyReportMouvement } from '../../types';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
+import { useFeedback } from '../ui/Feedback';
 import { formatNumber } from '../../utils/formatters';
+import { parseLocalDate, todayLocal } from '../../utils/dates';
+import { newId } from '../../utils/ids';
 import {
   Calendar,
   Users,
@@ -14,7 +17,8 @@ import {
   ArrowRight,
   Save,
   Check,
-  FileCheck
+  FileCheck,
+  DownloadCloud
 } from 'lucide-react';
 
 interface DailyReportEditorProps {
@@ -24,22 +28,24 @@ interface DailyReportEditorProps {
 }
 
 export const DailyReportEditor: React.FC<DailyReportEditorProps> = ({ initialReport, onSave, onCancel }) => {
-  const { agencies, teamMembers, addDailyReport } = useData();
+  const { agencies, teamMembers, getAttendance, dailyReports } = useData();
   const { currentUser, users } = useAuth();
+  const { toast } = useFeedback();
 
   const [step, setStep] = useState(1);
 
-  // Form State — Propre et dynamique
+  // Form State
   const [titre, setTitre] = useState(initialReport?.titre || `Rapport Journalier d'Activité — ${new Date().toLocaleDateString('fr-FR')}`);
-  const [dateDebut, setDateDebut] = useState(initialReport?.dateDebut || new Date().toISOString().split('T')[0]);
-  const [dateFin, setDateFin] = useState(initialReport?.dateFin || new Date().toISOString().split('T')[0]);
+  const [dateDebut, setDateDebut] = useState(initialReport?.dateDebut || todayLocal());
+  const [dateFin, setDateFin] = useState(initialReport?.dateFin || todayLocal());
   const [horaires, setHoraires] = useState(initialReport?.horaires || '7h30 – 16h30');
   const [chefNom, setChefNom] = useState(initialReport?.chefNom || currentUser?.nomComplet || '');
   const [superviseurs, setSuperviseurs] = useState<string[]>(initialReport?.superviseurs || []);
 
-  const [presents, setPresents] = useState<number>(initialReport?.presents || 0);
   const [effectifTotal, setEffectifTotal] = useState<number>(initialReport?.effectifTotal || 0);
   const [absents, setAbsents] = useState<number>(initialReport?.absents || 0);
+  const [absentsMotifs, setAbsentsMotifs] = useState<string>(initialReport?.absentsMotifs || '');
+  const presents = Math.max(0, effectifTotal - absents);
 
   const [equipeMazala, setEquipeMazala] = useState<string[]>(initialReport?.equipeMazala || []);
   const [equipeOrdinateur, setEquipeOrdinateur] = useState<string[]>(initialReport?.equipeOrdinateur || []);
@@ -63,44 +69,116 @@ export const DailyReportEditor: React.FC<DailyReportEditorProps> = ({ initialRep
   const ecart = totalDeclare - totalCalcule;
   const aEcart = ecart !== 0;
 
+  // Importer le pointage du jour (C4/C5)
+  const handleImportAttendance = () => {
+    const records = getAttendance(dateDebut);
+    if (records.length === 0) {
+      toast(`Aucun pointage enregistré pour le ${dateDebut}. Effectuez l'appel dans la section Pointage.`, 'info');
+      return;
+    }
+
+    const mazalaNames: string[] = [];
+    const ordiNames: string[] = [];
+    let abs = 0;
+    const absMotifsList: string[] = [];
+
+    records.forEach(r => {
+      const member = teamMembers.find(m => m.id === r.memberId);
+      const name = member?.nomOfficiel || r.memberId;
+      if (r.statut === 'absent') {
+        abs++;
+        if (r.motif) absMotifsList.push(`${name} (${r.motif})`);
+      } else {
+        if (r.statut === 'mazala') mazalaNames.push(name);
+        if (r.statut === 'ordinateur') ordiNames.push(name);
+      }
+    });
+
+    setEffectifTotal(records.length);
+    setAbsents(abs);
+    if (absMotifsList.length > 0) {
+      setAbsentsMotifs(absMotifsList.join(', '));
+    }
+    if (mazalaNames.length > 0) setEquipeMazala(mazalaNames);
+    if (ordiNames.length > 0) setEquipeOrdinateur(ordiNames);
+
+    toast(`Pointage du ${dateDebut} importé avec succès (${records.length - abs} présents, ${abs} absent(s)).`, 'success');
+  };
+
   // Add transfer row
   const handleAddTransfer = () => {
+    const firstAg = agencies[0];
     const newTr: DailyReportMouvement = {
-      id: `tr-${Date.now()}`,
-      agenceId: agencies[0]?.id || 'ag-901',
-      agenceNom: agencies[0]?.nom || 'City-Center',
-      code: agencies[0]?.code || '901',
-      exercice: 2019,
+      id: newId('tr'),
+      agenceId: firstAg?.id || '',
+      agenceNom: firstAg?.nom || '',
+      code: firstAg?.code || '',
+      exercice: new Date().getFullYear(),
       conventions: 0,
       boites: 0,
       traitement: 'Trié'
     };
-    setTransferts([...transferts, newTr]);
+    setTransferts(prev => [...prev, newTr]);
   };
 
-  const handleUpdateTransfer = (idx: number, field: keyof DailyReportMouvement, value: any) => {
-    const updated = [...transferts];
-    if (field === 'agenceNom') {
-      const selected = agencies.find(a => a.nom === value);
-      if (selected) {
-        updated[idx].agenceId = selected.id;
-        updated[idx].agenceNom = selected.nom;
-        updated[idx].code = selected.code;
-      }
-    } else {
-      (updated[idx] as any)[field] = value;
+  const handleUpdateTransfer = (idx: number, patch: Partial<DailyReportMouvement>) => {
+    setTransferts(prev => prev.map((t, i) => (i === idx ? { ...t, ...patch } : t)));
+  };
+
+  const handleSelectAgency = (idx: number, agenceId: string) => {
+    const selected = agencies.find(a => a.id === agenceId);
+    if (selected) {
+      handleUpdateTransfer(idx, {
+        agenceId: selected.id,
+        agenceNom: selected.nom,
+        code: selected.code
+      });
     }
-    setTransferts(updated);
   };
 
   const handleRemoveTransfer = (idx: number) => {
-    setTransferts(transferts.filter((_, i) => i !== idx));
+    setTransferts(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  // Validation
+  const validateReport = (asValid: boolean): string[] => {
+    const errors: string[] = [];
+    if (parseLocalDate(dateFin) < parseLocalDate(dateDebut)) {
+      errors.push('La date de fin est antérieure à la date de début.');
+    }
+    if (asValid) {
+      if (effectifTotal < 1) {
+        errors.push("L'effectif total doit être renseigné.");
+      }
+      if (transferts.some(t => !t.agenceId || !t.exercice)) {
+        errors.push('Chaque ligne de transfert doit spécifier une agence et un exercice.');
+      }
+      if (aEcart) {
+        errors.push(`Écart de ${Math.abs(ecart)} convention(s) entre le total déclaré (${totalDeclare}) et le total calculé (${totalCalcule}).`);
+      }
+      // Vérification doublon de date sur rapport validé
+      const hasDuplicate = dailyReports.some(r =>
+        r.id !== initialReport?.id &&
+        r.statut === 'valide' &&
+        r.dateDebut === dateDebut
+      );
+      if (hasDuplicate) {
+        errors.push(`Un rapport validé existe déjà pour le ${dateDebut}.`);
+      }
+    }
+    return errors;
   };
 
   // Final submit
-  const handleFinalSave = () => {
+  const handleSaveReport = (statut: 'brouillon' | 'valide') => {
+    const errors = validateReport(statut === 'valide');
+    if (errors.length > 0) {
+      toast(errors[0], 'error');
+      return;
+    }
+
     const finalReport: DailyReport = {
-      id: initialReport?.id || `rep-${Date.now()}`,
+      id: initialReport?.id || newId('rep'),
       titre,
       dateDebut,
       dateFin,
@@ -110,82 +188,55 @@ export const DailyReportEditor: React.FC<DailyReportEditorProps> = ({ initialRep
       effectifTotal,
       presents,
       absents,
+      absentsMotifs,
       equipeMazala,
       equipeOrdinateur,
-      groupes: initialReport?.groupes || [
-        { nom: 'Groupe Supervision', membres: superviseurs.length > 0 ? superviseurs : [chefNom || 'Superviseur'], tachesAssignees: 'Supervision & Coordination' },
-        { nom: 'Groupe Mazala', membres: equipeMazala.length > 0 ? equipeMazala : ['Équipe Mazala'], tachesAssignees: 'Réception & Stockage sécurisé' },
-        { nom: 'Groupe Traitement', membres: equipeOrdinateur.length > 0 ? equipeOrdinateur : ['Équipe Saisie'], tachesAssignees: 'Traitement & Classement' }
-      ],
+      groupes: initialReport?.groupes || [],
       taches,
       transferts,
       receptions,
-      chronologie: [
-        { heure: '07h30', evenement: 'Appel et prise de service' },
-        { heure: '12h00', evenement: 'Pointage intermédiaire' },
-        { heure: '16h30', evenement: 'Clôture et consolidation' }
-      ],
+      chronologie: initialReport?.chronologie || [],
       observations,
       totalDeclare,
       totalCalcule,
       ecart,
-      statut: 'valide',
+      statut,
       version: initialReport ? initialReport.version + 1 : 1,
       creePar: currentUser?.nomComplet || 'Archiviste',
-      dateCreation: new Date().toISOString()
+      dateCreation: initialReport?.dateCreation || new Date().toISOString()
     };
 
     onSave(finalReport);
   };
 
   return (
-    <div style={{ maxWidth: '950px', margin: '0 auto', padding: '24px 16px' }}>
+    <div className="page" style={{ maxWidth: '1000px' }}>
       {/* Top Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+      <div className="page-head">
         <button onClick={onCancel} className="btn btn-secondary btn-sm">
-          <ArrowLeft size={16} /> Retour à la liste
+          <ArrowLeft size={16} /> Retour
         </button>
-        <div style={{ textAlign: 'center' }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#111827', margin: 0 }}>
-            Éditeur de Rapport Journalier (R1)
-          </h2>
-          <span style={{ fontSize: '0.75rem', color: '#6B7280' }}>
-            Formulaire guidé conforme au modèle officiel UBA en 9 sections
-          </span>
+        <div>
+          <h2>Éditeur de Rapport Journalier (R1)</h2>
+          <p className="text-muted text-sm">
+            Formulaire conforme au modèle d'archives UBA
+          </p>
         </div>
-        <div style={{ width: '120px', textAlign: 'right' }}>
-          <span className="badge badge-red">Étape {step} / 4</span>
-        </div>
+        <span className="badge badge-red">Étape {step} / 4</span>
       </div>
 
       {/* Stepper Tabs */}
-      <div style={{
-        display: 'flex',
-        borderBottom: '2px solid #E5E7EB',
-        marginBottom: '24px',
-        background: '#FFFFFF',
-        borderRadius: '8px 8px 0 0',
-        padding: '8px 12px 0'
-      }}>
+      <div className="row" style={{ borderBottom: '1px solid var(--line)', marginBottom: '24px', paddingBottom: '8px' }}>
         {[
-          { num: 1, label: '1. Période & Organisation' },
-          { num: 2, label: '2. Effectif & Groupes' },
+          { num: 1, label: '1. Période & Horaires' },
+          { num: 2, label: '2. Effectif & Équipe' },
           { num: 3, label: '3. Transferts & Mouvements' },
-          { num: 4, label: '4. Contrôle & Validation' }
+          { num: 4, label: '4. Certification & Enregistrement' }
         ].map(s => (
           <button
             key={s.num}
             onClick={() => setStep(s.num)}
-            style={{
-              padding: '10px 18px',
-              border: 'none',
-              borderBottom: step === s.num ? '3px solid #E41E26' : '3px solid transparent',
-              background: 'transparent',
-              fontWeight: step === s.num ? 800 : 500,
-              color: step === s.num ? '#E41E26' : '#6B7280',
-              cursor: 'pointer',
-              fontSize: '0.85rem'
-            }}
+            className={`btn btn-sm ${step === s.num ? 'btn-primary' : 'btn-ghost'}`}
           >
             {s.label}
           </button>
@@ -194,7 +245,7 @@ export const DailyReportEditor: React.FC<DailyReportEditorProps> = ({ initialRep
 
       {/* STEP 1: Période & Organisation */}
       {step === 1 && (
-        <div className="card" style={{ padding: '24px' }}>
+        <div className="card">
           <h3 className="uba-section-title">Section 1 — Organisation & Horaires</h3>
 
           <div className="form-group">
@@ -207,9 +258,9 @@ export const DailyReportEditor: React.FC<DailyReportEditorProps> = ({ initialRep
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+          <div className="grid-3">
             <div className="form-group">
-              <label className="form-label">Date Début (relevé)</label>
+              <label className="form-label">Date Début *</label>
               <input
                 type="date"
                 className="form-input"
@@ -218,7 +269,7 @@ export const DailyReportEditor: React.FC<DailyReportEditorProps> = ({ initialRep
               />
             </div>
             <div className="form-group">
-              <label className="form-label">Date Fin (si sur 2 jours)</label>
+              <label className="form-label">Date Fin *</label>
               <input
                 type="date"
                 className="form-input"
@@ -237,7 +288,7 @@ export const DailyReportEditor: React.FC<DailyReportEditorProps> = ({ initialRep
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div className="grid-2">
             <div className="form-group">
               <label className="form-label">Chef d'équipe des Archives</label>
               <input
@@ -272,7 +323,7 @@ export const DailyReportEditor: React.FC<DailyReportEditorProps> = ({ initialRep
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
             <button onClick={() => setStep(2)} className="btn btn-primary">
-              Suivant : Effectif & Groupes <ArrowRight size={16} />
+              Suivant : Effectif & Équipe <ArrowRight size={16} />
             </button>
           </div>
         </div>
@@ -280,59 +331,87 @@ export const DailyReportEditor: React.FC<DailyReportEditorProps> = ({ initialRep
 
       {/* STEP 2: Effectif & Groupes */}
       {step === 2 && (
-        <div className="card" style={{ padding: '24px' }}>
-          <h3 className="uba-section-title">Section 2 — Effectif & Répartition de l'Équipe</h3>
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+            <h3 className="uba-section-title" style={{ margin: 0 }}>
+              Section 2 — Effectif & Répartition
+            </h3>
+            <button
+              type="button"
+              onClick={handleImportAttendance}
+              className="btn btn-secondary btn-sm"
+              title="Importer automatiquement les présences du jour"
+            >
+              <DownloadCloud size={15} /> Importer le pointage du jour
+            </button>
+          </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '20px' }}>
+          <div className="grid-3" style={{ marginBottom: '16px' }}>
             <div className="form-group">
               <label className="form-label">Effectif Total Attendu</label>
               <input
                 type="number"
-                className="form-input"
+                inputMode="numeric"
+                className="form-input num"
                 value={effectifTotal}
-                onChange={e => setEffectifTotal(Number(e.target.value))}
+                onChange={e => setEffectifTotal(Math.max(0, Number(e.target.value)))}
               />
             </div>
             <div className="form-group">
-              <label className="form-label">Présents du jour</label>
+              <label className="form-label">Présents du jour (Calculé)</label>
               <input
                 type="number"
-                className="form-input"
+                readOnly
+                className="form-input num"
                 value={presents}
-                onChange={e => setPresents(Number(e.target.value))}
+                style={{ backgroundColor: 'var(--surface-2)', fontWeight: 600 }}
               />
             </div>
             <div className="form-group">
               <label className="form-label">Absents</label>
               <input
                 type="number"
-                className="form-input"
+                inputMode="numeric"
+                className="form-input num"
                 value={absents}
-                onChange={e => setAbsents(Number(e.target.value))}
+                onChange={e => setAbsents(Math.max(0, Number(e.target.value)))}
               />
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          {absents > 0 && (
+            <div className="form-group">
+              <label className="form-label">Motifs des absences</label>
+              <input
+                type="text"
+                className="form-input"
+                placeholder="Ex: Maladie, mission, congé"
+                value={absentsMotifs}
+                onChange={e => setAbsentsMotifs(e.target.value)}
+              />
+            </div>
+          )}
+
+          <div className="grid-2">
             <div className="form-group">
               <label className="form-label">Équipe affectée sur le Site Mazala</label>
               <input
                 type="text"
                 className="form-input"
+                placeholder="Ex: Duskane, Placy"
                 value={equipeMazala.join(', ')}
-                onChange={e => setEquipeMazala(e.target.value.split(',').map(s => s.trim()))}
+                onChange={e => setEquipeMazala(e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
               />
-              <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>Ex: Duskane, Placy</span>
             </div>
             <div className="form-group">
               <label className="form-label">Équipe affectée Travail sur Ordinateur</label>
               <input
                 type="text"
                 className="form-input"
+                placeholder="Ex: Richy, Beni"
                 value={equipeOrdinateur.join(', ')}
-                onChange={e => setEquipeOrdinateur(e.target.value.split(',').map(s => s.trim()))}
+                onChange={e => setEquipeOrdinateur(e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
               />
-              <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>Ex: Richy, Beni</span>
             </div>
           </div>
 
@@ -349,8 +428,8 @@ export const DailyReportEditor: React.FC<DailyReportEditorProps> = ({ initialRep
 
       {/* STEP 3: Transferts & Mouvements */}
       {step === 3 && (
-        <div className="card" style={{ padding: '24px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
             <h3 className="uba-section-title" style={{ margin: 0 }}>
               Section 3 — Mouvements vers Mazala
             </h3>
@@ -359,110 +438,130 @@ export const DailyReportEditor: React.FC<DailyReportEditorProps> = ({ initialRep
             </button>
           </div>
 
-          <table className="uba-table" style={{ marginBottom: '16px' }}>
-            <thead>
-              <tr>
-                <th>AGENCE</th>
-                <th style={{ width: '90px' }}>CODE</th>
-                <th style={{ width: '100px' }}>EXERCICE</th>
-                <th style={{ width: '130px' }}>CONVENTIONS</th>
-                <th style={{ width: '90px' }}>BOÎTES</th>
-                <th>TRAITEMENT</th>
-                <th style={{ width: '50px' }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {transferts.map((tr, idx) => (
-                <tr key={idx}>
-                  <td>
-                    <select
-                      className="form-select"
-                      value={tr.agenceNom}
-                      onChange={e => handleUpdateTransfer(idx, 'agenceNom', e.target.value)}
-                    >
-                      {agencies.map(ag => (
-                        <option key={ag.id} value={ag.nom}>{ag.nom} (Code {ag.code})</option>
-                      ))}
-                    </select>
-                  </td>
-                  <td>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={tr.code}
-                      readOnly
-                      style={{ backgroundColor: '#F9FAFB', textAlign: 'center', fontWeight: 700 }}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      className="form-input"
-                      value={tr.exercice}
-                      onChange={e => handleUpdateTransfer(idx, 'exercice', Number(e.target.value))}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      className="form-input"
-                      value={tr.conventions}
-                      onChange={e => handleUpdateTransfer(idx, 'conventions', Number(e.target.value))}
-                      style={{ fontWeight: 800, color: '#E41E26', textAlign: 'right' }}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="number"
-                      className="form-input"
-                      value={tr.boites}
-                      onChange={e => handleUpdateTransfer(idx, 'boites', Number(e.target.value))}
-                      style={{ textAlign: 'right' }}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={tr.traitement}
-                      onChange={e => handleUpdateTransfer(idx, 'traitement', e.target.value)}
-                    />
-                  </td>
-                  <td style={{ textAlign: 'center' }}>
-                    <button
-                      onClick={() => handleRemoveTransfer(idx)}
-                      style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer' }}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </td>
+          <div className="uba-table-container" style={{ marginBottom: '16px' }}>
+            <table className="uba-table uba-table--cards">
+              <thead>
+                <tr>
+                  <th>AGENCE</th>
+                  <th style={{ width: '90px' }}>CODE</th>
+                  <th style={{ width: '110px' }}>EXERCICE</th>
+                  <th style={{ width: '130px' }}>CONVENTIONS</th>
+                  <th style={{ width: '90px' }}>BOÎTES</th>
+                  <th>TRAITEMENT</th>
+                  <th style={{ width: '50px' }}></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {transferts.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '24px' }} className="text-muted">
+                      Aucun mouvement pour cette journée. Cliquez sur "+ Ajouter une agence" pour enregistrer un transfert.
+                    </td>
+                  </tr>
+                ) : (
+                  transferts.map((tr, idx) => (
+                    <tr key={tr.id || idx}>
+                      <td data-label="Agence">
+                        <select
+                          className="form-select"
+                          value={tr.agenceId || ''}
+                          onChange={e => handleSelectAgency(idx, e.target.value)}
+                        >
+                          <option value="">Sélectionner une agence...</option>
+                          {agencies.map(ag => (
+                            <option key={ag.id} value={ag.id}>{ag.nom} (Code {ag.code})</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td data-label="Code">
+                        <input
+                          type="text"
+                          className="form-input num"
+                          value={tr.code}
+                          readOnly
+                          style={{ textAlign: 'center', fontWeight: 600, backgroundColor: 'var(--surface-2)' }}
+                        />
+                      </td>
+                      <td data-label="Exercice">
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          className="form-input num"
+                          value={tr.exercice}
+                          onChange={e => handleUpdateTransfer(idx, { exercice: Number(e.target.value) })}
+                        />
+                      </td>
+                      <td data-label="Conventions">
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          className="form-input num"
+                          value={tr.conventions}
+                          onChange={e => handleUpdateTransfer(idx, { conventions: Number(e.target.value) })}
+                          style={{ fontWeight: 700, color: 'var(--brand-hi)', textAlign: 'right' }}
+                        />
+                      </td>
+                      <td data-label="Boîtes">
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          className="form-input num"
+                          value={tr.boites}
+                          onChange={e => handleUpdateTransfer(idx, { boites: Number(e.target.value) })}
+                          style={{ textAlign: 'right' }}
+                        />
+                      </td>
+                      <td data-label="Traitement">
+                        <input
+                          type="text"
+                          className="form-input"
+                          value={tr.traitement}
+                          onChange={e => handleUpdateTransfer(idx, { traitement: e.target.value })}
+                        />
+                      </td>
+                      <td data-label="Action" style={{ textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTransfer(idx)}
+                          className="btn btn-ghost btn-icon"
+                          style={{ color: 'var(--danger)' }}
+                          title="Supprimer la ligne"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
 
           {/* Somme dynamique & total déclaré */}
-          <div style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: '24px',
-            backgroundColor: '#FDF1F1',
-            padding: '12px 18px',
-            borderRadius: '6px',
-            border: '1px solid #F8B4B7'
-          }}>
+          <div
+            className="card"
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              justifyContent: 'flex-end',
+              alignItems: 'center',
+              gap: '20px',
+              backgroundColor: 'var(--surface-2)'
+            }}
+          >
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '0.75rem', color: '#6B7280' }}>Somme calculée des lignes :</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 900, color: '#E41E26' }}>
+              <div className="text-muted text-sm">Somme calculée des lignes :</div>
+              <div className="num" style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--brand-hi)' }}>
                 {formatNumber(totalCalcule)} conventions
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <label style={{ fontSize: '0.75rem', color: '#6B7280', display: 'block' }}>Total déclaré dans le texte :</label>
+              <label className="text-muted text-sm" style={{ display: 'block', marginBottom: '4px' }}>Total déclaré dans le rapport :</label>
               <input
                 type="number"
-                className="form-input"
-                style={{ width: '130px', textAlign: 'right', fontWeight: 800 }}
+                inputMode="numeric"
+                className="form-input num"
+                style={{ width: '140px', textAlign: 'right', fontWeight: 700 }}
                 value={totalDeclare}
                 onChange={e => setTotalDeclare(Number(e.target.value))}
               />
@@ -482,32 +581,34 @@ export const DailyReportEditor: React.FC<DailyReportEditorProps> = ({ initialRep
 
       {/* STEP 4: Contrôle & Validation */}
       {step === 4 && (
-        <div className="card" style={{ padding: '24px' }}>
+        <div className="card">
           <h3 className="uba-section-title">Section 4 — Contrôle de Cohérence & Certification</h3>
 
-          {/* Contrôle qualité bloquant */}
+          {/* Contrôle qualité */}
           {aEcart ? (
-            <div style={{
-              backgroundColor: 'rgba(227, 30, 36, 0.12)',
-              border: '2px solid var(--uba-red)',
-              borderRadius: '8px',
-              padding: '16px 20px',
-              marginBottom: '20px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '14px'
-            }}>
-              <AlertTriangle size={32} color="var(--uba-red-bright)" />
+            <div
+              className="card"
+              style={{
+                backgroundColor: 'rgba(255, 69, 58, 0.1)',
+                borderColor: 'var(--danger)',
+                marginBottom: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '14px'
+              }}
+            >
+              <AlertTriangle size={28} color="var(--danger)" />
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 800, color: 'var(--uba-red-bright)', fontSize: '1rem' }}>
-                  Validation bloquée : Total déclaré ({formatNumber(totalDeclare)}) ≠ Somme calculée ({formatNumber(totalCalcule)})
+                <div style={{ fontWeight: 600, color: 'var(--danger)' }}>
+                  Écart constaté : Total déclaré ({formatNumber(totalDeclare)}) ≠ Somme calculée ({formatNumber(totalCalcule)})
                 </div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--uba-silver-light)', marginTop: '4px' }}>
-                  Écart comptable constaté de <strong style={{ color: '#FFFFFF' }}>{formatNumber(Math.abs(ecart))} conventions</strong>. Conformément aux règles d'audit, la certification requiert un écart nul.
+                <div className="text-muted text-sm" style={{ marginTop: '4px' }}>
+                  Écart comptable de <strong style={{ color: 'var(--text-1)' }}>{formatNumber(Math.abs(ecart))} conventions</strong>.
                 </div>
                 <button
+                  type="button"
                   onClick={() => setTotalDeclare(totalCalcule)}
-                  className="btn btn-primary btn-sm"
+                  className="btn btn-secondary btn-sm"
                   style={{ marginTop: '10px' }}
                 >
                   <Check size={14} /> Aligner automatiquement sur {formatNumber(totalCalcule)} conventions
@@ -515,65 +616,60 @@ export const DailyReportEditor: React.FC<DailyReportEditorProps> = ({ initialRep
               </div>
             </div>
           ) : (
-            <div style={{
-              backgroundColor: 'rgba(16, 185, 129, 0.12)',
-              border: '1px solid #10B981',
-              borderRadius: '8px',
-              padding: '16px 20px',
-              marginBottom: '20px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px'
-            }}>
-              <CheckCircle2 size={26} color="#10B981" />
+            <div
+              className="card ai-border"
+              style={{
+                backgroundColor: 'rgba(52, 199, 89, 0.08)',
+                marginBottom: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px'
+              }}
+            >
+              <CheckCircle2 size={24} color="var(--success)" />
               <div>
-                <div style={{ fontWeight: 800, color: '#34D399' }}>
+                <div style={{ fontWeight: 600, color: 'var(--success)' }}>
                   Contrôle Qualité Validé : Zéro écart !
                 </div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--uba-silver-light)' }}>
-                  Le total déclaré est strictement certifié conforme à la somme des {transferts.length} agences ({formatNumber(totalCalcule)} conventions).
+                <div className="text-muted text-sm">
+                  Le total déclaré correspond exactement à la somme calculée des transferts ({formatNumber(totalCalcule)} conventions).
                 </div>
               </div>
             </div>
           )}
 
-          {/* Quick Recap */}
-          <div style={{
-            border: '1px solid var(--hairline-strong)',
-            borderRadius: '6px',
-            padding: '16px',
-            backgroundColor: 'var(--surface-1)',
-            marginBottom: '24px'
-          }}>
-            <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-1)', marginBottom: '8px' }}>
-              Récapitulatif certifié avant publication
+          {/* Récapitulatif */}
+          <div className="card" style={{ backgroundColor: 'var(--surface-2)', marginBottom: '24px' }}>
+            <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '10px' }}>
+              Récapitulatif avant enregistrement
             </h4>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', fontSize: '0.85rem', color: 'var(--text-2)' }}>
+            <div className="grid-auto text-sm text-muted">
               <div><strong style={{ color: 'var(--text-1)' }}>Période :</strong> {dateDebut} au {dateFin}</div>
-              <div><strong style={{ color: 'var(--text-1)' }}>Chef d'équipe :</strong> {chefNom}</div>
+              <div><strong style={{ color: 'var(--text-1)' }}>Chef d'équipe :</strong> {chefNom || 'N/A'}</div>
               <div><strong style={{ color: 'var(--text-1)' }}>Effectif :</strong> {presents} / {effectifTotal}</div>
-              <div><strong style={{ color: 'var(--text-1)' }}>Lots d'agences :</strong> {transferts.length} traités</div>
-              <div><strong style={{ color: 'var(--text-1)' }}>Total certifié :</strong> <span className="num" style={{ color: 'var(--uba-red-bright)', fontWeight: 800 }}>{formatNumber(totalCalcule)}</span></div>
+              <div><strong style={{ color: 'var(--text-1)' }}>Lignes d'agences :</strong> {transferts.length}</div>
+              <div><strong style={{ color: 'var(--text-1)' }}>Total calculé :</strong> <span className="num" style={{ color: 'var(--brand-hi)', fontWeight: 700 }}>{formatNumber(totalCalcule)}</span></div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
             <button onClick={() => setStep(3)} className="btn btn-secondary">
               <ArrowLeft size={16} /> Précédent
             </button>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              {aEcart && (
-                <span style={{ fontSize: '0.8rem', color: 'var(--uba-red-bright)' }}>
-                  Veuillez résorber l'écart avant de certifier
-                </span>
-              )}
+            <div className="row">
               <button
-                onClick={handleFinalSave}
-                disabled={aEcart}
-                className="btn btn-primary"
-                style={{ opacity: aEcart ? 0.5 : 1, cursor: aEcart ? 'not-allowed' : 'pointer' }}
+                type="button"
+                onClick={() => handleSaveReport('brouillon')}
+                className="btn btn-secondary"
               >
-                <FileCheck size={18} /> Valider & Générer le Rapport Officiel
+                <Save size={16} /> Enregistrer le brouillon
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSaveReport('valide')}
+                className="btn btn-primary"
+              >
+                <FileCheck size={16} /> Valider le rapport officiel
               </button>
             </div>
           </div>

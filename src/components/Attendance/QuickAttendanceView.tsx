@@ -1,235 +1,192 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useData } from '../../context/DataContext';
-import { useAuth } from '../../context/AuthContext';
-import {
-  CheckCircle2,
-  Save,
-  Check,
-  MapPin,
-  Laptop,
-  Trash2,
-  UserX,
-  AlertTriangle,
-  RotateCcw
-} from 'lucide-react';
+import { useFeedback } from '../ui/Feedback';
+import { todayLocal } from '../../utils/dates';
+import { AttendanceRecord } from '../../types';
+import { CheckCircle2, Save, Check } from 'lucide-react';
 
 export const QuickAttendanceView: React.FC = () => {
-  const { teamMembers, addLog } = useData();
-  const { currentUser } = useAuth();
-  const isStagiaire = currentUser?.role === 'stagiaire' || currentUser?.role === 'user';
+  const { teamMembers, attendance, saveAttendance, getAttendance } = useData();
+  const { toast } = useFeedback();
 
-  const [datePointage, setDatePointage] = useState(new Date().toISOString().split('T')[0]);
-
-  // List of active members in the attendance sheet (supports deletion)
-  const [activeMemberIds, setActiveMemberIds] = useState<string[]>(() => teamMembers.map(m => m.id));
-
-  // Status mapping: 'present' | 'mazala' | 'ordinateur' | 'absent'
-  const [statuses, setStatuses] = useState<Record<string, 'present' | 'mazala' | 'ordinateur' | 'absent'>>(() => {
-    const initial: Record<string, 'present' | 'mazala' | 'ordinateur' | 'absent'> = {};
-    teamMembers.forEach(m => {
-      if (m.site === 'Mazala') {
-        initial[m.id] = 'mazala';
-      } else {
-        initial[m.id] = 'present';
-      }
-    });
-    return initial;
-  });
-
+  const [datePointage, setDatePointage] = useState<string>(todayLocal());
+  const [statuses, setStatuses] = useState<Record<string, AttendanceRecord['statut']>>({});
+  const [motifs, setMotifs] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(false);
 
-  const displayedMembers = teamMembers.filter(m => activeMemberIds.includes(m.id));
+  const activeMembers = teamMembers.filter(m => m.actif);
+
+  // Synchronisation avec la date sélectionnée
+  useEffect(() => {
+    const existing = getAttendance(datePointage);
+    const nextStatuses: Record<string, AttendanceRecord['statut']> = {};
+    const nextMotifs: Record<string, string> = {};
+
+    activeMembers.forEach(m => {
+      const found = existing.find(a => a.memberId === m.id);
+      if (found) {
+        nextStatuses[m.id] = found.statut;
+        if (found.motif) nextMotifs[m.id] = found.motif;
+      } else {
+        nextStatuses[m.id] = m.site === 'Mazala' ? 'mazala' : 'present';
+      }
+    });
+
+    setStatuses(nextStatuses);
+    setMotifs(nextMotifs);
+    setSaved(false);
+  }, [datePointage, teamMembers, attendance]);
 
   const setAllPresent = () => {
-    const updated: Record<string, 'present' | 'mazala' | 'ordinateur' | 'absent'> = {};
-    displayedMembers.forEach(m => {
-      updated[m.id] = m.site === 'Mazala' ? 'mazala' : 'present';
+    const next: Record<string, AttendanceRecord['statut']> = {};
+    activeMembers.forEach(m => {
+      next[m.id] = m.site === 'Mazala' ? 'mazala' : 'present';
     });
-    setStatuses(updated);
+    setStatuses(next);
+    setSaved(false);
   };
 
-  const handleStatusChange = (id: string, st: 'present' | 'mazala' | 'ordinateur' | 'absent') => {
+  const handleStatusChange = (id: string, st: AttendanceRecord['statut']) => {
     setStatuses(prev => ({ ...prev, [id]: st }));
     setSaved(false);
   };
 
-  const handleDeleteMember = (memberId: string, memberName: string) => {
-    if (window.confirm(`Confirmer la suppression de "${memberName}" du pointage du ${datePointage} ?`)) {
-      setActiveMemberIds(prev => prev.filter(id => id !== memberId));
-      addLog('Pointage Présences', `Retrait de ${memberName} du pointage du ${datePointage}`, 'equipe');
-      setSaved(false);
+  const handleSave = () => {
+    const entries = activeMembers.map(m => ({
+      memberId: m.id,
+      statut: statuses[m.id] || (m.site === 'Mazala' ? 'mazala' : 'present'),
+      motif: motifs[m.id]
+    }));
+
+    const res = saveAttendance(datePointage, entries);
+    if (res.success) {
+      setSaved(true);
+      toast(res.message, 'success');
+    } else {
+      toast('Erreur lors de l\'enregistrement du pointage.', 'error');
     }
   };
 
-  const handleRestoreAll = () => {
-    setActiveMemberIds(teamMembers.map(m => m.id));
-    setSaved(false);
-  };
-
-  const handleSave = () => {
-    const totalPresents = displayedMembers.filter(m => statuses[m.id] !== 'absent').length;
-    const absents = displayedMembers.filter(m => statuses[m.id] === 'absent').length;
-
-    addLog(
-      'Pointage Présences',
-      `Appel du ${datePointage} validé : ${totalPresents}/${displayedMembers.length} présents (${absents} absent(s))`,
-      'equipe'
-    );
-    setSaved(true);
-  };
-
-  const presentsCount = displayedMembers.filter(m => (statuses[m.id] || 'present') === 'present').length;
-  const mazalaCount = displayedMembers.filter(m => statuses[m.id] === 'mazala').length;
-  const ordiCount = displayedMembers.filter(m => statuses[m.id] === 'ordinateur').length;
-  const absentsCount = displayedMembers.filter(m => statuses[m.id] === 'absent').length;
+  const presentsCount = activeMembers.filter(m => (statuses[m.id] || 'present') === 'present').length;
+  const mazalaCount = activeMembers.filter(m => statuses[m.id] === 'mazala').length;
+  const ordiCount = activeMembers.filter(m => statuses[m.id] === 'ordinateur').length;
+  const absentsCount = activeMembers.filter(m => statuses[m.id] === 'absent').length;
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: '1300px', margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px', flexWrap: 'wrap', gap: '14px' }}>
+    <div className="page">
+      {/* Page Header */}
+      <div className="page-head">
         <div>
-          <h1 style={{ fontSize: '1.55rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
-            Pointage Rapide du Matin (7h30)
-          </h1>
-          <div style={{ fontSize: '0.92rem', color: '#D9D9D9', marginTop: '4px' }}>
-            Appel et répartition opérationnelle de l'équipe archiviste (Maya-Maya & Mazala)
-          </div>
+          <h1>Pointage des Présences</h1>
+          <p className="text-muted text-sm" style={{ marginTop: '4px' }}>
+            Appel matinal et affectation opérationnelle (Maya-Maya & Mazala)
+          </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className="row">
           <input
             type="date"
             className="form-input"
-            style={{ width: '160px', height: '42px', padding: '6px 12px' }}
+            style={{ width: 'auto', minWidth: '150px' }}
             value={datePointage}
             onChange={e => setDatePointage(e.target.value)}
           />
-          {activeMemberIds.length < teamMembers.length && currentUser?.role !== 'stagiaire' && currentUser?.role !== 'user' && (
-            <button onClick={handleRestoreAll} className="btn btn-secondary btn-sm" title="Réintégrer tous les archivistes">
-              <RotateCcw size={15} /> Restaurer la liste
-            </button>
-          )}
-          {currentUser?.role !== 'stagiaire' && currentUser?.role !== 'user' ? (
-            <>
-              <button onClick={setAllPresent} className="btn btn-secondary btn-sm">
-                <Check size={15} /> Tous Présents
-              </button>
-              <button onClick={handleSave} className="btn btn-primary btn-sm">
-                <Save size={15} /> Enregistrer l'Appel
-              </button>
-            </>
-          ) : (
-            <span className="badge badge-black" style={{ padding: '8px 14px', fontSize: '0.85rem', border: '1px solid var(--uba-anthracite)' }}>
-              Mode Consultation (Lecture seule)
-            </span>
-          )}
+          <button onClick={setAllPresent} className="btn btn-secondary">
+            <Check size={16} /> Tous Présents
+          </button>
+          <button onClick={handleSave} className="btn btn-primary">
+            <Save size={16} /> Enregistrer
+          </button>
         </div>
       </div>
 
       {saved && (
-        <div style={{
-          padding: '12px 16px',
-          borderRadius: 'var(--radius-sm)',
-          marginBottom: '20px',
-          backgroundColor: 'var(--uba-anthracite)',
-          border: '1px solid var(--uba-silver-dark)',
-          color: '#FFFFFF',
-          fontSize: '0.92rem',
-          fontWeight: 700,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px'
-        }}>
-          <CheckCircle2 size={18} color="var(--uba-red-bright)" />
-          <span>Pointage du jour validé et synchronisé avec le journal d'audit UBA.</span>
+        <div
+          className="card"
+          style={{
+            marginBottom: '20px',
+            borderColor: 'rgba(52, 199, 89, 0.4)',
+            backgroundColor: 'rgba(52, 199, 89, 0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px'
+          }}
+        >
+          <CheckCircle2 size={18} color="var(--success)" />
+          <span style={{ fontWeight: 500 }}>
+            Pointage du {datePointage} validé, sauvegardé et synchronisé.
+          </span>
         </div>
       )}
 
-      {/* Summary KPI Cards — Noir, Rouge, Blanc */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-        <div className="card" style={{ padding: '18px 20px', borderLeft: '4px solid var(--uba-graphite)' }}>
-          <div style={{ fontSize: '0.8rem', color: '#D9D9D9', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Maya-Maya (Tri)</div>
-          <div style={{ fontSize: '2.2rem', fontWeight: 900, color: '#FFFFFF', marginTop: '4px' }}>{presentsCount}</div>
+      {/* KPI Cards */}
+      <div className="grid-auto" style={{ marginBottom: '24px' }}>
+        <div className="card" style={{ borderLeft: '4px solid var(--text-2)' }}>
+          <div className="text-muted text-sm" style={{ fontWeight: 600, textTransform: 'uppercase' }}>Maya-Maya (Tri)</div>
+          <div className="num" style={{ fontSize: '2rem', fontWeight: 700, marginTop: '4px' }}>{presentsCount}</div>
         </div>
 
-        <div className="card" style={{ padding: '18px 20px', borderLeft: '4px solid var(--uba-red)' }}>
-          <div style={{ fontSize: '0.8rem', color: '#D9D9D9', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Site Mazala</div>
-          <div style={{ fontSize: '2.2rem', fontWeight: 900, color: 'var(--uba-red-bright)', marginTop: '4px' }}>{mazalaCount}</div>
+        <div className="card" style={{ borderLeft: '4px solid var(--brand)' }}>
+          <div className="text-muted text-sm" style={{ fontWeight: 600, textTransform: 'uppercase' }}>Site Mazala</div>
+          <div className="num" style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--brand-hi)', marginTop: '4px' }}>{mazalaCount}</div>
         </div>
 
-        <div className="card" style={{ padding: '18px 20px', borderLeft: '4px solid var(--uba-silver-dark)' }}>
-          <div style={{ fontSize: '0.8rem', color: '#D9D9D9', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Ordinateur / Saisie</div>
-          <div style={{ fontSize: '2.2rem', fontWeight: 900, color: '#FFFFFF', marginTop: '4px' }}>{ordiCount}</div>
+        <div className="card" style={{ borderLeft: '4px solid var(--ai-3)' }}>
+          <div className="text-muted text-sm" style={{ fontWeight: 600, textTransform: 'uppercase' }}>Saisie Ordinateur</div>
+          <div className="num" style={{ fontSize: '2rem', fontWeight: 700, marginTop: '4px' }}>{ordiCount}</div>
         </div>
 
-        <div className="card" style={{ padding: '18px 20px', borderLeft: '4px solid var(--uba-red-dark)' }}>
-          <div style={{ fontSize: '0.8rem', color: '#D9D9D9', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Absents</div>
-          <div style={{ fontSize: '2.2rem', fontWeight: 900, color: absentsCount > 0 ? 'var(--uba-red-bright)' : '#FFFFFF', marginTop: '4px' }}>{absentsCount}</div>
+        <div className="card" style={{ borderLeft: '4px solid var(--danger)' }}>
+          <div className="text-muted text-sm" style={{ fontWeight: 600, textTransform: 'uppercase' }}>Absents</div>
+          <div className="num" style={{ fontSize: '2rem', fontWeight: 700, color: absentsCount > 0 ? 'var(--danger)' : 'var(--text-1)', marginTop: '4px' }}>{absentsCount}</div>
         </div>
       </div>
 
       {/* Members Attendance List */}
       <div className="uba-table-container">
-        <table className="uba-table">
+        <table className="uba-table uba-table--cards">
           <thead>
             <tr>
               <th>Archiviste</th>
               <th>Catégorie / Titre</th>
-              <th style={{ textAlign: 'center', width: '420px' }}>Affectation du jour</th>
-              <th style={{ textAlign: 'right', width: '110px' }}>Action</th>
+              <th style={{ textAlign: 'center' }}>Affectation</th>
             </tr>
           </thead>
           <tbody>
-            {displayedMembers.length === 0 ? (
+            {activeMembers.length === 0 ? (
               <tr>
-                <td colSpan={4} style={{ textAlign: 'center', padding: '36px', color: '#D9D9D9' }}>
-                  Aucun membre dans le pointage. Cliquez sur "Restaurer la liste".
+                <td colSpan={3} style={{ textAlign: 'center', padding: '36px' }} className="text-muted">
+                  Aucun membre actif dans l'équipe. Veuillez en ajouter dans la section Équipe.
                 </td>
               </tr>
             ) : (
-              displayedMembers.map(m => {
-                const currentStatus = statuses[m.id] || 'present';
+              activeMembers.map(m => {
+                const currentStatus = statuses[m.id] || (m.site === 'Mazala' ? 'mazala' : 'present');
 
                 return (
                   <tr key={m.id}>
-                    <td>
-                      <div style={{ fontWeight: 800, color: '#FFFFFF', fontSize: '0.98rem' }}>
+                    <td data-label="Archiviste">
+                      <div style={{ fontWeight: 600, color: 'var(--text-1)' }}>
                         {m.nomOfficiel}
                       </div>
-                      <div style={{ fontSize: '0.8rem', color: '#D9D9D9' }}>
-                        {m.site}
+                      <div className="text-muted text-sm">
+                        Site par défaut : {m.site}
                       </div>
                     </td>
-                    <td>
-                      <span className="badge badge-black" style={{ fontSize: '0.82rem' }}>
+                    <td data-label="Catégorie">
+                      <span className="badge badge-black">
                         {m.categorie.replace('_', ' ')}
                       </span>
                     </td>
-                    <td style={{ textAlign: 'center' }}>
-                      {/* Sélecteur d'affectation sombre avec texte blanc */}
-                      <div style={{
-                        display: 'inline-flex',
-                        gap: '6px',
-                        backgroundColor: 'rgba(6, 6, 6, 0.9)',
-                        border: '1px solid rgba(255, 255, 255, 0.12)',
-                        padding: '4px',
-                        borderRadius: 'var(--radius-sm)'
-                      }}>
+                    <td data-label="Affectation" style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '6px' }}>
                         <button
                           type="button"
-                          disabled={isStagiaire}
                           onClick={() => handleStatusChange(m.id, 'present')}
+                          className={`btn btn-sm ${currentStatus === 'present' ? 'btn-secondary' : 'btn-ghost'}`}
                           style={{
-                            border: '1px solid',
-                            borderColor: currentStatus === 'present' ? 'var(--uba-silver-metal)' : 'transparent',
-                            padding: '5px 10px',
-                            borderRadius: '4px',
-                            fontSize: '0.8rem',
-                            fontWeight: 700,
-                            cursor: isStagiaire ? 'default' : 'pointer',
-                            backgroundColor: currentStatus === 'present' ? 'var(--uba-anthracite)' : 'transparent',
-                            color: '#FFFFFF',
-                            transition: 'all 0.15s ease'
+                            minHeight: '38px',
+                            borderColor: currentStatus === 'present' ? 'var(--line-strong)' : 'transparent'
                           }}
                         >
                           Maya-Maya
@@ -237,39 +194,20 @@ export const QuickAttendanceView: React.FC = () => {
 
                         <button
                           type="button"
-                          disabled={isStagiaire}
                           onClick={() => handleStatusChange(m.id, 'mazala')}
-                          style={{
-                            border: '1px solid',
-                            borderColor: currentStatus === 'mazala' ? 'var(--uba-red)' : 'transparent',
-                            padding: '5px 10px',
-                            borderRadius: '4px',
-                            fontSize: '0.8rem',
-                            fontWeight: 700,
-                            cursor: isStagiaire ? 'default' : 'pointer',
-                            backgroundColor: currentStatus === 'mazala' ? 'var(--uba-red)' : 'transparent',
-                            color: '#FFFFFF',
-                            transition: 'all 0.15s ease'
-                          }}
+                          className={`btn btn-sm ${currentStatus === 'mazala' ? 'btn-primary' : 'btn-ghost'}`}
+                          style={{ minHeight: '38px' }}
                         >
                           Mazala
                         </button>
 
                         <button
                           type="button"
-                          disabled={isStagiaire}
                           onClick={() => handleStatusChange(m.id, 'ordinateur')}
+                          className={`btn btn-sm ${currentStatus === 'ordinateur' ? 'btn-secondary' : 'btn-ghost'}`}
                           style={{
-                            border: '1px solid',
-                            borderColor: currentStatus === 'ordinateur' ? 'var(--uba-silver-metal)' : 'transparent',
-                            padding: '5px 10px',
-                            borderRadius: '4px',
-                            fontSize: '0.8rem',
-                            fontWeight: 700,
-                            cursor: isStagiaire ? 'default' : 'pointer',
-                            backgroundColor: currentStatus === 'ordinateur' ? 'var(--uba-graphite)' : 'transparent',
-                            color: '#FFFFFF',
-                            transition: 'all 0.15s ease'
+                            minHeight: '38px',
+                            borderColor: currentStatus === 'ordinateur' ? 'var(--line-strong)' : 'transparent'
                           }}
                         >
                           Ordinateur
@@ -277,37 +215,25 @@ export const QuickAttendanceView: React.FC = () => {
 
                         <button
                           type="button"
-                          disabled={isStagiaire}
                           onClick={() => handleStatusChange(m.id, 'absent')}
-                          style={{
-                            border: '1px solid',
-                            borderColor: currentStatus === 'absent' ? 'var(--uba-red-dark)' : 'transparent',
-                            padding: '5px 10px',
-                            borderRadius: '4px',
-                            fontSize: '0.8rem',
-                            fontWeight: 700,
-                            cursor: isStagiaire ? 'default' : 'pointer',
-                            backgroundColor: currentStatus === 'absent' ? 'var(--uba-red-dark)' : 'transparent',
-                            color: '#FFFFFF',
-                            transition: 'all 0.15s ease'
-                          }}
+                          className={`btn btn-sm ${currentStatus === 'absent' ? 'btn-danger' : 'btn-ghost'}`}
+                          style={{ minHeight: '38px' }}
                         >
                           Absent
                         </button>
                       </div>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      {!isStagiaire ? (
-                        <button
-                          onClick={() => handleDeleteMember(m.id, m.nomOfficiel)}
-                          className="btn btn-secondary btn-sm"
-                          style={{ padding: '5px 8px', color: 'var(--uba-red-bright)' }}
-                          title="Supprimer cette affectation de l'appel"
-                        >
-                          <Trash2 size={14} /> Supprimer
-                        </button>
-                      ) : (
-                        <span style={{ fontSize: '0.8rem', color: 'var(--uba-silver-dark)' }}>Consultation</span>
+
+                      {currentStatus === 'absent' && (
+                        <div style={{ marginTop: '8px' }}>
+                          <input
+                            type="text"
+                            className="form-input"
+                            placeholder="Motif d'absence (facultatif)"
+                            value={motifs[m.id] || ''}
+                            onChange={e => setMotifs(prev => ({ ...prev, [m.id]: e.target.value }))}
+                            style={{ minHeight: '36px', fontSize: '0.875rem' }}
+                          />
+                        </div>
                       )}
                     </td>
                   </tr>

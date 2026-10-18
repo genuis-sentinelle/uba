@@ -3,8 +3,11 @@ import { useData } from '../../context/DataContext';
 import { formatDateTime } from '../../utils/formatters';
 import { Search, Download, Trash2 } from 'lucide-react';
 
+import { useFeedback } from '../ui/Feedback';
+
 export const AuditLogsView: React.FC = () => {
   const { logs, clearLogs } = useData();
+  const { confirm, toast } = useFeedback();
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
 
@@ -73,8 +76,17 @@ export const AuditLogsView: React.FC = () => {
             <Download size={14} /> Exporter CSV
           </button>
           <button
-            onClick={() => {
-              if (window.confirm('Vider l\'historique des logs ?')) clearLogs();
+            onClick={async () => {
+              const ok = await confirm({
+                title: 'Vider le journal d\'audit ?',
+                message: 'Voulez-vous réinitialiser l\'historique des logs d\'audit ?',
+                confirmLabel: 'Vider le journal',
+                danger: true
+              });
+              if (ok) {
+                clearLogs();
+                toast('Journal d\'audit vidé.', 'info');
+              }
             }}
             className="btn btn-secondary btn-sm"
             style={{ color: '#DC2626' }}

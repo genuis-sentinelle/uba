@@ -1,58 +1,88 @@
 import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
+import { useFeedback } from '../ui/Feedback';
 import { formatNumber, formatDate } from '../../utils/formatters';
 import { exportElementToPdf } from '../../utils/pdfExport';
+import { todayLocal } from '../../utils/dates';
+import { can } from '../../utils/permissions';
 import {
   Download,
   Printer,
-  FileText,
-  Lock,
-  Users,
   Sparkles,
   X,
   FileCode,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  ChevronDown
 } from 'lucide-react';
 
 export const SynthesisView: React.FC = () => {
   const { synthesisReports, compileSynthesisFromReports } = useData();
   const { currentUser } = useAuth();
-  const isStagiaire = currentUser?.role === 'stagiaire' || currentUser?.role === 'user';
+  const { toast } = useFeedback();
 
-  const [activeMode, setActiveMode] = useState<'chef_confidentiel' | 'equipe_public'>(isStagiaire ? 'equipe_public' : 'chef_confidentiel');
+  const isStagiaire = currentUser?.role === 'stagiaire';
+  const [selectedReportId, setSelectedReportId] = useState<string>(() => {
+    return synthesisReports[0]?.id || '';
+  });
+
+  const [activeMode, setActiveMode] = useState<'chef_confidentiel' | 'equipe_public'>(
+    isStagiaire ? 'equipe_public' : 'chef_confidentiel'
+  );
   const [showCompilerModal, setShowCompilerModal] = useState(false);
 
-  // Compiler form states
-  const [dateDebutCompil, setDateDebutCompil] = useState('2026-09-28');
-  const [dateFinCompil, setDateFinCompil] = useState('2026-10-09');
-  const [compilFeedback, setCompilFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  // Dynamic default dates for current month
+  const [dateDebutCompil, setDateDebutCompil] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  });
+  const [dateFinCompil, setDateFinCompil] = useState(todayLocal());
 
-  const synthesis = synthesisReports[0];
+  const currentSynthesis = synthesisReports.find(s => s.id === selectedReportId) || synthesisReports[0];
 
   const handleDownloadPdf = async () => {
-    if (!synthesis) return;
+    if (!currentSynthesis) return;
     const filename = activeMode === 'chef_confidentiel'
-      ? `Synthese_Archives_UBA_CHEF_CONFIDENTIEL_${synthesis.dateDebut}_${synthesis.dateFin}`
-      : `Synthese_Archives_UBA_EQUIPE_STAGIAIRES_${synthesis.dateDebut}_${synthesis.dateFin}`;
-    await exportElementToPdf('synthesis-printable-doc', filename);
+      ? `Synthese_Archives_UBA_CHEF_${currentSynthesis.dateDebut}_${currentSynthesis.dateFin}`
+      : `Synthese_Archives_UBA_EQUIPE_${currentSynthesis.dateDebut}_${currentSynthesis.dateFin}`;
+
+    toast('Génération du PDF en cours...', 'info');
+    const ok = await exportElementToPdf('synthesis-printable-doc', filename);
+    if (ok) {
+      toast('Document PDF généré et téléchargé.', 'success');
+    } else {
+      toast('Échec de la génération directe. Utilisez l\'impression (Enregistrer en PDF).', 'error');
+    }
   };
 
   const handleExportWord = () => {
-    if (!synthesis) return;
+    if (!currentSynthesis) return;
     const element = document.getElementById('synthesis-printable-doc');
     if (!element) return;
-    const header = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>Synthese UBA</title></head><body style="font-family: Arial, sans-serif; background-color: #080808; color: #FFFFFF;">`;
+
+    // Clean white document for Word (A4 style, dark text, no dark theme inversion)
+    const header = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+<head><meta charset='utf-8'><title>Synthèse Archives UBA</title>
+<style>
+  body { font-family: Arial, sans-serif; background-color: #ffffff; color: #111111; margin: 20px; }
+  table { border-collapse: collapse; width: 100%; margin-bottom: 16px; }
+  th, td { border: 1px solid #d0d0d0; padding: 6px 10px; font-size: 10pt; }
+  th { background-color: #E41E26; color: #ffffff; }
+  .badge { border: 1px solid #999; padding: 2px 6px; }
+</style>
+</head>
+<body>`;
     const footer = `</body></html>`;
     const sourceHTML = header + element.innerHTML + footer;
     const blob = new Blob(['\ufeff', sourceHTML], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Synthese_UBA_${synthesis.dateDebut}_${synthesis.dateFin}.doc`;
+    a.download = `Synthese_UBA_${currentSynthesis.dateDebut}_${currentSynthesis.dateFin}.doc`;
     a.click();
     URL.revokeObjectURL(url);
+    toast('Document Word généré avec succès.', 'success');
   };
 
   const handlePrint = () => {
@@ -63,543 +93,454 @@ export const SynthesisView: React.FC = () => {
     e.preventDefault();
     const res = compileSynthesisFromReports(dateDebutCompil, dateFinCompil, activeMode);
     if (res.success) {
-      setCompilFeedback({ type: 'success', message: res.message });
+      if (res.reportId) setSelectedReportId(res.reportId);
+      toast(res.message, 'success');
       setShowCompilerModal(false);
     } else {
-      setCompilFeedback({ type: 'error', message: res.message });
+      toast(res.message, 'error');
     }
   };
 
-  if (!synthesis) {
-    return (
-      <div style={{ padding: '28px 32px', maxWidth: '1400px', margin: '0 auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <div>
-            <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
-              Synthèses de Période
-            </h1>
-            <div style={{ fontSize: '0.95rem', color: '#D9D9D9', marginTop: '4px' }}>
-              0 synthèse enregistrée
-            </div>
-          </div>
-          {!isStagiaire && (
-            <button onClick={() => setShowCompilerModal(true)} className="btn btn-primary btn-sm">
-              <Sparkles size={16} /> + Compiler automatiquement depuis les rapports
-            </button>
-          )}
-        </div>
-        <div className="card" style={{ padding: '48px', textAlign: 'center', color: '#D9D9D9' }}>
-          Aucune synthèse disponible. Cliquez sur le bouton ci-dessus pour compiler les rapports journaliers.
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div style={{ padding: '28px 32px', maxWidth: '1400px', margin: '0 auto' }}>
-      {/* Header & Controls — Noir Verre, Rouge, Blanc */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '24px',
-        backgroundColor: 'rgba(14, 14, 14, 0.85)',
-        padding: '16px 22px',
-        borderRadius: 'var(--radius-md)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        backdropFilter: 'blur(10px)',
-        flexWrap: 'wrap',
-        gap: '14px'
-      }}>
+    <div className="page">
+      {/* Header & Controls */}
+      <div className="page-head no-print">
         <div>
-          <h1 style={{ fontSize: '1.65rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
-            Synthèse d'Activité des Archives
-          </h1>
-          <div style={{ fontSize: '0.92rem', color: '#D9D9D9', marginTop: '4px' }}>
-            Période officielle du {formatDate(synthesis.dateDebut)} au {formatDate(synthesis.dateFin)}
-          </div>
+          <h1>Synthèse d'Activité des Archives</h1>
+          {currentSynthesis && (
+            <p className="text-muted text-sm" style={{ marginTop: '4px' }}>
+              Période officielle du {formatDate(currentSynthesis.dateDebut)} au {formatDate(currentSynthesis.dateFin)}
+            </p>
+          )}
         </div>
 
         {/* Action Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        <div className="row">
+          {/* Multiple reports selector if more than 1 */}
+          {synthesisReports.length > 1 && (
+            <select
+              className="form-select"
+              value={selectedReportId}
+              onChange={e => setSelectedReportId(e.target.value)}
+              style={{ width: 'auto', minWidth: '200px' }}
+            >
+              {synthesisReports.map(s => (
+                <option key={s.id} value={s.id}>
+                  {s.titre} ({formatDate(s.dateDebut)} - {formatDate(s.dateFin)})
+                </option>
+              ))}
+            </select>
+          )}
+
           {/* Dual Mode Switcher */}
-          <div style={{
-            display: 'flex',
-            backgroundColor: 'rgba(6, 6, 6, 0.9)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
-            padding: '4px',
-            borderRadius: 'var(--radius-sm)'
-          }}>
+          <div className="card" style={{ padding: '4px', display: 'flex', gap: '4px' }}>
             <button
               onClick={() => {
                 if (isStagiaire) {
-                  alert("Accès confidentiel réservé au Chef d'équipe.");
+                  toast("Accès confidentiel réservé au Chef d'équipe et aux administrateurs.", 'error');
                   return;
                 }
                 setActiveMode('chef_confidentiel');
               }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '7px 14px',
-                borderRadius: '4px',
-                border: 'none',
-                fontWeight: 700,
-                fontSize: '0.85rem',
-                cursor: isStagiaire ? 'not-allowed' : 'pointer',
-                background: activeMode === 'chef_confidentiel' ? 'var(--uba-red)' : 'transparent',
-                color: '#FFFFFF',
-                opacity: isStagiaire ? 0.45 : 1
-              }}
+              className={`btn btn-sm ${activeMode === 'chef_confidentiel' ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ minHeight: '34px' }}
             >
-              <Lock size={14} /> Chef (Confidentiel)
+              Confidentiel (Chef)
             </button>
             <button
               onClick={() => setActiveMode('equipe_public')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '7px 14px',
-                borderRadius: '4px',
-                border: 'none',
-                fontWeight: 700,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                background: activeMode === 'equipe_public' ? 'var(--uba-anthracite)' : 'transparent',
-                color: '#FFFFFF'
-              }}
+              className={`btn btn-sm ${activeMode === 'equipe_public' ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ minHeight: '34px' }}
             >
-              <Users size={14} /> Équipe (Public)
+              Équipe (Stagiaires)
             </button>
           </div>
 
           {!isStagiaire && (
-            <button onClick={() => setShowCompilerModal(true)} className="btn btn-secondary btn-sm">
-              <Sparkles size={15} /> Compiler automatique
+            <button
+              onClick={() => setShowCompilerModal(true)}
+              className="btn btn-ai ai-border btn-sm"
+            >
+              <Sparkles size={15} /> Compiler une synthèse
             </button>
           )}
-          <button onClick={handleExportWord} className="btn btn-secondary btn-sm">
-            <FileCode size={15} /> Export Word (.doc)
-          </button>
-          <button onClick={handleDownloadPdf} className="btn btn-primary btn-sm">
-            <Download size={15} /> Télécharger PDF
-          </button>
-          <button onClick={handlePrint} className="btn btn-secondary btn-sm">
-            <Printer size={15} /> Imprimer
-          </button>
+
+          {currentSynthesis && (
+            <>
+              <button onClick={handlePrint} className="btn btn-secondary btn-sm" title="Imprimer le document A4 officiel">
+                <Printer size={15} /> Imprimer
+              </button>
+              <button onClick={handleDownloadPdf} className="btn btn-secondary btn-sm" title="Télécharger en PDF">
+                <Download size={15} /> PDF
+              </button>
+              <button onClick={handleExportWord} className="btn btn-secondary btn-sm" title="Exporter au format Word">
+                <FileCode size={15} /> Word
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {compilFeedback && (
-        <div style={{
-          padding: '12px 16px',
-          borderRadius: 'var(--radius-sm)',
-          marginBottom: '20px',
-          backgroundColor: 'var(--uba-anthracite)',
-          border: '1px solid var(--uba-silver-dark)',
-          color: '#FFFFFF',
-          fontSize: '0.92rem',
-          fontWeight: 700,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px'
-        }}>
-          <CheckCircle2 size={18} color="var(--uba-red-bright)" />
-          <span>{compilFeedback.message}</span>
-          <button onClick={() => setCompilFeedback(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#FFFFFF', cursor: 'pointer', fontWeight: 800 }}>✕</button>
-        </div>
-      )}
-
-      {/* A4 Document — Design Strict : NOIR, ROUGE, ÉCRITS EN BLANC */}
-      <div
-        id="synthesis-printable-doc"
-        className="a4-page"
-        style={{
-          width: '210mm',
-          minHeight: '297mm',
-          margin: '0 auto',
-          backgroundColor: '#080808',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
-          borderRadius: '4px',
-          padding: '18mm 16mm',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.85)',
-          color: '#FFFFFF',
-          fontFamily: 'Arial, sans-serif',
-          fontSize: '9.5pt',
-          lineHeight: '1.35'
-        }}
-      >
-        {/* BANDEAU EN-TÊTE ROUGE UBA */}
-        <div style={{
-          backgroundColor: '#E41E26',
-          color: '#FFFFFF',
-          padding: '14px 20px',
-          borderRadius: '2px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '16px'
-        }}>
-          <div>
-            <div style={{ fontSize: '14pt', fontWeight: 900, letterSpacing: '0.03em' }}>
-              RAPPORT DE SYNTHÈSE DES ARCHIVES UBA
-            </div>
-            <div style={{ fontSize: '8.5pt', fontWeight: 600, opacity: 0.95, marginTop: '2px' }}>
-              PÉRIODE : DU {formatDate(synthesis.dateDebut)} AU {formatDate(synthesis.dateFin)} · MAYA-MAYA & MAZALA
-            </div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{
-              fontSize: '16pt',
-              fontWeight: 900,
-              border: '2px solid #FFFFFF',
-              padding: '2px 8px',
-              borderRadius: '4px',
-              display: 'inline-block'
-            }}>
-              UBA
-            </div>
-            {activeMode === 'chef_confidentiel' && (
-              <div style={{
-                marginTop: '4px',
-                backgroundColor: '#080808',
-                color: '#FFFFFF',
-                fontSize: '6.5pt',
-                fontWeight: 900,
-                padding: '2px 6px',
-                borderRadius: '2px',
-                letterSpacing: '0.05em',
-                border: '1px solid rgba(255, 255, 255, 0.2)'
-              }}>
-                CONFIDENTIEL — CHEF
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ALERTE JOURS OUVRÉS MANQUANTS */}
-        {synthesis.joursManquants && synthesis.joursManquants.length > 0 && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            backgroundColor: 'rgba(227, 30, 36, 0.12)',
-            border: '1px solid var(--uba-red)',
-            borderRadius: '4px',
-            padding: '8px 14px',
-            marginBottom: '16px'
-          }}>
-            <AlertTriangle size={18} color="var(--uba-red-bright)" />
-            <div style={{ fontSize: '8pt', color: 'var(--uba-silver-light)' }}>
-              <strong style={{ color: 'var(--uba-red-bright)' }}>{synthesis.joursManquants.length} jour(s) ouvré(s) sans rapport</strong> détecté(s) sur la période : {synthesis.joursManquants.map(j => formatDate(j)).join(', ')}.
-            </div>
-          </div>
-        )}
-
-        {/* 1. INFORMATIONS GÉNÉRALES (Modèle Officiel UBA) */}
-        <div style={{ marginBottom: '16px' }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontSize: '10pt',
-            fontWeight: 800,
-            color: '#FFFFFF',
-            marginBottom: '8px'
-          }}>
-            <span style={{ display: 'inline-block', width: '4px', height: '14px', backgroundColor: '#E41E26' }} />
-            1. INFORMATIONS GÉNÉRALES
-          </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt' }}>
-            <tbody>
-              <tr>
-                <td style={{ width: '25%', padding: '6px 8px', fontWeight: 700, backgroundColor: '#141414', border: '1px solid #282828', color: '#FFFFFF' }}>Structure</td>
-                <td style={{ padding: '6px 8px', border: '1px solid #282828', color: '#FFFFFF' }}>United Bank for Africa (UBA)</td>
-                <td style={{ width: '22%', padding: '6px 8px', fontWeight: 700, backgroundColor: '#141414', border: '1px solid #282828', color: '#FFFFFF' }}>Service</td>
-                <td style={{ padding: '6px 8px', border: '1px solid #282828', color: '#FFFFFF' }}>Archives / Équipe archiviste</td>
-              </tr>
-              <tr>
-                <td style={{ padding: '6px 8px', fontWeight: 700, backgroundColor: '#141414', border: '1px solid #282828', color: '#FFFFFF' }}>Rapporteur</td>
-                <td style={{ padding: '6px 8px', border: '1px solid #282828', color: '#FFFFFF', fontWeight: 700 }}>{synthesis.creePar || currentUser?.nomComplet || 'Chef Archiviste'}</td>
-                <td style={{ padding: '6px 8px', fontWeight: 700, backgroundColor: '#141414', border: '1px solid #282828', color: '#FFFFFF' }}>Période couverte</td>
-                <td style={{ padding: '6px 8px', border: '1px solid #282828', color: '#FFFFFF' }}>Du {formatDate(synthesis.dateDebut)} au {formatDate(synthesis.dateFin)}</td>
-              </tr>
-              <tr>
-                <td style={{ padding: '6px 8px', fontWeight: 700, backgroundColor: '#141414', border: '1px solid #282828', color: '#FFFFFF' }}>Nombre de jours ouvrés</td>
-                <td style={{ padding: '6px 8px', border: '1px solid #282828', color: '#FFFFFF', fontWeight: 700 }}>{synthesis.joursCouverts} jour(s) ouvré(s)</td>
-                <td style={{ padding: '6px 8px', fontWeight: 700, backgroundColor: '#141414', border: '1px solid #282828', color: '#FFFFFF' }}>Date de rédaction</td>
-                <td style={{ padding: '6px 8px', border: '1px solid #282828', color: '#FFFFFF' }}>{formatDate(synthesis.dateCreation.split('T')[0])}</td>
-              </tr>
-              <tr>
-                <td style={{ padding: '6px 8px', fontWeight: 700, backgroundColor: '#141414', border: '1px solid #282828', color: '#FFFFFF' }}>Statut du rapport</td>
-                <td colSpan={3} style={{ padding: '6px 8px', border: '1px solid #282828', color: '#FFFFFF' }}>
-                  <strong style={{ color: 'var(--uba-red-bright)' }}>Définitif</strong> {activeMode === 'chef_confidentiel' && '(Volet Confidentiel Chef)'}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        {/* 2. RÉSUMÉ GÉNÉRAL DES ACTIVITÉS (3 Indicateurs Essentiels) */}
-        <div style={{ marginBottom: '18px' }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontSize: '10pt',
-            fontWeight: 800,
-            color: '#FFFFFF',
-            marginBottom: '4px'
-          }}>
-            <span style={{ display: 'inline-block', width: '4px', height: '14px', backgroundColor: '#E41E26' }} />
-            2. RÉSUMÉ GÉNÉRAL DES ACTIVITÉS
-          </div>
-          <p style={{ fontSize: '7.8pt', color: '#D9D9D9', margin: '0 0 8px 0', fontStyle: 'italic' }}>
-            Présentation des trois indicateurs essentiels du travail effectué sur la période.
+      {!currentSynthesis ? (
+        <div className="card" style={{ padding: '48px', textAlign: 'center' }}>
+          <p className="text-muted" style={{ marginBottom: '16px' }}>
+            Aucune synthèse n'est encore enregistrée pour cette période.
           </p>
-
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt', marginBottom: '14px' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#E41E26', color: '#FFFFFF' }}>
-                <th style={{ padding: '8px 12px', textAlign: 'left', border: '1px solid #E41E26', width: '70%' }}>INDICATEUR MAJEUR</th>
-                <th style={{ padding: '8px 12px', textAlign: 'right', border: '1px solid #E41E26', width: '30%' }}>QUANTITÉ</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr style={{ backgroundColor: '#111111', color: '#FFFFFF' }}>
-                <td style={{ padding: '8px 12px', border: '1px solid #282828', fontWeight: 700 }}>
-                  Dossiers traités ou transmis
-                </td>
-                <td style={{ padding: '8px 12px', border: '1px solid #282828', textAlign: 'right', fontWeight: 900, color: 'var(--uba-red-bright)', fontSize: '10.5pt' }}>
-                  {formatNumber(synthesis.dossiersTraites)}
-                </td>
-              </tr>
-              <tr style={{ backgroundColor: '#0B0B0B', color: '#FFFFFF' }}>
-                <td style={{ padding: '8px 12px', border: '1px solid #282828', fontWeight: 700 }}>
-                  Dossiers en attente
-                </td>
-                <td style={{ padding: '8px 12px', border: '1px solid #282828', textAlign: 'right', fontWeight: 900, color: '#D9D9D9', fontSize: '10.5pt' }}>
-                  {formatNumber(synthesis.dossiersEnAttente)}
-                </td>
-              </tr>
-              <tr style={{ backgroundColor: '#161616', color: '#FFFFFF', borderTop: '2px solid #E41E26' }}>
-                <td style={{ padding: '8px 12px', border: '1px solid #282828', fontWeight: 900 }}>
-                  TOTAL GÉNÉRAL
-                </td>
-                <td style={{ padding: '8px 12px', border: '1px solid #282828', textAlign: 'right', fontWeight: 900, color: '#FFFFFF', fontSize: '11pt' }}>
-                  {formatNumber(synthesis.totalGlobal)}
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          {!isStagiaire && (
+            <button onClick={() => setShowCompilerModal(true)} className="btn btn-primary">
+              <Sparkles size={16} /> Compiler automatiquement depuis les rapports
+            </button>
+          )}
         </div>
-
-        {/* TABLEAU PAR AGENCE — NOIR & ROUGE & BLANC */}
-        <div style={{ marginBottom: '18px' }}>
+      ) : (
+        /* Printable A4 Document with clean white .doc-light theme */
+        <div
+          id="synthesis-printable-doc"
+          className="doc-light card"
+          style={{
+            maxWidth: '210mm',
+            minHeight: '297mm',
+            margin: '0 auto',
+            padding: 'clamp(16mm, 4vw, 20mm)',
+            backgroundColor: '#ffffff',
+            color: '#111111',
+            borderRadius: 'var(--r-md)',
+            boxShadow: 'var(--shadow-2)',
+            fontFamily: 'var(--font-sans)',
+            fontSize: '9.5pt',
+            lineHeight: 1.45
+          }}
+        >
+          {/* BANDEAU EN-TÊTE ROUGE UBA */}
           <div style={{
+            backgroundColor: 'var(--brand)',
+            color: '#ffffff',
+            padding: '16px 20px',
+            borderRadius: '6px',
             display: 'flex',
+            justifyContent: 'space-between',
             alignItems: 'center',
-            gap: '8px',
-            fontSize: '10pt',
-            fontWeight: 800,
-            color: '#FFFFFF',
-            marginBottom: '8px'
+            marginBottom: '18px'
           }}>
-            <span style={{ display: 'inline-block', width: '4px', height: '14px', backgroundColor: '#E41E26' }} />
-            AVANCEMENT PAR AGENCE
+            <div>
+              <div style={{ fontSize: '13pt', fontWeight: 800, letterSpacing: '0.02em', color: '#ffffff' }}>
+                RAPPORT DE SYNTHÈSE DES ARCHIVES UBA
+              </div>
+              <div style={{ fontSize: '8.5pt', opacity: 0.95, marginTop: '2px', color: '#ffffff' }}>
+                PÉRIODE : DU {formatDate(currentSynthesis.dateDebut)} AU {formatDate(currentSynthesis.dateFin)} · MAYA-MAYA & MAZALA
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{
+                fontSize: '15pt',
+                fontWeight: 900,
+                border: '2px solid #ffffff',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                display: 'inline-block',
+                color: '#ffffff'
+              }}>
+                UBA
+              </div>
+              {activeMode === 'chef_confidentiel' && (
+                <div style={{
+                  marginTop: '4px',
+                  backgroundColor: '#111111',
+                  color: '#ffffff',
+                  fontSize: '6.5pt',
+                  fontWeight: 800,
+                  padding: '2px 6px',
+                  borderRadius: '2px'
+                }}>
+                  CONFIDENTIEL — DIRECTION
+                </div>
+              )}
+            </div>
           </div>
 
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#E41E26', color: '#FFFFFF' }}>
-                <th style={{ padding: '7px 10px', textAlign: 'left', border: '1px solid #E41E26' }}>AGENCE</th>
-                <th style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #E41E26' }}>CODE</th>
-                <th style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid #E41E26' }}>TRAITÉ</th>
-                <th style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid #E41E26' }}>EN ATTENTE</th>
-                <th style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid #E41E26' }}>TOTAL</th>
-                <th style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid #E41E26' }}>TAUX</th>
-              </tr>
-            </thead>
-            <tbody>
-              {synthesis.repartitionAgences.map((ag, idx) => (
-                <tr key={idx} style={{ backgroundColor: idx % 2 === 1 ? '#141414' : '#0B0B0B', color: '#FFFFFF' }}>
-                  <td style={{ padding: '7px 10px', border: '1px solid #282828', fontWeight: 700 }}>{ag.nom}</td>
-                  <td style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #282828', color: '#D9D9D9' }}>{ag.code}</td>
-                  <td style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid #282828', fontWeight: 800, color: 'var(--uba-red-bright)' }}>
-                    {formatNumber(ag.traite)}
-                  </td>
-                  <td style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid #282828', color: '#D9D9D9' }}>
-                    {formatNumber(ag.attente)}
-                  </td>
-                  <td style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid #282828', fontWeight: 700, color: '#FFFFFF' }}>
-                    {formatNumber(ag.total)}
-                  </td>
-                  <td style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid #282828', fontWeight: 800, color: '#FFFFFF' }}>
-                    {ag.taux}%
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* MATRICE T / A / O (Uniquement mode chef) — NOIR & ROUGE & BLANC */}
-        {activeMode === 'chef_confidentiel' && (
-          <div style={{ marginBottom: '18px' }}>
+          {/* ALERTE JOURS OUVRÉS MANQUANTS (Uniquement mode chef) */}
+          {activeMode === 'chef_confidentiel' && currentSynthesis.joursManquants && currentSynthesis.joursManquants.length > 0 && (
             <div style={{
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '8px'
+              gap: '10px',
+              backgroundColor: '#FEF2F2',
+              border: '1px solid #FECACA',
+              borderRadius: '6px',
+              padding: '8px 14px',
+              marginBottom: '16px'
             }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '10pt',
-                fontWeight: 800,
-                color: '#FFFFFF'
-              }}>
-                <span style={{ display: 'inline-block', width: '4px', height: '14px', backgroundColor: '#E41E26' }} />
-                MATRICE STATUT PAR EXERCICE (T / A / O)
-              </div>
-              <div style={{ fontSize: '7.5pt', display: 'flex', gap: '10px', fontWeight: 700, color: '#FFFFFF' }}>
-                <span><span style={{ color: 'var(--uba-red-bright)' }}>● T</span> = Traité</span>
-                <span><span style={{ color: '#A6A6A6' }}>● A</span> = En Attente</span>
-                <span><span style={{ color: '#8F1015' }}>● O</span> = Oublié</span>
+              <AlertTriangle size={18} color="#DC2626" />
+              <div style={{ fontSize: '8.5pt', color: '#991B1B' }}>
+                <strong>{currentSynthesis.joursManquants.length} jour(s) ouvré(s) sans rapport validé</strong> sur la période : {currentSynthesis.joursManquants.map(j => formatDate(j)).join(', ')}.
               </div>
             </div>
+          )}
 
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8pt', textAlign: 'center' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#181818', color: '#FFFFFF' }}>
-                  <th style={{ padding: '6px', textAlign: 'left', width: '140px', border: '1px solid #303030' }}>AGENCE</th>
-                  {[2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023].map(yr => (
-                    <th key={yr} style={{ padding: '6px', border: '1px solid #303030' }}>{yr}</th>
-                  ))}
-                </tr>
-              </thead>
+          {/* 1. INFORMATIONS GÉNÉRALES */}
+          <div style={{ marginBottom: '18px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '10.5pt', fontWeight: 700, color: '#111111', marginBottom: '8px' }}>
+              <span style={{ display: 'inline-block', width: '4px', height: '14px', backgroundColor: 'var(--brand)', borderRadius: '2px' }} />
+              1. INFORMATIONS GÉNÉRALES
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt' }}>
               <tbody>
-                {synthesis.matrice.map((row, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid #282828', backgroundColor: idx % 2 === 1 ? '#141414' : '#0B0B0B' }}>
-                    <td style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 700, border: '1px solid #282828', color: '#FFFFFF' }}>
-                      {row.agenceNom} <span style={{ color: '#A6A6A6', fontSize: '7pt' }}>({row.code})</span>
-                    </td>
-                    {[2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023].map(yr => {
-                      const st = row.annees[yr] || '-';
-                      let color = '#D9D9D9';
-                      let bg = 'transparent';
-                      let label = '-';
-
-                      if (st === 'T') {
-                        color = '#FFFFFF';
-                        bg = 'var(--uba-red)';
-                        label = 'T';
-                      } else if (st === 'A') {
-                        color = '#D9D9D9';
-                        bg = 'var(--uba-anthracite)';
-                        label = 'A';
-                      } else if (st === 'O') {
-                        color = '#FFFFFF';
-                        bg = 'var(--uba-red-dark)';
-                        label = 'O';
-                      }
-
-                      return (
-                        <td key={yr} style={{ padding: '6px', border: '1px solid #282828' }}>
-                          <span style={{
-                            display: 'inline-block',
-                            width: '20px',
-                            height: '20px',
-                            lineHeight: '20px',
-                            borderRadius: '3px',
-                            backgroundColor: bg,
-                            color,
-                            fontWeight: 800,
-                            fontSize: '8pt',
-                            border: bg !== 'transparent' ? '1px solid rgba(255,255,255,0.2)' : 'none'
-                          }}>
-                            {label}
-                          </span>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
+                <tr>
+                  <td style={{ width: '25%', padding: '6px 8px', fontWeight: 700, backgroundColor: '#F3F4F6', border: '1px solid #E5E7EB', color: '#111111' }}>Structure</td>
+                  <td style={{ padding: '6px 8px', border: '1px solid #E5E7EB', color: '#111111' }}>United Bank for Africa (UBA)</td>
+                  <td style={{ width: '22%', padding: '6px 8px', fontWeight: 700, backgroundColor: '#F3F4F6', border: '1px solid #E5E7EB', color: '#111111' }}>Service</td>
+                  <td style={{ padding: '6px 8px', border: '1px solid #E5E7EB', color: '#111111' }}>Archives / Équipe archiviste</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '6px 8px', fontWeight: 700, backgroundColor: '#F3F4F6', border: '1px solid #E5E7EB', color: '#111111' }}>Rapporteur</td>
+                  <td style={{ padding: '6px 8px', border: '1px solid #E5E7EB', color: '#111111', fontWeight: 700 }}>{currentSynthesis.creePar || currentUser?.nomComplet || 'Chef Archiviste'}</td>
+                  <td style={{ padding: '6px 8px', fontWeight: 700, backgroundColor: '#F3F4F6', border: '1px solid #E5E7EB', color: '#111111' }}>Période couverte</td>
+                  <td style={{ padding: '6px 8px', border: '1px solid #E5E7EB', color: '#111111' }}>Du {formatDate(currentSynthesis.dateDebut)} au {formatDate(currentSynthesis.dateFin)}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '6px 8px', fontWeight: 700, backgroundColor: '#F3F4F6', border: '1px solid #E5E7EB', color: '#111111' }}>Jours ouvrés couverts</td>
+                  <td style={{ padding: '6px 8px', border: '1px solid #E5E7EB', color: '#111111', fontWeight: 700 }}>{currentSynthesis.joursCouverts} jour(s)</td>
+                  <td style={{ padding: '6px 8px', fontWeight: 700, backgroundColor: '#F3F4F6', border: '1px solid #E5E7EB', color: '#111111' }}>Date d'édition</td>
+                  <td style={{ padding: '6px 8px', border: '1px solid #E5E7EB', color: '#111111' }}>{formatDate(currentSynthesis.dateCreation.split('T')[0])}</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '6px 8px', fontWeight: 700, backgroundColor: '#F3F4F6', border: '1px solid #E5E7EB', color: '#111111' }}>Statut</td>
+                  <td colSpan={3} style={{ padding: '6px 8px', border: '1px solid #E5E7EB', color: '#111111' }}>
+                    <strong style={{ color: 'var(--brand)' }}>Définitif</strong> {activeMode === 'chef_confidentiel' && '(Volet Confidentiel Direction)'}
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
-        )}
 
-        {/* POINTS CRITIQUES (Uniquement mode chef) */}
-        {activeMode === 'chef_confidentiel' && (
-          <div style={{
-            border: '1px solid #E41E26',
-            backgroundColor: 'rgba(227, 30, 36, 0.1)',
-            borderRadius: '4px',
-            padding: '12px 16px',
-            marginBottom: '16px'
-          }}>
-            <div style={{ fontWeight: 800, fontSize: '9pt', color: 'var(--uba-red-bright)', marginBottom: '6px' }}>
-              POINTS CRITIQUES DE GOUVERNANCE
+          {/* 2. RÉSUMÉ GÉNÉRAL DES ACTIVITÉS */}
+          <div style={{ marginBottom: '18px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '10.5pt', fontWeight: 700, color: '#111111', marginBottom: '4px' }}>
+              <span style={{ display: 'inline-block', width: '4px', height: '14px', backgroundColor: 'var(--brand)', borderRadius: '2px' }} />
+              2. RÉSUMÉ GÉNÉRAL DES ACTIVITÉS
             </div>
-            <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '8.5pt', color: '#FFFFFF', lineHeight: 1.5 }}>
-              {synthesis.pointsAConfirmer.map((pt, i) => (
+            <p style={{ fontSize: '8pt', color: '#6B7280', margin: '0 0 8px 0', fontStyle: 'italic' }}>
+              Trois indicateurs essentiels du traitement réalisé sur la période.
+            </p>
+
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '9pt', marginBottom: '14px' }}>
+              <thead>
+                <tr style={{ backgroundColor: 'var(--brand)', color: '#ffffff' }}>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', border: '1px solid var(--brand)', width: '70%', color: '#ffffff' }}>INDICATEUR MAJEUR</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'right', border: '1px solid var(--brand)', width: '30%', color: '#ffffff' }}>QUANTITÉ</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ padding: '8px 12px', border: '1px solid #E5E7EB', fontWeight: 700, color: '#111111' }}>
+                    Dossiers traités ou transmis (sur la période)
+                  </td>
+                  <td className="num" style={{ padding: '8px 12px', border: '1px solid #E5E7EB', textAlign: 'right', fontWeight: 800, color: 'var(--brand)', fontSize: '10.5pt' }}>
+                    {formatNumber(currentSynthesis.dossiersTraites)}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '8px 12px', border: '1px solid #E5E7EB', fontWeight: 700, color: '#111111' }}>
+                    Dossiers en attente globale restante
+                  </td>
+                  <td className="num" style={{ padding: '8px 12px', border: '1px solid #E5E7EB', textAlign: 'right', fontWeight: 700, color: '#4B5563', fontSize: '10.5pt' }}>
+                    {formatNumber(currentSynthesis.dossiersEnAttente)}
+                  </td>
+                </tr>
+                <tr style={{ backgroundColor: '#F9FAFB', borderTop: '2px solid var(--brand)' }}>
+                  <td style={{ padding: '8px 12px', border: '1px solid #E5E7EB', fontWeight: 800, color: '#111111' }}>
+                    TOTAL GÉNÉRAL
+                  </td>
+                  <td className="num" style={{ padding: '8px 12px', border: '1px solid #E5E7EB', textAlign: 'right', fontWeight: 900, color: '#111111', fontSize: '11pt' }}>
+                    {formatNumber(currentSynthesis.totalGlobal)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* 3. AVANCEMENT PAR AGENCE */}
+          <div style={{ marginBottom: '18px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '10.5pt', fontWeight: 700, color: '#111111', marginBottom: '8px' }}>
+              <span style={{ display: 'inline-block', width: '4px', height: '14px', backgroundColor: 'var(--brand)', borderRadius: '2px' }} />
+              3. AVANCEMENT PAR AGENCE
+            </div>
+
+            <div className="uba-table-container" style={{ border: '1px solid #E5E7EB' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#F3F4F6', color: '#111111' }}>
+                    <th style={{ padding: '7px 10px', textAlign: 'left', border: '1px solid #E5E7EB', fontWeight: 700 }}>AGENCE</th>
+                    <th style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #E5E7EB', fontWeight: 700 }}>CODE</th>
+                    <th style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid #E5E7EB', fontWeight: 700 }}>TRAITÉ</th>
+                    <th style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid #E5E7EB', fontWeight: 700 }}>EN ATTENTE</th>
+                    <th style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid #E5E7EB', fontWeight: 700 }}>TOTAL</th>
+                    <th style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid #E5E7EB', fontWeight: 700 }}>TAUX</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentSynthesis.repartitionAgences.map((ag, idx) => (
+                    <tr key={idx} style={{ backgroundColor: idx % 2 === 1 ? '#FAFAFA' : '#FFFFFF' }}>
+                      <td style={{ padding: '7px 10px', border: '1px solid #E5E7EB', fontWeight: 600, color: '#111111' }}>{ag.nom}</td>
+                      <td className="num" style={{ padding: '7px 10px', textAlign: 'center', border: '1px solid #E5E7EB', color: '#6B7280' }}>{ag.code}</td>
+                      <td className="num" style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid #E5E7EB', fontWeight: 700, color: 'var(--brand)' }}>
+                        {formatNumber(ag.traite)}
+                      </td>
+                      <td className="num" style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid #E5E7EB', color: '#4B5563' }}>
+                        {formatNumber(ag.attente)}
+                      </td>
+                      <td className="num" style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid #E5E7EB', fontWeight: 600, color: '#111111' }}>
+                        {formatNumber(ag.total)}
+                      </td>
+                      <td className="num" style={{ padding: '7px 10px', textAlign: 'right', border: '1px solid #E5E7EB', fontWeight: 700, color: '#111111' }}>
+                        {ag.taux}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* 4. MATRICE STATUT PAR EXERCICE (Uniquement mode chef) */}
+          {activeMode === 'chef_confidentiel' && (
+            <div style={{ marginBottom: '18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '10.5pt', fontWeight: 700, color: '#111111' }}>
+                  <span style={{ display: 'inline-block', width: '4px', height: '14px', backgroundColor: 'var(--brand)', borderRadius: '2px' }} />
+                  4. MATRICE STATUT PAR EXERCICE (T / A / O)
+                </div>
+                <div style={{ fontSize: '7.5pt', display: 'flex', gap: '10px', fontWeight: 700 }}>
+                  <span><strong style={{ color: 'var(--brand)' }}>● T</strong> = Traité</span>
+                  <span><strong style={{ color: '#4B5563' }}>● A</strong> = En Attente</span>
+                  <span><strong style={{ color: '#DC2626' }}>● O</strong> = Oublié</span>
+                </div>
+              </div>
+
+              <div className="uba-table-container uba-table--scroll" style={{ border: '1px solid #E5E7EB' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8pt', textAlign: 'center' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#F3F4F6', color: '#111111' }}>
+                      <th style={{ padding: '6px', textAlign: 'left', width: '140px', border: '1px solid #E5E7EB', position: 'sticky', left: 0, backgroundColor: '#F3F4F6' }}>
+                        AGENCE
+                      </th>
+                      {Object.keys(currentSynthesis.matrice[0]?.annees || {}).map(yr => (
+                        <th key={yr} style={{ padding: '6px', border: '1px solid #E5E7EB' }}>{yr}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentSynthesis.matrice.map((row, idx) => (
+                      <tr key={idx} style={{ backgroundColor: idx % 2 === 1 ? '#FAFAFA' : '#FFFFFF' }}>
+                        <td style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 600, border: '1px solid #E5E7EB', position: 'sticky', left: 0, backgroundColor: idx % 2 === 1 ? '#FAFAFA' : '#FFFFFF' }}>
+                          {row.agenceNom} <span style={{ color: '#9CA3AF', fontSize: '7pt' }}>({row.code})</span>
+                        </td>
+                        {Object.keys(row.annees).map(yr => {
+                          const st = row.annees[Number(yr)] || '-';
+                          let bg = '#F3F4F6';
+                          let color = '#4B5563';
+
+                          if (st === 'T') {
+                            bg = 'var(--brand)';
+                            color = '#ffffff';
+                          } else if (st === 'A') {
+                            bg = '#E5E7EB';
+                            color = '#111111';
+                          } else if (st === 'O') {
+                            bg = '#DC2626';
+                            color = '#ffffff';
+                          }
+
+                          return (
+                            <td key={yr} style={{ padding: '4px', border: '1px solid #E5E7EB' }}>
+                              <span style={{
+                                display: 'inline-block',
+                                width: '18px',
+                                height: '18px',
+                                lineHeight: '18px',
+                                borderRadius: '3px',
+                                backgroundColor: bg,
+                                color,
+                                fontWeight: 700,
+                                fontSize: '7.5pt'
+                              }}>
+                                {st}
+                              </span>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* 5. POINTS CRITIQUES / OBSERVATIONS */}
+          <div style={{
+            border: '1px solid #E5E7EB',
+            backgroundColor: '#F9FAFB',
+            borderRadius: '6px',
+            padding: '12px 16px',
+            marginBottom: '18px'
+          }}>
+            <div style={{ fontWeight: 700, fontSize: '9pt', color: 'var(--brand)', marginBottom: '6px' }}>
+              {activeMode === 'chef_confidentiel' ? 'POINTS DE GOUVERNANCE & CONFORMITÉ' : 'AVANCEMENT GÉNÉRAL'}
+            </div>
+            <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '8.5pt', color: '#374151', lineHeight: 1.5 }}>
+              {currentSynthesis.pointsAConfirmer.map((pt, i) => (
                 <li key={i} style={{ marginBottom: '2px' }}>{pt}</li>
               ))}
             </ul>
           </div>
-        )}
 
-        {/* SIGNATURES */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '20px',
-          marginTop: '18px',
-          borderTop: '1px solid #303030',
-          paddingTop: '12px'
-        }}>
-          <div style={{ fontSize: '8pt', color: '#D9D9D9' }}>
-            Compilé par : <strong style={{ color: '#FFFFFF' }}>{synthesis.creePar}</strong>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '8.5pt', fontWeight: 800, color: '#FFFFFF' }}>
-              LE CHEF D'ÉQUIPE DES ARCHIVES
+          {/* 6. SIGNATURES */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '20px',
+            marginTop: '20px',
+            borderTop: '1px solid #E5E7EB',
+            paddingTop: '14px'
+          }}>
+            <div style={{ fontSize: '8pt', color: '#6B7280' }}>
+              Compilé par : <strong style={{ color: '#111111' }}>{currentSynthesis.creePar}</strong>
             </div>
-            <div style={{ fontSize: '9pt', color: 'var(--uba-red-bright)', fontWeight: 800, marginTop: '16px' }}>
-              {currentUser?.nomComplet || synthesis.creePar || 'Le Chef d\'équipe'}
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '8.5pt', fontWeight: 700, color: '#111111' }}>
+                LE CHEF D'ÉQUIPE DES ARCHIVES
+              </div>
+              <div style={{ fontSize: '9pt', color: 'var(--brand)', fontWeight: 700, marginTop: '20px' }}>
+                {currentUser?.nomComplet || currentSynthesis.creePar || 'Le Chef d\'équipe'}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Modal Compiler */}
       {showCompilerModal && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '460px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+        <div className="modal-overlay" onClick={() => setShowCompilerModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Sparkles size={20} color="var(--uba-red-bright)" />
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
-                  Compilateur Automatique
-                </h3>
+                <Sparkles size={20} color="var(--brand-hi)" />
+                <h3 style={{ margin: 0 }}>Compilateur Automatique</h3>
               </div>
-              <button onClick={() => setShowCompilerModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#D9D9D9' }}>
+              <button onClick={() => setShowCompilerModal(false)} className="btn btn-ghost btn-icon">
                 <X size={20} />
               </button>
             </div>
 
-            <p style={{ fontSize: '0.9rem', color: '#D9D9D9', marginBottom: '18px' }}>
-              Sélectionnez une période. Le logiciel calcule automatiquement les totaux et produit la synthèse officielle UBA.
+            <p className="text-muted text-sm" style={{ marginBottom: '18px' }}>
+              Sélectionnez une période. Les calculs agrègent l'intégralité des rapports journaliers validés et déduisent les conventions traitées de l'attente globale.
             </p>
 
             <form onSubmit={handleCompile}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '18px' }}>
+              <div className="grid-2" style={{ marginBottom: '18px' }}>
                 <div className="form-group">
-                  <label className="form-label">Date Début</label>
+                  <label className="form-label">Date Début *</label>
                   <input
                     type="date"
                     className="form-input"
@@ -609,7 +550,7 @@ export const SynthesisView: React.FC = () => {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Date Fin</label>
+                  <label className="form-label">Date Fin *</label>
                   <input
                     type="date"
                     className="form-input"
@@ -620,12 +561,12 @@ export const SynthesisView: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <div className="modal-actions">
                 <button type="button" onClick={() => setShowCompilerModal(false)} className="btn btn-secondary btn-sm">
                   Annuler
                 </button>
                 <button type="submit" className="btn btn-primary btn-sm">
-                  <Sparkles size={15} /> Compiler la synthèse
+                  <Sparkles size={15} /> Lancer la compilation
                 </button>
               </div>
             </form>

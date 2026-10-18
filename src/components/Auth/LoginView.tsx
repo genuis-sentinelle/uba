@@ -1,72 +1,50 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
-import { vault } from '../../utils/vault';
-import { Lock, Mail, Eye, EyeOff, ArrowRight, ShieldCheck, CheckCircle2, AlertTriangle, KeyRound, UserPlus, Check, User as UserIcon } from 'lucide-react';
+import { Lock, Eye, EyeOff, ArrowRight, ShieldCheck, CheckCircle2, AlertTriangle, UserPlus, User as UserIcon } from 'lucide-react';
 
 export const LoginView: React.FC = () => {
   const { login, users, hasSuperAdmin, createInitialSuperAdmin } = useAuth();
   const { addLog } = useData();
 
-  // Login states with browser credential vault support
-  const [email, setEmail] = useState(() => {
-    const saved = vault.getSavedEmails();
-    return saved.length > 0 ? saved[0] : '';
-  });
-  const [password, setPassword] = useState(() => {
-    const saved = vault.getSavedEmails();
-    return saved.length > 0 ? (vault.getPassword(saved[0]) || '') : '';
-  });
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
-  const [isPasswordAutofilled, setIsPasswordAutofilled] = useState(() => {
-    const saved = vault.getSavedEmails();
-    return saved.length > 0 && Boolean(vault.getPassword(saved[0]));
-  });
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  // When email changes, check if vault has a remembered password
-  const handleEmailChange = (newEmail: string) => {
-    setEmail(newEmail);
-    const savedPass = vault.getPassword(newEmail);
-    if (savedPass) {
-      setPassword(savedPass);
-      setIsPasswordAutofilled(true);
-    } else {
-      setIsPasswordAutofilled(false);
-    }
-  };
 
   // Initial Super Admin setup states (si aucun compte n'existe)
   const [setupNom, setSetupNom] = useState('');
   const [setupPassword, setSetupPassword] = useState('');
   const [setupSuccess, setSetupSuccess] = useState('');
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (!email.trim()) {
       setError('Veuillez saisir votre nom d\'utilisateur ou adresse email.');
       return;
     }
-    const success = login(email.trim(), password);
-    if (success) {
-      if (rememberMe && password) {
-        vault.savePassword(email.trim(), password, true);
-      } else if (!rememberMe) {
-        vault.removePassword(email.trim());
+    setLoading(true);
+    try {
+      const res = await login(email.trim(), password);
+      if (res.success) {
+        const u = users.find(usr =>
+          usr.email.toLowerCase() === email.trim().toLowerCase() ||
+          usr.nomComplet.toLowerCase() === email.trim().toLowerCase()
+        );
+        addLog('Connexion', `Session ouverte : ${u?.nomComplet || email} (${u?.role || 'agent'})`, 'auth');
+      } else {
+        setError(res.message || 'Identifiants incorrects ou compte inactif.');
       }
-      const u = users.find(usr => 
-        usr.email.toLowerCase() === email.trim().toLowerCase() ||
-        usr.nomComplet.toLowerCase() === email.trim().toLowerCase()
-      );
-      addLog('Connexion', `Session ouverte : ${u?.nomComplet} (${u?.role})`, 'auth');
-    } else {
-      setError('Identifiants non reconnus ou compte inactif. Vérifiez vos identifiants.');
+    } catch {
+      setError('Une erreur est survenue lors de la tentative de connexion.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSetupSuperAdmin = (e: React.FormEvent) => {
+  const handleSetupSuperAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSetupSuccess('');
@@ -84,147 +62,145 @@ export const LoginView: React.FC = () => {
       return;
     }
 
-    const res = createInitialSuperAdmin({
-      nomUtilisateur: setupNom.trim(),
-      motDePasse: setupPassword
-    });
+    setLoading(true);
+    try {
+      const res = await createInitialSuperAdmin({
+        nomUtilisateur: setupNom.trim(),
+        motDePasse: setupPassword
+      });
 
-    if (res.success) {
-      if (setupPassword) {
-        vault.savePassword(setupNom.trim(), setupPassword, true);
+      if (res.success) {
+        setSetupSuccess(res.message);
+        addLog('Initialisation Système', `Création du Super Administrateur : ${setupNom}`, 'auth');
+      } else {
+        setError(res.message);
       }
-      setSetupSuccess(res.message);
-      addLog('Initialisation Système', `Création du Super Administrateur : ${setupNom}`, 'auth');
-    } else {
-      setError(res.message);
+    } catch {
+      setError('Erreur lors de la configuration du compte.');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div
       style={{
-        minHeight: '100vh',
-        width: '100vw',
+        minHeight: '100dvh',
+        width: '100%',
         position: 'relative',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '24px',
-        overflow: 'hidden',
-        // Arrière-plan couvrant toute la page avec l'image officielle UBA
+        padding: 'clamp(16px, 4vw, 32px)',
+        paddingBottom: 'calc(clamp(16px, 4vw, 32px) + var(--safe-bottom))',
+        backgroundColor: 'var(--bg)',
         backgroundImage: "url('/images/uba-app-background.png')",
         backgroundRepeat: 'no-repeat',
         backgroundPosition: 'center center',
         backgroundSize: 'cover'
       }}
     >
-      {/* Voile sombre & accent rouge UBA pour garantir une lisibilité et un contraste parfaits */}
+      {/* Voile sombre & accent pour un contraste idéal */}
       <div
         style={{
           position: 'absolute',
           inset: 0,
-          background: 'radial-gradient(circle at center, rgba(16, 16, 16, 0.72) 0%, rgba(5, 5, 5, 0.92) 100%)',
+          background: 'radial-gradient(circle at center, rgba(10, 10, 11, 0.78) 0%, rgba(5, 5, 5, 0.94) 100%)',
           pointerEvents: 'none',
           zIndex: 1
         }}
       />
 
-      {/* Carte centrale du portail */}
+      {/* Carte centrale moderne Apple / IA */}
       <div
+        className="card ai-border ai-glow"
         style={{
-          maxWidth: '460px',
+          maxWidth: '440px',
           width: '100%',
-          backgroundColor: 'rgba(16, 16, 16, 0.88)',
-          borderRadius: 'var(--radius-lg)',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
-          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.85), 0 0 30px rgba(227, 30, 36, 0.18)',
-          padding: '36px 32px',
           position: 'relative',
           zIndex: 2,
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)'
+          padding: 'clamp(24px, 5vw, 36px)'
         }}
       >
-        {/* Logo officiel UBA */}
+        {/* En-tête officiel UBA */}
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <img
             src="/images/uba-app-badge.png"
             alt="UBA ARCHIVA Logo"
             style={{
-              height: '72px',
-              width: '72px',
+              height: '68px',
+              width: '68px',
               borderRadius: '16px',
               objectFit: 'cover',
-              border: '1px solid rgba(255, 255, 255, 0.18)',
-              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.7), 0 0 20px rgba(227, 30, 36, 0.25)',
-              marginBottom: '16px'
+              border: '1px solid var(--line-strong)',
+              boxShadow: 'var(--shadow-2)',
+              marginBottom: '14px'
             }}
           />
-          <h1 style={{ fontSize: '1.45rem', fontWeight: 800, color: '#FFFFFF', margin: '0 0 6px 0', letterSpacing: '-0.02em' }}>
+          <h1 style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--text-1)', margin: '0 0 4px 0' }}>
             Portail Archives UBA
           </h1>
-          <p style={{ fontSize: '0.88rem', color: '#D9D9D9', margin: 0 }}>
+          <p className="text-muted text-sm">
             Supervision & Traitement (Sites Maya-Maya & Mazala)
           </p>
         </div>
 
-        {/* CAS 1 : AUCUN SUPER ADMIN N'EXISTE ENCORE -> INITIALISATION UNIQUE */}
+        {/* CAS 1 : Configuration initiale Super Admin */}
         {!hasSuperAdmin ? (
           <div>
             <div
+              className="card"
               style={{
-                backgroundColor: 'rgba(227, 30, 36, 0.12)',
-                border: '1px solid var(--uba-red-border)',
-                borderRadius: 'var(--radius-sm)',
+                backgroundColor: 'var(--brand-tint)',
+                borderColor: 'rgba(227, 30, 36, 0.3)',
                 padding: '12px 14px',
                 marginBottom: '20px',
                 display: 'flex',
-                gap: '10px',
-                alignItems: 'flex-start'
+                gap: '10px'
               }}
             >
-              <ShieldCheck size={22} color="var(--uba-red-bright)" style={{ flexShrink: 0, marginTop: '2px' }} />
-              <div style={{ fontSize: '0.82rem', color: 'var(--uba-silver-light)', lineHeight: 1.45 }}>
-                <strong style={{ color: 'var(--uba-white-pure)', display: 'block', marginBottom: '2px' }}>
-                  Configuration Initiale requise (Étape unique)
+              <ShieldCheck size={20} color="var(--brand-hi)" style={{ flexShrink: 0, marginTop: '2px' }} />
+              <div className="text-sm">
+                <strong style={{ color: 'var(--text-1)', display: 'block', marginBottom: '2px' }}>
+                  Configuration Initiale requise
                 </strong>
-                Aucun compte administrateur n'est encore configuré. Veuillez créer le compte <strong>Super Administrateur</strong>. Dès cette création, l'inscription publique sera <strong>automatiquement bloquée</strong>.
+                Créez le premier compte <strong>Super Administrateur</strong>. Par sécurité, l'accès public sera verrouillé dès sa création.
               </div>
             </div>
 
             {error && (
               <div
+                className="card"
                 style={{
-                  backgroundColor: 'rgba(227, 30, 36, 0.15)',
-                  border: '1px solid var(--uba-red)',
-                  color: 'var(--uba-white-pure)',
+                  backgroundColor: 'rgba(255, 69, 58, 0.12)',
+                  borderColor: 'var(--danger)',
                   padding: '10px 14px',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.86rem',
+                  fontSize: '0.875rem',
                   marginBottom: '16px',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px'
+                  gap: '8px',
+                  color: 'var(--text-1)'
                 }}
               >
-                <AlertTriangle size={18} color="var(--uba-red-bright)" />
+                <AlertTriangle size={18} color="var(--danger)" />
                 <span>{error}</span>
               </div>
             )}
 
             {setupSuccess && (
               <div
+                className="card"
                 style={{
-                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                  border: '1px solid #10B981',
-                  color: '#34D399',
+                  backgroundColor: 'rgba(52, 199, 89, 0.12)',
+                  borderColor: 'var(--success)',
                   padding: '10px 14px',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.86rem',
+                  fontSize: '0.875rem',
                   marginBottom: '16px',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px'
+                  gap: '8px',
+                  color: 'var(--success)'
                 }}
               >
                 <CheckCircle2 size={18} />
@@ -233,59 +209,53 @@ export const LoginView: React.FC = () => {
             )}
 
             <form onSubmit={handleSetupSuperAdmin}>
-              <div className="form-group" style={{ marginBottom: '16px' }}>
-                <label className="form-label" style={{ fontSize: '0.86rem', color: '#FFFFFF', fontWeight: 600 }}>
-                  Nom d'utilisateur du Super Administrateur *
-                </label>
+              <div className="form-group">
+                <label className="form-label">Nom d'utilisateur du Super Admin *</label>
                 <div style={{ position: 'relative' }}>
                   <UserIcon
                     size={17}
-                    color="var(--uba-silver-dark)"
-                    style={{ position: 'absolute', left: '12px', top: '13px' }}
+                    className="text-muted"
+                    style={{ position: 'absolute', left: '12px', top: '14px' }}
                   />
                   <input
                     type="text"
+                    name="username"
+                    autoComplete="username"
                     className="form-input"
-                    placeholder="Créer votre nom d'utilisateur"
+                    placeholder="Ex: chef.archives"
                     value={setupNom}
                     onChange={e => setSetupNom(e.target.value)}
                     required
-                    style={{ paddingLeft: '38px', height: '44px' }}
+                    style={{ paddingLeft: '38px' }}
                   />
                 </div>
               </div>
 
-              <div className="form-group" style={{ marginBottom: '22px' }}>
-                <label className="form-label" style={{ fontSize: '0.86rem', color: '#FFFFFF', fontWeight: 600 }}>
-                  Mot de passe *
-                </label>
+              <div className="form-group">
+                <label className="form-label">Mot de passe *</label>
                 <div style={{ position: 'relative' }}>
                   <Lock
                     size={17}
-                    color="var(--uba-silver-dark)"
-                    style={{ position: 'absolute', left: '12px', top: '13px' }}
+                    className="text-muted"
+                    style={{ position: 'absolute', left: '12px', top: '14px' }}
                   />
                   <input
                     type={showPassword ? 'text' : 'password'}
+                    name="new-password"
+                    autoComplete="new-password"
                     className="form-input"
-                    placeholder="Créer votre mot de passe"
+                    placeholder="Au moins 4 caractères"
                     value={setupPassword}
                     onChange={e => setSetupPassword(e.target.value)}
                     required
-                    style={{ paddingLeft: '38px', paddingRight: '40px', height: '44px' }}
+                    style={{ paddingLeft: '38px', paddingRight: '40px' }}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    style={{
-                      position: 'absolute',
-                      right: '12px',
-                      top: '12px',
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--uba-silver-dark)',
-                      cursor: 'pointer'
-                    }}
+                    className="btn btn-ghost btn-icon"
+                    style={{ position: 'absolute', right: '4px', top: '2px' }}
+                    aria-label="Afficher ou masquer mot de passe"
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
@@ -294,105 +264,85 @@ export const LoginView: React.FC = () => {
 
               <button
                 type="submit"
-                className="btn btn-primary"
-                style={{
-                  width: '100%',
-                  height: '46px',
-                  fontSize: '0.96rem',
-                  fontWeight: 800,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px'
-                }}
+                className="btn btn-primary btn-block"
+                disabled={loading}
+                style={{ marginTop: '8px' }}
               >
-                <UserPlus size={18} /> Créer le compte Super Administrateur
+                <UserPlus size={18} /> {loading ? 'Configuration en cours...' : 'Initialiser le Super Admin'}
               </button>
             </form>
           </div>
         ) : (
-          /* CAS 2 : LE SUPER ADMIN EXISTE DÉJÀ -> ACCÈS CONNEXION UNIQUE (INSCRIPTION BLOQUÉE) */
+          /* CAS 2 : Connexion sécurisée avec compte existant */
           <div>
-            {/* Badge de verrouillage d'inscription */}
             <div
+              className="card"
               style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: 'var(--radius-sm)',
                 padding: '8px 12px',
                 marginBottom: '20px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                fontSize: '0.78rem',
-                color: 'var(--uba-silver-metal)'
+                fontSize: '0.8rem',
+                backgroundColor: 'var(--surface-2)'
               }}
             >
-              <ShieldCheck size={16} color="var(--uba-red-bright)" />
-              <span>Accès réservé. Les comptes sont délivrés par le Super Administrateur.</span>
+              <ShieldCheck size={16} color="var(--brand-hi)" />
+              <span className="text-muted">Accès contrôlé. Comptes administrés par le Chef d'équipe.</span>
             </div>
 
             {error && (
               <div
+                className="card"
                 style={{
-                  backgroundColor: 'rgba(227, 30, 36, 0.15)',
-                  border: '1px solid var(--uba-red)',
-                  color: 'var(--uba-white-pure)',
+                  backgroundColor: 'rgba(255, 69, 58, 0.12)',
+                  borderColor: 'var(--danger)',
                   padding: '10px 14px',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.86rem',
+                  fontSize: '0.875rem',
                   marginBottom: '16px',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px'
+                  gap: '8px',
+                  color: 'var(--text-1)'
                 }}
               >
-                <AlertTriangle size={18} color="var(--uba-red-bright)" />
+                <AlertTriangle size={18} color="var(--danger)" />
                 <span>{error}</span>
               </div>
             )}
 
-            <form onSubmit={handleLoginSubmit} autoComplete="on">
-              <div className="form-group" style={{ marginBottom: '16px' }}>
-                <label className="form-label" style={{ fontSize: '0.86rem', color: '#FFFFFF', fontWeight: 600 }}>
-                  Nom d'utilisateur ou Email *
-                </label>
+            <form onSubmit={handleLoginSubmit}>
+              <div className="form-group">
+                <label className="form-label">Nom d'utilisateur ou Email *</label>
                 <div style={{ position: 'relative' }}>
                   <UserIcon
                     size={17}
-                    color="var(--uba-silver-dark)"
-                    style={{ position: 'absolute', left: '12px', top: '13px' }}
+                    className="text-muted"
+                    style={{ position: 'absolute', left: '12px', top: '14px' }}
                   />
                   <input
                     type="text"
                     name="username"
                     autoComplete="username"
+                    autoCapitalize="none"
+                    autoCorrect="off"
                     className="form-input"
-                    placeholder="Entrez votre nom d'utilisateur ou email"
+                    placeholder="Ex: chef.archives ou email"
                     value={email}
-                    onChange={e => handleEmailChange(e.target.value)}
+                    onChange={e => setEmail(e.target.value)}
                     required
-                    style={{ paddingLeft: '38px', height: '44px' }}
+                    style={{ paddingLeft: '38px' }}
                   />
                 </div>
               </div>
 
-              <div className="form-group" style={{ marginBottom: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <label className="form-label" style={{ fontSize: '0.86rem', color: '#FFFFFF', fontWeight: 600, margin: 0 }}>
-                    Mot de passe *
-                  </label>
-                  {isPasswordAutofilled && (
-                    <span style={{ fontSize: '0.74rem', color: '#34D399', display: 'inline-flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
-                      <Check size={12} /> Mémorisé sur cet appareil
-                    </span>
-                  )}
-                </div>
+              <div className="form-group">
+                <label className="form-label">Mot de passe *</label>
                 <div style={{ position: 'relative' }}>
                   <Lock
                     size={17}
-                    color="var(--uba-silver-dark)"
-                    style={{ position: 'absolute', left: '12px', top: '13px' }}
+                    className="text-muted"
+                    style={{ position: 'absolute', left: '12px', top: '14px' }}
                   />
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -401,77 +351,47 @@ export const LoginView: React.FC = () => {
                     className="form-input"
                     placeholder="Votre mot de passe"
                     value={password}
-                    onChange={e => {
-                      setPassword(e.target.value);
-                      setIsPasswordAutofilled(false);
-                    }}
+                    onChange={e => setPassword(e.target.value)}
                     required
-                    style={{ paddingLeft: '38px', paddingRight: '40px', height: '44px' }}
+                    style={{ paddingLeft: '38px', paddingRight: '40px' }}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    style={{
-                      position: 'absolute',
-                      right: '12px',
-                      top: '13px',
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--uba-silver-dark)',
-                      cursor: 'pointer'
-                    }}
+                    className="btn btn-ghost btn-icon"
+                    style={{ position: 'absolute', right: '4px', top: '2px' }}
+                    aria-label="Afficher ou masquer mot de passe"
                   >
-                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
               </div>
 
-              {/* Option Se Souvenir de Moi / Mémoriser le mot de passe */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '22px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.82rem', color: 'var(--uba-silver-light)', userSelect: 'none' }}>
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={e => setRememberMe(e.target.checked)}
-                    style={{ accentColor: 'var(--uba-red)', width: '15px', height: '15px', cursor: 'pointer' }}
-                  />
-                  <span>Mémoriser le mot de passe sur cet appareil</span>
-                </label>
-              </div>
-
               <button
                 type="submit"
-                className="btn btn-primary"
-                style={{
-                  width: '100%',
-                  height: '44px',
-                  fontSize: '0.94rem',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px'
-                }}
+                className="btn btn-primary btn-block"
+                disabled={loading}
+                style={{ marginTop: '12px' }}
               >
-                <span>Accéder à la plateforme</span>
+                <span>{loading ? 'Connexion en cours...' : 'Accéder à la plateforme'}</span>
                 <ArrowRight size={18} />
               </button>
             </form>
           </div>
         )}
 
-        {/* Footer officiel sécurisé */}
+        {/* Footer officiel */}
         <div
           style={{
-            marginTop: '26px',
+            marginTop: '24px',
             paddingTop: '16px',
-            borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+            borderTop: '1px solid var(--line)',
             textAlign: 'center',
-            fontSize: '0.74rem',
-            color: 'var(--uba-silver-dark)'
+            fontSize: '0.75rem',
+            color: 'var(--text-3)'
           }}
         >
-          <div>United Bank for Africa (UBA Congo) · Système d'Archivage Sécurisé</div>
+          <div>United Bank for Africa (UBA Congo) · Gestion des Archives</div>
           <div style={{ marginTop: '2px' }}>Direction des Opérations & Conformité Bancaire</div>
         </div>
       </div>

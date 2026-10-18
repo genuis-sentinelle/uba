@@ -1,13 +1,13 @@
-import { Agency, DailyReport, CartonInventory, Lot, SynthesisReport } from '../types';
+import { Agency, DailyReport, CartonInventory, SynthesisReport } from '../types';
+import { parseLocalDate, toISODateLocal, todayLocal } from '../utils/dates';
+import { newId } from '../utils/ids';
 
 /**
  * Normalise une date en chaîne 'YYYY-MM-DD'
  */
 export const normalizeDate = (dateStr: string): string => {
   if (!dateStr) return '';
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return dateStr.split('T')[0];
-  return d.toISOString().split('T')[0];
+  return dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
 };
 
 /**
@@ -29,8 +29,8 @@ export const selectMissingDays = (
 ): string[] => {
   if (!dateDebut || !dateFin) return [];
 
-  const start = new Date(dateDebut);
-  const end = new Date(dateFin);
+  const start = parseLocalDate(dateDebut);
+  const end = parseLocalDate(dateFin);
   if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) return [];
 
   const reportDateSet = new Set(existingReportDates.map(d => normalizeDate(d)));
@@ -39,7 +39,7 @@ export const selectMissingDays = (
   const current = new Date(start);
   while (current <= end) {
     if (isWorkingDay(current)) {
-      const iso = current.toISOString().split('T')[0];
+      const iso = toISODateLocal(current);
       if (!reportDateSet.has(iso)) {
         missing.push(iso);
       }
@@ -86,11 +86,27 @@ export const selectTotals = (reports: DailyReport[]): CalculatedTotals => {
 };
 
 /**
- * Calcul dynamique et déterministe de la matrice des exercices (T / A / O / -)
- * T = Transmis / Traité (présent dans les transferts réels ou lots transmis)
- * O = Oublié probable (exercice antérieur resté en attente alors qu'un exercice plus récent a été transmis)
- * A = En attente (exercice répertorié ou carton existant mais non encore transmis)
- * - = Aucun lot/carton/mouvement recensé pour cet exercice
+ * Années dynamiques de 2015 à l'année en cours
+ */
+export const defaultYears = (): number[] => {
+  const endYear = new Date().getFullYear();
+  const list: number[] = [];
+  for (let y = 2015; y <= Math.max(endYear, 2026); y++) {
+    list.push(y);
+  }
+  return list;
+};
+
+/**
+ * Clé normalisée d'une agence (ID prioritaire, nom insensible à la casse en repli)
+ */
+export const agencyKey = (id?: string, nom?: string): string => {
+  if (id && id.trim()) return id.trim();
+  return (nom || '').trim().toLowerCase();
+};
+
+/**
+ * Matrice dynamique des exercices (T / A / O / -)
  */
 export interface MatrixRow {
   agenceNom: string;
@@ -101,26 +117,23 @@ export interface MatrixRow {
 export const selectMatrix = (
   agencies: Agency[],
   reports: DailyReport[],
-  years: number[] = [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024],
+  years: number[] = defaultYears(),
   cartons: CartonInventory[] = []
 ): MatrixRow[] => {
-  // Map agence -> Set d'exercices transmis (T)
   const transmisByAgency: Record<string, Set<number>> = {};
-  // Map agence -> Set d'exercices recensés en attente ou cartons
   const recensesByAgency: Record<string, Set<number>> = {};
 
-  // 1. Initialiser avec les agences
   agencies.forEach(ag => {
-    const key = ag.nom.trim().toLowerCase();
+    const key = agencyKey(ag.id, ag.nom);
     transmisByAgency[key] = new Set<number>();
     recensesByAgency[key] = new Set<number>();
   });
 
-  // 2. Récolter les exercices transmis dans les rapports journaliers
+  // 1. Récolter les exercices transmis dans les rapports
   reports.forEach(rep => {
     (rep.transferts || []).forEach(tr => {
-      if (tr.agenceNom && tr.exercice) {
-        const key = tr.agenceNom.trim().toLowerCase();
+      if (tr.exercice) {
+        const key = agencyKey(tr.agenceId, tr.agenceNom);
         if (!transmisByAgency[key]) transmisByAgency[key] = new Set<number>();
         if (!recensesByAgency[key]) recensesByAgency[key] = new Set<number>();
         transmisByAgency[key].add(Number(tr.exercice));
@@ -128,38 +141,34 @@ export const selectMatrix = (
     });
   });
 
-  // 3. Récolter les exercices depuis l'inventaire des cartons
+  // 2. Récolter les exercices depuis l'inventaire des cartons
   cartons.forEach(c => {
-    if (c.agenceNom && c.exercice) {
-      const key = c.agenceNom.trim().toLowerCase();
+    if (c.exercice) {
+      const key = agencyKey(c.agenceId, c.agenceNom);
       if (!recensesByAgency[key]) recensesByAgency[key] = new Set<number>();
       recensesByAgency[key].add(Number(c.exercice));
     }
   });
 
-  // 4. Générer la matrice
+  // 3. Générer la matrice
   return agencies.map(agency => {
-    const key = agency.nom.trim().toLowerCase();
+    const key = agencyKey(agency.id, agency.nom);
     const transmisYears = transmisByAgency[key] || new Set<number>();
     const recensesYears = recensesByAgency[key] || new Set<number>();
 
-    // Plus grand exercice transmis pour détecter les "O" (oubliés probables)
     const maxTransmisYear = transmisYears.size > 0 ? Math.max(...Array.from(transmisYears)) : null;
-
     const anneesRecord: Record<number, 'T' | 'A' | 'O' | '-' | string> = {};
 
     years.forEach(yr => {
       if (transmisYears.has(yr)) {
         anneesRecord[yr] = 'T';
       } else if (recensesYears.has(yr)) {
-        // Présent mais pas encore transmis
         if (maxTransmisYear !== null && yr < maxTransmisYear) {
-          anneesRecord[yr] = 'O'; // Oublié probable : antérieur à un exercice déjà transmis !
+          anneesRecord[yr] = 'O'; // Oublié probable
         } else {
-          anneesRecord[yr] = 'A';
+          anneesRecord[yr] = 'A'; // En attente
         }
       } else {
-        // Aucune trace
         anneesRecord[yr] = '-';
       }
     });
@@ -173,7 +182,15 @@ export const selectMatrix = (
 };
 
 /**
- * Calcul certifié de la synthèse des rapports (sans coefficient fictif 0.4)
+ * Calcul certifié de la synthèse des rapports
+ * @param reportsInRange Rapports de la période demandée
+ * @param agencies Liste des agences
+ * @param dateDebut Date de début
+ * @param dateFin Date de fin
+ * @param type Type de synthèse ('chef_confidentiel' ou 'equipe_public')
+ * @param currentUserNom Nom de l'utilisateur ayant compilé
+ * @param cartons Inventaire des cartons
+ * @param allReports Historique complet des rapports pour calcul cumulé exact de l'attente
  */
 export const selectSynthesisData = (
   reportsInRange: DailyReport[],
@@ -182,51 +199,70 @@ export const selectSynthesisData = (
   dateFin: string,
   type: 'chef_confidentiel' | 'equipe_public',
   currentUserNom: string = 'Système',
-  cartons: CartonInventory[] = []
+  cartons: CartonInventory[] = [],
+  allReports: DailyReport[] = reportsInRange
 ): SynthesisReport => {
-  let dossiersTraites = 0;
-  let boitesTotal = 0;
-  const agenceMap: Record<string, { code: string; traite: number; cartons: number }> = {};
+  const validatedInRange = reportsInRange.filter(r => r.statut !== 'brouillon');
+  const allValidated = allReports.filter(r => r.statut !== 'brouillon');
 
-  // Initialisation sur la base des agences référencées
-  agencies.forEach(ag => {
-    agenceMap[ag.nom] = {
-      code: ag.code,
-      traite: 0,
-      cartons: ag.cartonsCount || 0
-    };
-  });
-
-  // Agrégation stricte sur les transferts effectifs des rapports
-  reportsInRange.forEach(rep => {
+  // Traitement cumulé historique depuis l'origine (par agence)
+  const traiteCumulHistorique: Record<string, number> = {};
+  allValidated.forEach(rep => {
     (rep.transferts || []).forEach(tr => {
-      const conv = Number(tr.conventions) || 0;
-      const bts = Number(tr.boites) || 0;
-      dossiersTraites += conv;
-      boitesTotal += bts;
-
-      if (!agenceMap[tr.agenceNom]) {
-        agenceMap[tr.agenceNom] = { code: tr.code || 'N/A', traite: 0, cartons: 0 };
-      }
-      agenceMap[tr.agenceNom].traite += conv;
+      const k = agencyKey(tr.agenceId, tr.agenceNom);
+      traiteCumulHistorique[k] = (traiteCumulHistorique[k] || 0) + (Number(tr.conventions) || 0);
     });
   });
 
-  // Répartition par agence sans données fictives
-  const repartitionAgences = Object.entries(agenceMap).map(([nom, data]) => {
-    const total = data.traite;
-    // Si l'agence a des conventions estimées dans ses fiches agences, calculer le restant réel
-    const agencyObj = agencies.find(a => a.nom.toLowerCase() === nom.toLowerCase());
+  let dossiersTraitesPeriode = 0;
+  let boitesTotalPeriode = 0;
+  const agenceMapPeriode: Record<string, { id?: string; code: string; nom: string; traite: number }> = {};
+
+  agencies.forEach(ag => {
+    const k = agencyKey(ag.id, ag.nom);
+    agenceMapPeriode[k] = {
+      id: ag.id,
+      code: ag.code,
+      nom: ag.nom,
+      traite: 0
+    };
+  });
+
+  validatedInRange.forEach(rep => {
+    (rep.transferts || []).forEach(tr => {
+      const conv = Number(tr.conventions) || 0;
+      const bts = Number(tr.boites) || 0;
+      dossiersTraitesPeriode += conv;
+      boitesTotalPeriode += bts;
+
+      const k = agencyKey(tr.agenceId, tr.agenceNom);
+      if (!agenceMapPeriode[k]) {
+        agenceMapPeriode[k] = {
+          id: tr.agenceId,
+          code: tr.code || 'N/A',
+          nom: tr.agenceNom,
+          traite: 0
+        };
+      }
+      agenceMapPeriode[k].traite += conv;
+    });
+  });
+
+  // Répartition par agence avec calcul d'attente cumulé
+  const repartitionAgences = Object.values(agenceMapPeriode).map(data => {
+    const agencyObj = agencies.find(a => agencyKey(a.id, a.nom) === agencyKey(data.id, data.nom));
     const conventionsAttendues = agencyObj?.conventionsCount || 0;
-    const attente = Math.max(0, conventionsAttendues - data.traite);
-    const totGlobal = data.traite + attente;
-    const taux = totGlobal > 0 ? Math.round((data.traite / totGlobal) * 100) : (data.traite > 0 ? 100 : 0);
+    const k = agencyKey(data.id, data.nom);
+    const cumulTraiteTotal = traiteCumulHistorique[k] || data.traite;
+    const attente = Math.max(0, conventionsAttendues - cumulTraiteTotal);
+    const totGlobal = conventionsAttendues > 0 ? conventionsAttendues : data.traite + attente;
+    const taux = totGlobal > 0 ? Math.min(100, Math.round((cumulTraiteTotal / totGlobal) * 100)) : (data.traite > 0 ? 100 : 0);
 
     return {
-      nom,
+      nom: data.nom,
       code: data.code,
-      traite: data.traite,
-      attente,
+      traite: data.traite, // Traité sur la période
+      attente,             // En attente globale restante
       total: totGlobal,
       taux
     };
@@ -234,35 +270,48 @@ export const selectSynthesisData = (
 
   const totalDossiersEnAttente = repartitionAgences.reduce((acc, a) => acc + a.attente, 0);
 
-  // Dates réelles des rapports pour calculer les jours ouvrés manquants
-  const existingReportDates = reportsInRange.map(r => r.dateDebut || r.dateFin || '');
+  // Nombre de jours couverts uniques (sans doublon de date)
+  const uniqueDates = new Set(validatedInRange.map(r => normalizeDate(r.dateDebut)));
+  const joursCouverts = uniqueDates.size;
+
+  const existingReportDates = validatedInRange.map(r => r.dateDebut || r.dateFin || '');
   const joursManquants = selectMissingDays(dateDebut, dateFin, existingReportDates);
 
-  // Matrice déterministe
-  const matrice = selectMatrix(agencies, reportsInRange, undefined, cartons);
+  const matrice = selectMatrix(agencies, validatedInRange, defaultYears(), cartons);
+
+  // Points et observations certifiés
+  const pointsAConfirmer: string[] = [
+    `Synthèse calculée sur la base stricte de ${validatedInRange.length} rapport(s) journalier(s) validé(s).`,
+    `Volume traité sur la période : ${dossiersTraitesPeriode} conventions dans ${boitesTotalPeriode} boîte(s).`
+  ];
+
+  if (type === 'chef_confidentiel') {
+    if (joursManquants.length > 0) {
+      pointsAConfirmer.push(`Attention : ${joursManquants.length} jour(s) ouvré(s) sans rapport validé (${joursManquants.join(', ')}).`);
+    } else {
+      pointsAConfirmer.push(`Couverture intégrale : tous les jours ouvrés de la période sont documentés.`);
+    }
+  } else {
+    // Pour la version équipe_public : aucune mention sensible ni jours manquants détaillés
+    pointsAConfirmer.push(`Avancement général des opérations d'archivage sur les sites Maya-Maya et Mazala.`);
+  }
 
   return {
-    id: `syn-${Date.now()}`,
+    id: newId('syn'),
     titre: `Synthèse d'avancement (${dateDebut} au ${dateFin})`,
     dateDebut,
     dateFin,
     type,
-    dossiersTraites,
+    dossiersTraites: dossiersTraitesPeriode,
     dossiersEnAttente: totalDossiersEnAttente,
-    totalGlobal: dossiersTraites + totalDossiersEnAttente,
-    boitesTotal,
-    agencesCount: repartitionAgences.filter(r => r.total > 0).length,
-    joursCouverts: reportsInRange.length,
-    joursManquants,
+    totalGlobal: dossiersTraitesPeriode + totalDossiersEnAttente,
+    boitesTotal: boitesTotalPeriode,
+    agencesCount: repartitionAgences.filter(r => r.traite > 0).length,
+    joursCouverts,
+    joursManquants: type === 'chef_confidentiel' ? joursManquants : [],
     matrice,
     repartitionAgences,
-    pointsAConfirmer: [
-      `Synthèse calculée sur la base stricte de ${reportsInRange.length} rapport(s) journalier(s).`,
-      `Volume total certifié : ${dossiersTraites} conventions dans ${boitesTotal} boîte(s).`,
-      joursManquants.length > 0
-        ? `Attention : ${joursManquants.length} jour(s) ouvré(s) sans rapport répertorié sur la période (${joursManquants.join(', ')}).`
-        : `Couverture complète : tous les jours ouvrés de la période sont documentés.`
-    ],
+    pointsAConfirmer,
     creePar: currentUserNom,
     dateCreation: new Date().toISOString()
   };

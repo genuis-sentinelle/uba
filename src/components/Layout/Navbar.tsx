@@ -16,7 +16,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenCreateUser,
   onOpenProfile
 }) => {
-  const { currentUser, users, switchUser, logout } = useAuth();
+  const { currentUser, logout } = useAuth();
   const { agencies, dailyReports, cartons, teamMembers } = useData();
 
   const [showUserDropdown, setShowUserDropdown] = useState(false);
@@ -55,37 +55,17 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <header style={{
-        backgroundColor: 'var(--uba-black-deep)',
-        borderBottom: '1px solid var(--uba-anthracite)',
-        height: '66px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 24px',
-        position: 'sticky',
-        top: 0,
-        zIndex: 30,
-        backdropFilter: 'blur(10px)'
-      }}>
+      <header className="app-header">
         {/* Brand & Identity avec logo officiel */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           {onToggleMobileMenu && (
             <button
+              type="button"
               onClick={onToggleMobileMenu}
-              style={{
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: '6px',
-                display: 'flex',
-                alignItems: 'center',
-                color: 'var(--uba-silver-light)'
-              }}
-              className="mobile-toggle"
+              className="btn btn-ghost btn-icon mobile-only"
               aria-label="Ouvrir le menu"
             >
-              <Menu size={24} />
+              <Menu size={22} />
             </button>
           )}
 
@@ -114,27 +94,17 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Search button & User bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {/* Quick Universal Search Trigger */}
           <button
+            type="button"
             onClick={() => setShowSearchModal(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              backgroundColor: 'var(--uba-black-smoke)',
-              border: '1px solid var(--uba-anthracite)',
-              borderRadius: 'var(--radius-sm)',
-              padding: '7px 14px',
-              cursor: 'pointer',
-              color: 'var(--uba-silver-metal)',
-              fontSize: '0.9rem',
-              fontWeight: 600
-            }}
+            className="btn btn-secondary btn-sm"
+            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
           >
-            <Search size={16} color="var(--uba-silver-light)" />
-            <span>Rechercher...</span>
-            <kbd style={{ backgroundColor: 'var(--uba-black-deep)', border: '1px solid var(--uba-graphite)', borderRadius: '4px', padding: '1px 5px', fontSize: '0.72rem', color: 'var(--uba-silver-dark)' }}>
+            <Search size={15} />
+            <span className="desktop-only">Rechercher...</span>
+            <kbd className="desktop-only" style={{ backgroundColor: 'rgba(0,0,0,0.3)', border: '1px solid var(--line)', borderRadius: '4px', padding: '1px 5px', fontSize: '0.72rem', color: 'var(--text-3)' }}>
               Ctrl+K
             </kbd>
           </button>
@@ -243,51 +213,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span>Mon Profil & Sécurité</span>
                   </button>
 
-                  <div style={{ borderTop: '1px solid var(--uba-anthracite)', margin: '6px 0' }} />
-
-                  <div style={{ padding: '6px 10px', fontSize: '0.72rem', fontWeight: 800, color: 'var(--uba-silver-dark)', textTransform: 'uppercase' }}>
-                    Bascule rapide de session
-                  </div>
-                  {users.slice(0, 4).map(u => (
-                    <button
-                      key={u.id}
-                      onClick={() => {
-                        switchUser(u.id);
-                        setShowUserDropdown(false);
-                      }}
-                      style={{
-                        width: '100%',
-                        textAlign: 'left',
-                        padding: '7px 10px',
-                        borderRadius: 'var(--radius-xs)',
-                        background: currentUser.id === u.id ? 'var(--uba-red-tint)' : 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        marginBottom: '2px'
-                      }}
-                      onMouseEnter={e => {
-                        if (currentUser.id !== u.id) e.currentTarget.style.backgroundColor = 'var(--uba-anthracite)';
-                      }}
-                      onMouseLeave={e => {
-                        if (currentUser.id !== u.id) e.currentTarget.style.backgroundColor = 'transparent';
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: '0.84rem', color: 'var(--uba-white-cool)' }}>
-                          {u.nomComplet}
-                        </div>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--uba-silver-dark)' }}>
-                          {u.role === 'super_admin' ? 'Super Admin' : u.role === 'admin' ? 'Admin' : 'Archiviste'}
-                        </div>
-                      </div>
-                      {currentUser.id === u.id && <span style={{ color: 'var(--uba-red-bright)', fontSize: '0.85rem', fontWeight: 900 }}>✓</span>}
-                    </button>
-                  ))}
-
-                  <div style={{ borderTop: '1px solid var(--uba-anthracite)', margin: '6px 0' }} />
+                  <div style={{ borderTop: '1px solid var(--line)', margin: '6px 0' }} />
                   <button
                     onClick={() => {
                       logout();

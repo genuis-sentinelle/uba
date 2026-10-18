@@ -14,10 +14,13 @@ import {
   CheckCircle2
 } from 'lucide-react';
 
+import { useFeedback } from '../ui/Feedback';
+
 export const CartonsView: React.FC = () => {
   const { cartons, agencies, addCarton, updateCarton, deleteCarton } = useData();
   const { currentUser } = useAuth();
-  const isStagiaire = currentUser?.role === 'stagiaire' || currentUser?.role === 'user';
+  const { confirm, toast } = useFeedback();
+  const isStagiaire = currentUser?.role === 'stagiaire';
 
   const [showModal, setShowModal] = useState(false);
   const [editingCarton, setEditingCarton] = useState<CartonInventory | null>(null);
@@ -102,9 +105,16 @@ export const CartonsView: React.FC = () => {
     setShowModal(false);
   };
 
-  const handleDelete = (c: CartonInventory) => {
-    if (window.confirm(`Supprimer le carton ${c.numeroCarton} de l'inventaire ?`)) {
+  const handleDelete = async (c: CartonInventory) => {
+    const ok = await confirm({
+      title: 'Supprimer ce carton ?',
+      message: `Supprimer le carton ${c.numeroCarton} de l'inventaire ? Cette action est irréversible.`,
+      confirmLabel: 'Supprimer',
+      danger: true
+    });
+    if (ok) {
       deleteCarton(c.id);
+      toast(`Carton ${c.numeroCarton} supprimé de l'inventaire.`, 'info');
     }
   };
 

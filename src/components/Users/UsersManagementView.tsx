@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
+import { useFeedback } from '../ui/Feedback';
 import { User, Role } from '../../types';
-import { UserPlus, Trash2, Edit2, CheckCircle, AlertTriangle, Lock, X, ShieldCheck, Power, Shield, UserCheck, KeyRound, ShieldAlert } from 'lucide-react';
-import { vault } from '../../utils/vault';
+import { UserPlus, Trash2, Edit2, Lock, X, ShieldCheck, Power, Shield, UserCheck, KeyRound } from 'lucide-react';
 
 interface UsersManagementViewProps {
   autoOpenAdd?: boolean;
@@ -13,6 +13,7 @@ interface UsersManagementViewProps {
 export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOpenAdd, onModalClosed }) => {
   const { users, currentUser, addUser, updateUser, deleteUser, canDeleteUser } = useAuth();
   const { addLog } = useData();
+  const { toast, confirm } = useFeedback();
 
   const [showModal, setShowModal] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -20,12 +21,9 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
   // Form states
   const [nomComplet, setNomComplet] = useState('');
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<Role>('user');
+  const [role, setRole] = useState<Role>('stagiaire');
   const [titre, setTitre] = useState('');
   const [motDePasse, setMotDePasse] = useState('uba2026');
-  const [memoriserDansNavigateur, setMemoriserDansNavigateur] = useState(true);
-
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     if (autoOpenAdd) {
@@ -42,8 +40,7 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
     setEmail('');
     setRole('stagiaire');
     setTitre('');
-    setMotDePasse('uba2026');
-    setMemoriserDansNavigateur(true);
+    setMotDePasse('uba' + Math.floor(1000 + Math.random() * 9000));
     setShowModal(true);
   };
 
@@ -57,10 +54,10 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
     setShowModal(true);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nomComplet.trim() || !email.trim()) {
-      setMessage({ type: 'error', text: 'Veuillez remplir le nom et l\'adresse email.' });
+      toast('Veuillez remplir le nom et l\'adresse email.', 'error');
       return;
     }
 
@@ -72,45 +69,39 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
         role,
         titre: titre.trim() || editingUser.titre
       });
-      setMessage({ type: 'success', text: res.message });
-      addLog('Modification Utilisateur', `Profil modifié : ${nomComplet} (${role})`, 'utilisateur');
-      setShowModal(false);
+      toast(res.message, res.success ? 'success' : 'error');
+      if (res.success) {
+        addLog('Modification Utilisateur', `Profil modifié : ${nomComplet} (${role})`, 'utilisateur');
+        setShowModal(false);
+      }
     } else {
-      const res = addUser({
+      const res = await addUser({
         nomComplet: nomComplet.trim(),
         email: email.trim(),
         role,
         titre: titre.trim() || (role === 'admin' ? 'Administrateur' : role === 'super_admin' ? 'Chef d\'équipe' : 'Archiviste'),
-        actif: true
+        actif: true,
+        motDePasse: motDePasse.trim()
       });
 
       if (res.success) {
-        if (memoriserDansNavigateur && motDePasse) {
-          vault.savePassword(email.trim(), motDePasse.trim(), true);
-        }
-        setMessage({ 
-          type: 'success', 
-          text: `${res.message}${memoriserDansNavigateur ? ' 🔐 Mot de passe enregistré dans le trousseau local.' : ''}` 
-        });
-        addLog('Création Utilisateur', `Nouvel utilisateur créé : ${nomComplet} (${role})`, 'utilisateur');
+        toast(res.message, 'success');
+        addLog('Création Utilisateur', `Nouvel utilisateur créé avec mot de passe sécurisé : ${nomComplet} (${role})`, 'utilisateur');
         setShowModal(false);
       } else {
-        setMessage({ type: 'error', text: res.message });
+        toast(res.message, 'error');
       }
     }
   };
 
   const handleToggleActif = (u: User) => {
     if (u.id === currentUser?.id) {
-      alert('Vous ne pouvez pas désactiver votre propre compte.');
+      toast('Vous ne pouvez pas désactiver votre propre compte.', 'error');
       return;
     }
     const updated = { ...u, actif: !u.actif };
     updateUser(updated);
-    setMessage({
-      type: 'success',
-      text: `Compte ${u.nomComplet} ${updated.actif ? 'activé' : 'désactivé'}.`
-    });
+    toast(`Compte ${u.nomComplet} ${updated.actif ? 'activé' : 'désactivé'}.`, 'info');
     addLog(
       'Statut Utilisateur',
       `Compte ${u.nomComplet} ${updated.actif ? 'activé' : 'désactivé'}`,
@@ -118,20 +109,27 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
     );
   };
 
-  const handleDelete = (target: User) => {
+  const handleDelete = async (target: User) => {
     const check = canDeleteUser(target);
     if (!check.allowed) {
-      alert(`Action refusée : ${check.reason}`);
+      toast(`Action refusée : ${check.reason}`, 'error');
       return;
     }
 
-    if (window.confirm(`Confirmer la suppression du compte de "${target.nomComplet}" (${target.role}) ?`)) {
+    const ok = await confirm({
+      title: 'Supprimer cet utilisateur ?',
+      message: `Confirmer la suppression du compte de "${target.nomComplet}" (${target.role}) ? Cette action est irréversible.`,
+      confirmLabel: 'Supprimer définitivement',
+      danger: true
+    });
+
+    if (ok) {
       const res = deleteUser(target.id);
       if (res.success) {
-        setMessage({ type: 'success', text: res.message });
+        toast(res.message, 'success');
         addLog('Suppression Utilisateur', `Compte supprimé : ${target.nomComplet} (${target.role})`, 'utilisateur');
       } else {
-        setMessage({ type: 'error', text: res.message });
+        toast(res.message, 'error');
       }
     }
   };
@@ -139,60 +137,32 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
   const getRoleBadge = (r: Role) => {
     switch (r) {
       case 'super_admin':
-        return <span className="badge badge-red" style={{ fontWeight: 800 }}>Super Admin (Chef)</span>;
+        return <span className="badge badge-red">Super Admin (Chef)</span>;
       case 'admin':
-        return <span className="badge badge-black" style={{ fontWeight: 800 }}>Administrateur</span>;
+        return <span className="badge badge-black">Administrateur</span>;
       default:
-        return <span className="badge badge-gray" style={{ fontWeight: 700 }}>Archiviste / Stagiaire</span>;
+        return <span className="badge badge-silver">Archiviste / Stagiaire</span>;
     }
   };
 
   return (
-    <div style={{ padding: '24px 28px', maxWidth: '1400px', margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+    <div className="page">
+      <div className="page-head">
         <div>
-          <h1 style={{ fontSize: '1.55rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
-            Utilisateurs & Droits d'Accès
-          </h1>
-          <div style={{ fontSize: '0.92rem', color: '#D9D9D9', marginTop: '2px' }}>
+          <h1>Utilisateurs & Droits d'Accès</h1>
+          <p className="text-muted text-sm" style={{ marginTop: '4px' }}>
             {users.length} compte(s) enregistré(s)
-          </div>
+          </p>
         </div>
 
         <button onClick={handleOpenAdd} className="btn btn-primary">
-          <UserPlus size={16} /> + Créer un Utilisateur
+          <UserPlus size={16} /> Créer un Utilisateur
         </button>
       </div>
 
-      {message && (
-        <div style={{
-          padding: '12px 16px',
-          borderRadius: '8px',
-          marginBottom: '16px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          backgroundColor: message.type === 'success' ? '#ECFDF5' : '#FEF2F2',
-          color: message.type === 'success' ? '#065F46' : '#B91C1C',
-          border: `1px solid ${message.type === 'success' ? '#A7F3D0' : '#FECACA'}`,
-          fontSize: '0.9rem',
-          fontWeight: 700
-        }}>
-          {message.type === 'success' ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
-          <span>{message.text}</span>
-          <button
-            onClick={() => setMessage(null)}
-            style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 800 }}
-          >
-            ✕
-          </button>
-        </div>
-      )}
-
       {/* Users Table */}
       <div className="uba-table-container">
-        <table className="uba-table">
+        <table className="uba-table uba-table--cards">
           <thead>
             <tr>
               <th>Utilisateur</th>
@@ -209,42 +179,42 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
 
               return (
                 <tr key={u.id} style={{ opacity: u.actif ? 1 : 0.6 }}>
-                  <td>
+                  <td data-label="Utilisateur">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                       <div style={{
                         width: '36px',
                         height: '36px',
                         borderRadius: '50%',
-                        backgroundColor: u.role === 'super_admin' ? '#E41E26' : '#0F172A',
-                        color: '#FFFFFF',
+                        backgroundColor: u.role === 'super_admin' ? 'var(--brand)' : 'var(--surface-2)',
+                        color: 'var(--text-1)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        fontWeight: 800,
+                        fontWeight: 600,
                         fontSize: '0.95rem'
                       }}>
                         {u.nomComplet.charAt(0)}
                       </div>
                       <div>
-                        <div style={{ fontWeight: 800, color: '#FFFFFF', fontSize: '1rem' }}>
-                          {u.nomComplet} {u.id === currentUser?.id && <span style={{ color: 'var(--uba-red-bright)', fontSize: '0.8rem' }}>(Vous)</span>}
+                        <div style={{ fontWeight: 600, color: 'var(--text-1)' }}>
+                          {u.nomComplet} {u.id === currentUser?.id && <span style={{ color: 'var(--brand-hi)', fontSize: '0.8rem' }}>(Vous)</span>}
                         </div>
                       </div>
                     </div>
                   </td>
-                  <td style={{ color: '#D9D9D9', fontFamily: 'var(--font-mono)', fontSize: '0.9rem' }}>
+                  <td data-label="Email" className="num">
                     {u.email}
                   </td>
-                  <td>{getRoleBadge(u.role)}</td>
-                  <td style={{ fontSize: '0.95rem', color: '#FFFFFF', fontWeight: 600 }}>
+                  <td data-label="Rôle">{getRoleBadge(u.role)}</td>
+                  <td data-label="Fonction" style={{ color: 'var(--text-1)' }}>
                     {u.titre}
                   </td>
-                  <td>
-                    <span className={u.actif ? 'badge badge-white' : 'badge badge-gray'}>
+                  <td data-label="État">
+                    <span className={u.actif ? 'badge badge-green' : 'badge badge-silver'}>
                       {u.actif ? 'Actif' : 'Désactivé'}
                     </span>
                   </td>
-                  <td style={{ textAlign: 'right' }}>
+                  <td data-label="Actions" style={{ textAlign: 'right' }}>
                     <div style={{ display: 'inline-flex', gap: '6px' }}>
                       <button
                         onClick={() => handleOpenEdit(u)}
@@ -256,8 +226,7 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
 
                       <button
                         onClick={() => handleToggleActif(u)}
-                        className="btn btn-secondary btn-sm"
-                        style={{ padding: '6px 8px', color: '#FFFFFF' }}
+                        className="btn btn-secondary btn-sm btn-icon"
                         title={u.actif ? 'Désactiver le compte' : 'Activer le compte'}
                       >
                         <Power size={14} />
@@ -266,8 +235,8 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
                       {check.allowed ? (
                         <button
                           onClick={() => handleDelete(u)}
-                          className="btn btn-secondary btn-sm"
-                          style={{ padding: '6px 8px', color: '#DC2626' }}
+                          className="btn btn-secondary btn-sm btn-icon"
+                          style={{ color: 'var(--danger)' }}
                           title="Supprimer"
                         >
                           <Trash2 size={14} />
@@ -275,7 +244,8 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
                       ) : (
                         <span
                           title={check.reason || 'Action protégée'}
-                          style={{ fontSize: '0.78rem', color: '#94A3B8', cursor: 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                          className="text-muted"
+                          style={{ padding: '0 8px', display: 'inline-flex', alignItems: 'center' }}
                         >
                           <Lock size={12} />
                         </span>
@@ -291,28 +261,27 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
 
       {/* Modal Add / Edit User */}
       {showModal && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '640px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px' }}>
+        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
-                <h3 style={{ fontSize: '1.45rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
-                  {editingUser ? 'Modifier le compte' : 'Créer un nouvel utilisateur'}
-                </h3>
-                <p style={{ fontSize: '0.92rem', color: '#D9D9D9', margin: '4px 0 0 0' }}>
+                <h3>{editingUser ? 'Modifier le compte' : 'Créer un nouvel utilisateur'}</h3>
+                <p className="text-muted text-sm" style={{ marginTop: '4px' }}>
                   Définissez l'identité, le rôle opérationnel et les accès dans ARCHIVA.
                 </p>
               </div>
               <button
                 onClick={() => setShowModal(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#D9D9D9', padding: '6px' }}
+                className="btn btn-ghost btn-icon"
+                aria-label="Fermer"
               >
-                <X size={24} />
+                <X size={20} />
               </button>
             </div>
 
             <form onSubmit={handleSave}>
               <div className="form-group">
-                <label className="form-label" style={{ fontSize: '1rem' }}>Nom complet de l'agent *</label>
+                <label className="form-label">Nom complet de l'agent *</label>
                 <input
                   type="text"
                   className="form-input"
@@ -320,12 +289,11 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
                   value={nomComplet}
                   onChange={e => setNomComplet(e.target.value)}
                   required
-                  style={{ fontSize: '1.05rem', height: '48px' }}
                 />
               </div>
 
               <div className="form-group">
-                <label className="form-label" style={{ fontSize: '1rem' }}>Email professionnel UBA *</label>
+                <label className="form-label">Email professionnel UBA *</label>
                 <input
                   type="email"
                   className="form-input"
@@ -333,55 +301,48 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   required
-                  style={{ fontSize: '1.05rem', height: '48px' }}
                 />
               </div>
 
               {/* Choix visuel du Rôle */}
               <div className="form-group">
-                <label className="form-label" style={{ fontSize: '1rem', marginBottom: '10px' }}>
-                  Niveau d'habilitation & Rôle *
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: currentUser?.role === 'super_admin' ? '1fr 1fr 1fr' : '1fr 1fr', gap: '10px' }}>
-                  {/* Stagiaire (Lecture seule) */}
+                <label className="form-label">Niveau d'habilitation & Rôle *</label>
+                <div className="grid-3" style={{ marginTop: '8px' }}>
+                  {/* Stagiaire */}
                   <div
                     onClick={() => setRole('stagiaire')}
+                    className="card card--interactive"
                     style={{
-                      border: (role === 'stagiaire' || role === 'user') ? '2px solid var(--uba-red)' : '1px solid rgba(255, 255, 255, 0.12)',
-                      backgroundColor: (role === 'stagiaire' || role === 'user') ? 'rgba(227, 30, 36, 0.15)' : 'var(--uba-anthracite)',
-                      borderRadius: '8px',
-                      padding: '12px',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
+                      borderColor: role === 'stagiaire' ? 'var(--brand)' : 'var(--line)',
+                      backgroundColor: role === 'stagiaire' ? 'var(--brand-tint)' : 'var(--surface-2)',
+                      padding: '14px'
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                      <UserCheck size={18} color="#FFFFFF" />
-                      <strong style={{ fontSize: '0.95rem', color: '#FFFFFF' }}>Stagiaire</strong>
+                      <UserCheck size={18} color="var(--brand-hi)" />
+                      <strong>Stagiaire</strong>
                     </div>
-                    <div style={{ fontSize: '0.8rem', color: '#D9D9D9', lineHeight: 1.3 }}>
-                      Lecture seule stricte. Consultation sans modification. Aucun accès aux logs ni aux utilisateurs.
+                    <div className="text-muted text-sm">
+                      Saisie quotidienne des rapports, bordereaux, cartons et incidents.
                     </div>
                   </div>
 
-                  {/* Administrateur (Lecture & Modification) */}
+                  {/* Administrateur */}
                   <div
                     onClick={() => setRole('admin')}
+                    className="card card--interactive"
                     style={{
-                      border: role === 'admin' ? '2px solid var(--uba-red)' : '1px solid rgba(255, 255, 255, 0.12)',
-                      backgroundColor: role === 'admin' ? 'rgba(227, 30, 36, 0.15)' : 'var(--uba-anthracite)',
-                      borderRadius: '8px',
-                      padding: '12px',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
+                      borderColor: role === 'admin' ? 'var(--brand)' : 'var(--line)',
+                      backgroundColor: role === 'admin' ? 'var(--brand-tint)' : 'var(--surface-2)',
+                      padding: '14px'
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                      <Shield size={18} color="#FFFFFF" />
-                      <strong style={{ fontSize: '0.95rem', color: '#FFFFFF' }}>Administrateur</strong>
+                      <Shield size={18} color="var(--brand-hi)" />
+                      <strong>Administrateur</strong>
                     </div>
-                    <div style={{ fontSize: '0.8rem', color: '#D9D9D9', lineHeight: 1.3 }}>
-                      Droit de lecture et de modification. Création de données, rapports, bordereaux et comptes.
+                    <div className="text-muted text-sm">
+                      Gestion des référentiels, équipes, synthèses et création de comptes.
                     </div>
                   </div>
 
@@ -389,21 +350,19 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
                   {currentUser?.role === 'super_admin' && (
                     <div
                       onClick={() => setRole('super_admin')}
+                      className="card card--interactive"
                       style={{
-                        border: role === 'super_admin' ? '2px solid var(--uba-red)' : '1px solid rgba(255, 255, 255, 0.12)',
-                        backgroundColor: role === 'super_admin' ? 'rgba(227, 30, 36, 0.22)' : 'var(--uba-anthracite)',
-                        borderRadius: '8px',
-                        padding: '12px',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease'
+                        borderColor: role === 'super_admin' ? 'var(--brand)' : 'var(--line)',
+                        backgroundColor: role === 'super_admin' ? 'var(--brand-tint)' : 'var(--surface-2)',
+                        padding: '14px'
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                        <ShieldCheck size={18} color="var(--uba-red-bright)" />
-                        <strong style={{ fontSize: '0.95rem', color: 'var(--uba-red-bright)' }}>Super Admin</strong>
+                        <ShieldCheck size={18} color="var(--brand-hi)" />
+                        <strong>Super Admin</strong>
                       </div>
-                      <div style={{ fontSize: '0.8rem', color: '#D9D9D9', lineHeight: 1.3 }}>
-                        Chef d'équipe (Accès total & suppression).
+                      <div className="text-muted text-sm">
+                        Chef d'équipe (Accès total, purge et suppression).
                       </div>
                     </div>
                   )}
@@ -412,14 +371,14 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
 
               {/* Titre & Suggestions */}
               <div className="form-group">
-                <label className="form-label" style={{ fontSize: '1rem' }}>Fonction / Poste officiel</label>
+                <label className="form-label">Fonction / Poste officiel</label>
                 <input
                   type="text"
                   className="form-input"
                   placeholder="Ex: Archiviste Superviseur"
                   value={titre}
                   onChange={e => setTitre(e.target.value)}
-                  style={{ fontSize: '1.05rem', height: '48px', marginBottom: '8px' }}
+                  style={{ marginBottom: '8px' }}
                 />
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                   {['Archiviste de Terrain', 'Superviseur Traitement', 'Responsable Mazala', 'Opérateur de Saisie', 'Chauffeur / Convoyeur'].map(sugg => (
@@ -427,16 +386,7 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
                       key={sugg}
                       type="button"
                       onClick={() => setTitre(sugg)}
-                      style={{
-                        backgroundColor: titre === sugg ? 'var(--uba-red)' : 'var(--uba-anthracite)',
-                        color: '#FFFFFF',
-                        border: '1px solid rgba(255, 255, 255, 0.12)',
-                        borderRadius: '6px',
-                        padding: '5px 12px',
-                        fontSize: '0.82rem',
-                        cursor: 'pointer',
-                        fontWeight: 700
-                      }}
+                      className="btn btn-secondary btn-sm"
                     >
                       + {sugg}
                     </button>
@@ -445,46 +395,33 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
               </div>
 
               {!editingUser && (
-                <div className="form-group" style={{ backgroundColor: 'rgba(6, 6, 6, 0.9)', border: '1px solid rgba(255, 255, 255, 0.12)', borderRadius: '8px', padding: '14px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                    <KeyRound size={18} color="var(--uba-red-bright)" />
-                    <label className="form-label" style={{ margin: 0, fontSize: '0.95rem' }}>Mot de passe initial sécurisé</label>
+                <div className="card" style={{ backgroundColor: 'var(--surface-2)', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <KeyRound size={18} color="var(--brand-hi)" />
+                    <label className="form-label" style={{ margin: 0 }}>Mot de passe initial sécurisé</label>
                   </div>
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <input
                       type="text"
-                      className="form-input"
+                      className="form-input num"
                       value={motDePasse}
                       onChange={e => setMotDePasse(e.target.value)}
-                      style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '1.05rem', height: '44px' }}
                     />
                     <button
                       type="button"
                       onClick={() => setMotDePasse('uba' + Math.floor(1000 + Math.random() * 9000))}
-                      className="btn btn-secondary btn-sm"
+                      className="btn btn-secondary"
                     >
                       Générer
                     </button>
                   </div>
-                  <span style={{ fontSize: '0.82rem', color: '#D9D9D9', marginTop: '6px', display: 'block' }}>
-                    L'agent pourra changer son mot de passe lors de sa première session.
-                  </span>
-
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '9px', marginTop: '12px', cursor: 'pointer', padding: '8px 10px', backgroundColor: 'rgba(255, 255, 255, 0.04)', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                    <input
-                      type="checkbox"
-                      checked={memoriserDansNavigateur}
-                      onChange={e => setMemoriserDansNavigateur(e.target.checked)}
-                      style={{ accentColor: 'var(--uba-red)', width: '16px', height: '16px', cursor: 'pointer' }}
-                    />
-                    <span style={{ fontSize: '0.86rem', color: '#FFFFFF', fontWeight: 600 }}>
-                      🔐 Enregistrer automatiquement dans le trousseau local sécurisé du navigateur
-                    </span>
-                  </label>
+                  <p className="text-muted text-sm" style={{ marginTop: '8px' }}>
+                    Le mot de passe sera haché avec sel cryptographique (SHA-256). L'agent pourra le modifier à tout moment.
+                  </p>
                 </div>
               )}
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '26px' }}>
+              <div className="modal-actions">
                 <button type="button" onClick={() => setShowModal(false)} className="btn btn-secondary">
                   Annuler
                 </button>

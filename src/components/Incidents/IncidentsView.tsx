@@ -14,10 +14,13 @@ import {
   ShieldAlert
 } from 'lucide-react';
 
+import { useFeedback } from '../ui/Feedback';
+
 export const IncidentsView: React.FC = () => {
   const { incidents, agencies, addIncident, updateIncident, deleteIncident } = useData();
   const { currentUser } = useAuth();
-  const isStagiaire = currentUser?.role === 'stagiaire' || currentUser?.role === 'user';
+  const { confirm, toast } = useFeedback();
+  const isStagiaire = currentUser?.role === 'stagiaire';
 
   const [showModal, setShowModal] = useState(false);
   const [editingIncident, setEditingIncident] = useState<ArchiveIncident | null>(null);
@@ -89,9 +92,16 @@ export const IncidentsView: React.FC = () => {
     setShowModal(false);
   };
 
-  const handleDelete = (inc: ArchiveIncident) => {
-    if (window.confirm(`Supprimer l'incident "${inc.titre}" ?`)) {
+  const handleDelete = async (inc: ArchiveIncident) => {
+    const ok = await confirm({
+      title: 'Supprimer cet incident ?',
+      message: `Supprimer l'incident "${inc.titre}" ?`,
+      confirmLabel: 'Supprimer',
+      danger: true
+    });
+    if (ok) {
       deleteIncident(inc.id);
+      toast(`Incident "${inc.titre}" supprimé.`, 'info');
     }
   };
 

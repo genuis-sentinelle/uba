@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DataProvider } from './context/DataContext';
 import { Navbar } from './components/Layout/Navbar';
 import { Sidebar, NavigationTab } from './components/Layout/Sidebar';
+import { BottomNav } from './components/Layout/BottomNav';
 import { DashboardView } from './components/Dashboard/DashboardView';
 import { DailyReportView } from './components/DailyReport/DailyReportView';
 import { SynthesisView } from './components/Synthesis/SynthesisView';
@@ -18,9 +19,10 @@ import { UsersManagementView } from './components/Users/UsersManagementView';
 import { SettingsView } from './components/Settings/SettingsView';
 import { LoginView } from './components/Auth/LoginView';
 import { ProfileModal } from './components/Profile/ProfileModal';
+import { can } from './utils/permissions';
 
 const MainApp: React.FC = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, loading } = useAuth();
   const [currentTab, setCurrentTab] = useState<NavigationTab>('dashboard');
   const [openedReportId, setOpenedReportId] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -40,6 +42,17 @@ const MainApp: React.FC = () => {
     });
   };
 
+  if (loading) {
+    return (
+      <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div className="badge badge-red" style={{ marginBottom: '12px' }}>ARCHIVA UBA</div>
+          <p className="text-muted text-sm">Chargement sécurisé...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!currentUser) {
     return <LoginView />;
   }
@@ -55,7 +68,7 @@ const MainApp: React.FC = () => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'transparent' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
       <Navbar
         onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
         onNavigate={setCurrentTab}
@@ -63,7 +76,7 @@ const MainApp: React.FC = () => {
         onOpenProfile={() => setIsProfileModalOpen(true)}
       />
 
-      <div style={{ display: 'flex', flex: 1 }}>
+      <div className="app-shell">
         <Sidebar
           currentTab={currentTab}
           onSelectTab={setCurrentTab}
@@ -73,7 +86,7 @@ const MainApp: React.FC = () => {
           onToggleCollapse={toggleSidebarCollapse}
         />
 
-        <main style={{ flex: 1, overflowX: 'hidden', paddingBottom: '30px' }}>
+        <main className="app-main">
           {currentTab === 'dashboard' && (
             <DashboardView
               onNavigate={setCurrentTab}
@@ -118,22 +131,28 @@ const MainApp: React.FC = () => {
             <TeamView />
           )}
 
-          {currentTab === 'audit-logs' && currentUser?.role !== 'stagiaire' && currentUser?.role !== 'user' && (
+          {currentTab === 'audit-logs' && can.viewAudit(currentUser?.role) && (
             <AuditLogsView />
           )}
 
-          {currentTab === 'users' && currentUser?.role !== 'stagiaire' && currentUser?.role !== 'user' && (
+          {currentTab === 'users' && can.manageUsers(currentUser?.role) && (
             <UsersManagementView
               autoOpenAdd={autoOpenAddUser}
               onModalClosed={() => setAutoOpenAddUser(false)}
             />
           )}
 
-          {currentTab === 'settings' && currentUser?.role !== 'stagiaire' && currentUser?.role !== 'user' && (
+          {currentTab === 'settings' && can.editReferentials(currentUser?.role) && (
             <SettingsView />
           )}
         </main>
       </div>
+
+      <BottomNav
+        current={currentTab}
+        onSelect={setCurrentTab}
+        onMore={() => setIsMobileMenuOpen(true)}
+      />
 
       {/* Modal de profil utilisateur & changement de mot de passe */}
       <ProfileModal

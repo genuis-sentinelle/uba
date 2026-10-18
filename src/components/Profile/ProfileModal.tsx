@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
-import { X, User as UserIcon, Lock, Shield, CheckCircle, AlertTriangle, LogOut } from 'lucide-react';
+import { verifyPassword } from '../../utils/crypto';
+import { X, Lock, CheckCircle, AlertTriangle, LogOut } from 'lucide-react';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -9,7 +10,7 @@ interface ProfileModalProps {
 }
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) => {
-  const { currentUser, updateUser, logout } = useAuth();
+  const { currentUser, updateUser, changePassword, logout } = useAuth();
   const { addLog } = useData();
 
   if (!isOpen || !currentUser) return null;
@@ -44,14 +45,24 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
     }
   };
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ancienMdp) {
       setMessage({ type: 'error', text: 'Veuillez saisir votre mot de passe actuel.' });
       return;
     }
-    if (nouveauMdp.length < 6) {
-      setMessage({ type: 'error', text: 'Le nouveau mot de passe doit comporter au moins 6 caractères.' });
+
+    // Vérifier l'ancien mot de passe
+    if (currentUser.passwordHash && currentUser.salt) {
+      const validOld = await verifyPassword(ancienMdp, currentUser.passwordHash, currentUser.salt);
+      if (!validOld) {
+        setMessage({ type: 'error', text: 'L\'ancien mot de passe saisi est incorrect.' });
+        return;
+      }
+    }
+
+    if (nouveauMdp.length < 4) {
+      setMessage({ type: 'error', text: 'Le nouveau mot de passe doit comporter au moins 4 caractères.' });
       return;
     }
     if (nouveauMdp !== confirmerMdp) {
@@ -59,45 +70,49 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
       return;
     }
 
-    // Mise à jour sécurisée
-    setMessage({ type: 'success', text: 'Mot de passe mis à jour avec succès.' });
-    setAncienMdp('');
-    setNouveauMdp('');
-    setConfirmerMdp('');
-    addLog('Sécurité', `Changement de mot de passe pour ${currentUser.nomComplet}`, 'utilisateur');
+    const res = await changePassword(nouveauMdp);
+    if (res.success) {
+      setMessage({ type: 'success', text: 'Mot de passe mis à jour avec succès.' });
+      setAncienMdp('');
+      setNouveauMdp('');
+      setConfirmerMdp('');
+      addLog('Sécurité', `Changement de mot de passe pour ${currentUser.nomComplet}`, 'utilisateur');
+    } else {
+      setMessage({ type: 'error', text: res.message });
+    }
   };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
         className="modal-content"
-        style={{ maxWidth: '580px', padding: '26px' }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{
-              width: '46px',
-              height: '46px',
-              borderRadius: 'var(--radius-sm)',
-              backgroundColor: 'var(--uba-red)',
-              color: 'var(--uba-white-pure)',
+              width: '44px',
+              height: '44px',
+              borderRadius: 'var(--r-md)',
+              backgroundColor: 'var(--brand)',
+              color: '#ffffff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontWeight: 900,
-              fontSize: '1.25rem',
-              boxShadow: 'var(--glow-red)'
+              fontWeight: 700,
+              fontSize: '1.2rem'
             }}>
               {currentUser.nomComplet.charAt(0)}
             </div>
             <div>
-              <h2 style={{ fontSize: '1.35rem', margin: 0, color: 'var(--uba-white-cool)' }}>
+              <h2 style={{ fontSize: '1.25rem', margin: 0 }}>
                 {currentUser.nomComplet}
               </h2>
-              <div style={{ fontSize: '0.88rem', color: 'var(--uba-silver-light)', display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
-                <span className="badge badge-red">{currentUser.role === 'super_admin' ? 'Super Admin (Chef)' : currentUser.role === 'admin' ? 'Administrateur' : 'Archiviste'}</span>
+              <div className="text-muted text-sm" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+                <span className="badge badge-red">
+                  {currentUser.role === 'super_admin' ? 'Super Admin (Chef)' : currentUser.role === 'admin' ? 'Administrateur' : 'Archiviste'}
+                </span>
                 <span>·</span>
                 <span>{currentUser.email}</span>
               </div>
@@ -106,70 +121,53 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
 
           <button
             onClick={onClose}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--uba-silver-metal)', padding: '6px' }}
+            className="btn btn-ghost btn-icon"
+            aria-label="Fermer"
           >
-            <X size={22} />
+            <X size={20} />
           </button>
         </div>
 
         {/* Feedback message */}
         {message && (
-          <div style={{
-            padding: '10px 14px',
-            borderRadius: 'var(--radius-sm)',
-            marginBottom: '16px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            backgroundColor: message.type === 'success' ? 'var(--uba-anthracite)' : 'var(--uba-red-dark)',
-            color: 'var(--uba-white-pure)',
-            border: `1px solid ${message.type === 'success' ? 'var(--uba-silver-dark)' : 'var(--uba-red)'}`,
-            fontSize: '0.92rem',
-            fontWeight: 700
-          }}>
-            {message.type === 'success' ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
-            <span>{message.text}</span>
+          <div
+            className="card"
+            style={{
+              padding: '10px 14px',
+              marginBottom: '16px',
+              backgroundColor: message.type === 'success' ? 'rgba(52, 199, 89, 0.1)' : 'rgba(255, 69, 58, 0.1)',
+              borderColor: message.type === 'success' ? 'var(--success)' : 'var(--danger)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+          >
+            {message.type === 'success' ? <CheckCircle size={16} color="var(--success)" /> : <AlertTriangle size={16} color="var(--danger)" />}
+            <span style={{ fontSize: '0.875rem' }}>{message.text}</span>
           </div>
         )}
 
-        {/* Navigation Tabs */}
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--uba-graphite)', marginBottom: '20px' }}>
+        {/* Tabs */}
+        <div className="row" style={{ borderBottom: '1px solid var(--line)', marginBottom: '18px', paddingBottom: '6px' }}>
           <button
             onClick={() => { setActiveTab('info'); setMessage(null); }}
-            style={{
-              padding: '10px 18px',
-              background: 'none',
-              border: 'none',
-              borderBottom: activeTab === 'info' ? '2px solid var(--uba-red)' : '2px solid transparent',
-              color: activeTab === 'info' ? 'var(--uba-white-pure)' : 'var(--uba-silver-metal)',
-              fontWeight: 700,
-              fontSize: '0.95rem',
-              cursor: 'pointer'
-            }}
+            className={`btn btn-sm ${activeTab === 'info' ? 'btn-primary' : 'btn-ghost'}`}
           >
-            Informations Personnelles
+            Profil & Identité
           </button>
           <button
             onClick={() => { setActiveTab('password'); setMessage(null); }}
-            style={{
-              padding: '10px 18px',
-              background: 'none',
-              border: 'none',
-              borderBottom: activeTab === 'password' ? '2px solid var(--uba-red)' : '2px solid transparent',
-              color: activeTab === 'password' ? 'var(--uba-white-pure)' : 'var(--uba-silver-metal)',
-              fontWeight: 700,
-              fontSize: '0.95rem',
-              cursor: 'pointer'
-            }}
+            className={`btn btn-sm ${activeTab === 'password' ? 'btn-primary' : 'btn-ghost'}`}
           >
             Sécurité & Mot de passe
           </button>
         </div>
 
-        {activeTab === 'info' ? (
+        {/* Tab 1: Informations */}
+        {activeTab === 'info' && (
           <form onSubmit={handleUpdateInfo}>
             <div className="form-group">
-              <label className="form-label">Nom complet</label>
+              <label className="form-label">Nom complet de l'agent</label>
               <input
                 type="text"
                 className="form-input"
@@ -180,81 +178,51 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
             </div>
 
             <div className="form-group">
-              <label className="form-label">Email professionnel UBA (identifiant immuable)</label>
+              <label className="form-label">Email professionnel (identifiant fixe)</label>
               <input
-                type="email"
-                className="form-input"
+                type="text"
+                className="form-input num"
                 value={currentUser.email}
-                disabled
-                style={{ opacity: 0.7, cursor: 'not-allowed', backgroundColor: 'var(--uba-black-deep)' }}
+                readOnly
+                style={{ backgroundColor: 'var(--surface-2)', opacity: 0.8 }}
               />
             </div>
 
             <div className="form-group">
-              <label className="form-label">Fonction / Titre professionnel</label>
+              <label className="form-label">Fonction / Titre opérationnel</label>
               <input
                 type="text"
                 className="form-input"
-                placeholder="Ex: Superviseur Traitement Archives"
                 value={titre}
                 onChange={e => setTitre(e.target.value)}
               />
             </div>
 
-            <div className="form-group">
-              <label className="form-label">Habilitation système (Lecture seule)</label>
-              <div style={{
-                backgroundColor: 'var(--uba-black-deep)',
-                border: '1px solid var(--uba-anthracite)',
-                padding: '10px 14px',
-                borderRadius: 'var(--radius-sm)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}>
-                <Shield size={18} color="var(--uba-red)" />
-                <span style={{ fontSize: '0.92rem', color: 'var(--uba-white-cool)', fontWeight: 700 }}>
-                  {currentUser.role === 'super_admin' ? 'Super Administrateur (Chef d\'équipe)' : currentUser.role === 'admin' ? 'Administrateur / Superviseur' : 'Archiviste Opérationnel'}
-                </span>
-              </div>
-              <span style={{ fontSize: '0.8rem', color: 'var(--uba-silver-dark)', marginTop: '4px', display: 'block' }}>
-                La modification des habilitations est strictement réservée au Super Administrateur.
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '26px' }}>
+            <div className="modal-actions" style={{ justifyContent: 'space-between' }}>
               <button
                 type="button"
-                onClick={() => {
-                  if (window.confirm('Voulez-vous vous déconnecter de votre session UBA ?')) {
-                    logout();
-                    onClose();
-                  }
-                }}
-                className="btn btn-secondary"
-                style={{ color: 'var(--uba-red-bright)' }}
+                onClick={() => { logout(); onClose(); }}
+                className="btn btn-ghost"
+                style={{ color: 'var(--danger)' }}
               >
                 <LogOut size={16} /> Déconnexion
               </button>
-
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button type="button" onClick={onClose} className="btn btn-secondary">
-                  Fermer
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  Enregistrer les modifications
-                </button>
-              </div>
+              <button type="submit" className="btn btn-primary">
+                Enregistrer les modifications
+              </button>
             </div>
           </form>
-        ) : (
+        )}
+
+        {/* Tab 2: Mot de passe */}
+        {activeTab === 'password' && (
           <form onSubmit={handleChangePassword}>
             <div className="form-group">
-              <label className="form-label">Mot de passe actuel *</label>
+              <label className="form-label">Mot de passe actuel</label>
               <input
                 type="password"
                 className="form-input"
-                placeholder="••••••••"
+                placeholder="Votre mot de passe actuel"
                 value={ancienMdp}
                 onChange={e => setAncienMdp(e.target.value)}
                 required
@@ -262,11 +230,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
             </div>
 
             <div className="form-group">
-              <label className="form-label">Nouveau mot de passe *</label>
+              <label className="form-label">Nouveau mot de passe</label>
               <input
                 type="password"
                 className="form-input"
-                placeholder="Au moins 6 caractères"
+                placeholder="Au moins 4 caractères"
                 value={nouveauMdp}
                 onChange={e => setNouveauMdp(e.target.value)}
                 required
@@ -274,7 +242,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
             </div>
 
             <div className="form-group">
-              <label className="form-label">Confirmer le nouveau mot de passe *</label>
+              <label className="form-label">Confirmer le nouveau mot de passe</label>
               <input
                 type="password"
                 className="form-input"
@@ -285,12 +253,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
               />
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '26px' }}>
+            <div className="modal-actions">
               <button type="button" onClick={onClose} className="btn btn-secondary">
                 Annuler
               </button>
               <button type="submit" className="btn btn-primary">
-                <Lock size={16} /> Mettre à jour le mot de passe
+                <Lock size={15} /> Mettre à jour le mot de passe
               </button>
             </div>
           </form>
