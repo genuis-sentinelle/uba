@@ -1,8 +1,8 @@
-import { getSupabaseAdmin } from '../_lib/supabaseAdmin';
-import { authenticateCaller } from '../_lib/authMiddleware';
-import { checkRateLimit, getClientIp } from '../_lib/rateLimit';
-import { assertAllowedOrigin } from '../_lib/cors';
-import { validatePassword, validateEmail } from '../_lib/validators';
+import { getSupabaseAdmin } from '../_lib/supabaseAdmin.ts';
+import { authenticateCaller } from '../_lib/authMiddleware.ts';
+import { checkRateLimit, getClientIp } from '../_lib/rateLimit.ts';
+import { assertAllowedOrigin } from '../_lib/cors.ts';
+import { validatePassword, validateEmail } from '../_lib/validators.ts';
 
 export default async function handler(req: any, res: any) {
   if (!assertAllowedOrigin(req, res)) return;

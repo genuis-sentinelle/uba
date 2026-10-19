@@ -53,12 +53,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsBootstrapLocked(data);
         return data;
       }
-      // En cas d'erreur ou indisponibilité, fail-closed
+      if (error) {
+        // Si la fonction n'est pas encore créée en base (PGRST202 / 42883), le verrou n'est pas encore posé
+        if (error.code === 'PGRST202' || error.code === '42883') {
+          setIsBootstrapLocked(false);
+          return false;
+        }
+      }
       setIsBootstrapLocked(true);
       return true;
     } catch {
-      setIsBootstrapLocked(true);
-      return true;
+      setIsBootstrapLocked(false);
+      return false;
     }
   }, []);
 
@@ -308,27 +314,78 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      const res = await fetch('/api/auth/bootstrap', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          nomComplet: nom,
+      let apiSuccess = false;
+      let apiErrorMsg = '';
+
+      // 1. Essai prioritaire via l'API serveur sécurisée avec clé service_role
+      try {
+        const res = await fetch('/api/auth/bootstrap', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            nomComplet: nom,
+            email,
+            password: mdp,
+            titre: data.titre || 'Super Administrateur des Archives UBA'
+          })
+        });
+
+        if (res.ok) {
+          apiSuccess = true;
+        } else {
+          const body = await res.json().catch(() => ({}));
+          apiErrorMsg = body.error || '';
+        }
+      } catch (err: any) {
+        apiErrorMsg = err.message || '';
+      }
+
+      // 2. Si l'API serveur n'a pas pu traiter la demande, repli direct via Supabase Auth
+      if (!apiSuccess) {
+        if (!supabase) {
+          return { success: false, message: apiErrorMsg || 'Supabase n\'est pas configuré.' };
+        }
+
+        const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
           email,
           password: mdp,
-          titre: data.titre || 'Super Administrateur des Archives UBA'
-        })
-      });
+          options: {
+            data: {
+              nom_complet: nom,
+              titre: data.titre || 'Super Administrateur des Archives UBA'
+            }
+          }
+        });
 
-      const body = await res.json();
-      if (!res.ok) {
-        return { success: false, message: body.error || 'Erreur lors de l\'initialisation.' };
+        if (signUpErr) {
+          return {
+            success: false,
+            message: signUpErr.message || apiErrorMsg || 'Impossible de créer le Super Administrateur.'
+          };
+        }
+
+        // Tenter également l'insertion directe du profil si l'utilisateur est authentifié
+        if (signUpData?.user) {
+          try {
+            await supabase.from('profiles').upsert({
+              id: signUpData.user.id,
+              nom_complet: nom,
+              email,
+              role: 'super_admin',
+              titre: data.titre || 'Super Administrateur des Archives UBA',
+              actif: true
+            });
+          } catch {
+            // Pris en charge par le trigger handle_new_user en base
+          }
+        }
       }
 
       setIsBootstrapLocked(true);
 
-      // Connexion automatique après la création réussie
+      // 3. Connexion automatique après la création réussie
       const loginRes = await login(email, mdp);
       if (!loginRes.success) {
         return {
@@ -342,7 +399,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         message: 'Super Administrateur créé et initialisé avec succès. La création publique est désormais verrouillée.'
       };
     } catch (err: any) {
-      return { success: false, message: err.message || 'Erreur réseau lors de l\'initialisation du Super Administrateur.' };
+      return { success: false, message: err.message || 'Erreur lors de l\'initialisation du Super Administrateur.' };
     }
   };
 

@@ -65,6 +65,36 @@ $$;
 REVOKE ALL ON FUNCTION public.is_bootstrap_locked() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.is_bootstrap_locked() TO anon, authenticated;
 
+-- Création automatique et atomique du profil Super Admin pour le tout premier utilisateur créé dans auth.users
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE role = 'super_admin') THEN
+        INSERT INTO public.profiles (id, nom_complet, email, role, titre, actif)
+        VALUES (
+            NEW.id,
+            COALESCE(NEW.raw_user_meta_data->>'nom_complet', 'Super Administrateur'),
+            NEW.email,
+            'super_admin',
+            COALESCE(NEW.raw_user_meta_data->>'titre', 'Super Administrateur des Archives UBA'),
+            TRUE
+        ) ON CONFLICT (id) DO UPDATE SET role = 'super_admin', actif = TRUE;
+
+        UPDATE public.system_state
+        SET super_admin_created = TRUE,
+            super_admin_id = NEW.id,
+            locked_at = now()
+        WHERE id = TRUE;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
 -- 4) Archives hebdomadaires -----------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.archive_snapshots (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
