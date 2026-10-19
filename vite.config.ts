@@ -43,6 +43,12 @@ function localApiMiddlewarePlugin(): Plugin {
         }
 
         try {
+          // Route /api/auth/bootstrap
+          if (urlWithoutQuery === '/api/auth/bootstrap') {
+            const mod = await server.ssrLoadModule('/api/auth/bootstrap.ts');
+            return await mod.default(req, res);
+          }
+
           // Route /api/admin/users/:id
           const userMatch = urlWithoutQuery.match(/^\/api\/admin\/users\/([^/]+)$/);
           if (userMatch) {

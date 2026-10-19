@@ -15,7 +15,8 @@ import {
   CheckCircle2,
   X,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Archive
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -31,6 +32,7 @@ export type NavigationTab =
   | 'conventions'
   | 'team'
   | 'audit-logs'
+  | 'archives'
   | 'users'
   | 'settings';
 
@@ -83,7 +85,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'agencies', label: 'Agences', shortLabel: 'Agences', icon: Building2 },
     { id: 'conventions', label: 'Conventions & Matrice', shortLabel: 'Matrice', icon: FolderArchive },
     { id: 'team', label: 'Équipe Archiviste', shortLabel: 'Équipe', icon: Users },
-    { id: 'audit-logs', label: 'Journal d\'Audit', shortLabel: 'Audit', icon: History },
+    { id: 'audit-logs', label: 'Journal d\'Audit', shortLabel: 'Audit', icon: History, adminOnly: true },
+    { id: 'archives', label: 'Archives Hebdo', shortLabel: 'Archives', icon: Archive, adminOnly: true },
     { id: 'users', label: 'Utilisateurs & Droits', shortLabel: 'Droits', icon: ShieldCheck, adminOnly: true },
     { id: 'settings', label: 'Paramètres & Données', shortLabel: 'Config', icon: Settings }
   ];
@@ -137,8 +140,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {navItems.map(item => {
               const isStagiaire = currentUser?.role === 'stagiaire';
-              // Les stagiaires n'ont pas accès aux logs, aux utilisateurs, ni aux paramètres
-              if (isStagiaire && (item.id === 'audit-logs' || item.id === 'users' || item.id === 'settings')) {
+              // Les stagiaires n'ont pas accès aux logs, aux utilisateurs, aux archives, ni aux paramètres
+              if (isStagiaire && (item.id === 'audit-logs' || item.id === 'users' || item.id === 'settings' || item.id === 'archives')) {
                 return null;
               }
               if (item.adminOnly && isStagiaire) {

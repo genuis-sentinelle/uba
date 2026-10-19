@@ -401,7 +401,19 @@ export const CartonsView: React.FC = () => {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
-              <button onClick={() => window.print()} className="btn btn-primary btn-sm" style={{ width: '100%' }}>
+              <button
+                onClick={() => {
+                  if (isStagiaire) {
+                    toast('Impression non autorisée pour ce profil (Lecture Seule).', 'error');
+                    return;
+                  }
+                  window.print();
+                }}
+                className="btn btn-primary btn-sm"
+                style={{ width: '100%' }}
+                disabled={isStagiaire}
+                title={isStagiaire ? "Impression réservée aux administrateurs" : "Imprimer l'étiquette"}
+              >
                 <Printer size={15} /> Imprimer l'étiquette
               </button>
             </div>

@@ -1,12 +1,10 @@
 import { getSupabaseAdmin } from '../../_lib/supabaseAdmin';
 import { authenticateCaller } from '../../_lib/authMiddleware';
 import { checkRateLimit, getClientIp } from '../../_lib/rateLimit';
+import { assertAllowedOrigin } from '../../_lib/cors';
 
 export default async function handler(req: any, res: any) {
-  // CORS & Options
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'PATCH, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (!assertAllowedOrigin(req, res)) return;
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -45,7 +43,12 @@ export default async function handler(req: any, res: any) {
     return res.status(400).json({ error: 'Identifiant utilisateur cible manquant.' });
   }
 
-  const supabaseAdmin = getSupabaseAdmin();
+  let supabaseAdmin;
+  try {
+    supabaseAdmin = getSupabaseAdmin();
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Configuration administrative indisponible.' });
+  }
 
   // Chargement du profil cible actuel
   const { data: targetProfile, error: targetError } = await supabaseAdmin
@@ -66,30 +69,22 @@ export default async function handler(req: any, res: any) {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
       const { nomComplet, titre, role, actif } = body || {};
 
+      // Protection absolue du Super Administrateur
+      if (targetProfile.role === 'super_admin') {
+        if (actif === false) {
+          return res.status(400).json({ error: 'Le Super Administrateur ne peut être ni rétrogradé ni bloqué.' });
+        }
+        if (role !== undefined && role !== 'super_admin') {
+          return res.status(400).json({ error: 'Le Super Administrateur ne peut pas être rétrogradé.' });
+        }
+      }
+
       // CAS A : BLOCAGE / DÉBLOCAGE DU COMPTE
       if (actif !== undefined && actif !== targetProfile.actif) {
-        // RÈGLE MATRICE D'HABILITATION POUR LE BLOCAGE/DÉBLOCAGE :
-        // - Super Admin : peut bloquer/débloquer stagiaire, admin, super_admin (sauf son propre dernier compte)
-        // - Admin : peut bloquer/débloquer stagiaire UNIQUEMENT. Interdit sur admin ou super_admin.
         if (caller.profile.role === 'admin') {
           if (targetProfile.role === 'admin' || targetProfile.role === 'super_admin') {
             return res.status(403).json({
               error: 'Un administrateur standard ne peut bloquer ou débloquer qu\'un stagiaire.'
-            });
-          }
-        }
-
-        // Empêcher le blocage de son propre compte s'il s'agit du dernier super admin
-        if (targetProfile.role === 'super_admin' && actif === false) {
-          const { count: superAdminCount } = await supabaseAdmin
-            .from('profiles')
-            .select('*', { count: 'exact', head: true })
-            .eq('role', 'super_admin')
-            .eq('actif', true);
-
-          if ((superAdminCount || 0) <= 1) {
-            return res.status(400).json({
-              error: 'Impossible de bloquer le dernier Super Administrateur actif de la plateforme.'
             });
           }
         }
@@ -120,7 +115,6 @@ export default async function handler(req: any, res: any) {
         }
 
         // 2. Révocation globale des sessions auprès de Supabase Auth
-        // Indispensable pour invalider immédiatement les refresh tokens
         await supabaseAdmin.auth.admin.signOut(targetUserId, 'global').catch(() => {});
 
         // 3. Journal d'audit immuable
@@ -130,7 +124,7 @@ export default async function handler(req: any, res: any) {
           : `Compte de ${targetProfile.nom_complet} (${targetProfile.email}) BLOQUÉ par ${caller.profile.nom_complet}. Toutes les sessions ont été révoquées.`;
 
         await supabaseAdmin.from('audit_logs').insert({
-          id: crypto.randomUUID(),
+          id: (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `log-${Date.now()}`),
           timestamp: new Date().toISOString(),
           user_id: caller.profile.id,
           user_name: caller.profile.nom_complet,
@@ -168,32 +162,21 @@ export default async function handler(req: any, res: any) {
       if (titre !== undefined) updateData.titre = titre.trim();
 
       if (role !== undefined && role !== targetProfile.role) {
-        const validRoles = ['super_admin', 'admin', 'stagiaire'];
+        if (role === 'super_admin') {
+          return res.status(400).json({
+            error: 'Promotion en Super Administrateur formellement interdite (le Super Administrateur est unique).'
+          });
+        }
+
+        const validRoles = ['admin', 'stagiaire'];
         if (!validRoles.includes(role)) {
           return res.status(400).json({ error: 'Rôle invalide.' });
         }
 
-        // RÈGLE MATRICE :
-        // - Admin : ne peut PAS promouvoir vers super_admin, ni modifier un super_admin ou un admin
         if (caller.profile.role === 'admin') {
           return res.status(403).json({
             error: 'Seul le Super Administrateur peut modifier le rôle des utilisateurs.'
           });
-        }
-
-        // Si le rôle de super_admin est retiré, vérifier qu'il reste au moins un autre super_admin
-        if (targetProfile.role === 'super_admin' && role !== 'super_admin') {
-          const { count: superAdminCount } = await supabaseAdmin
-            .from('profiles')
-            .select('*', { count: 'exact', head: true })
-            .eq('role', 'super_admin')
-            .eq('actif', true);
-
-          if ((superAdminCount || 0) <= 1) {
-            return res.status(400).json({
-              error: 'Impossible de rétrograder le dernier Super Administrateur actif.'
-            });
-          }
         }
 
         updateData.role = role;
@@ -217,7 +200,7 @@ export default async function handler(req: any, res: any) {
 
       // Journal d'audit
       await supabaseAdmin.from('audit_logs').insert({
-        id: crypto.randomUUID(),
+        id: (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `log-${Date.now()}`),
         timestamp: new Date().toISOString(),
         user_id: caller.profile.id,
         user_name: caller.profile.nom_complet,
@@ -243,7 +226,7 @@ export default async function handler(req: any, res: any) {
         }
       });
     } catch (err: any) {
-      return res.status(500).json({ error: err.message || 'Erreur interne du serveur.' });
+      return res.status(500).json({ error: err.message || 'Erreur interne lors de la modification.' });
     }
   }
 
@@ -252,16 +235,18 @@ export default async function handler(req: any, res: any) {
   // -------------------------------------------------------------
   if (req.method === 'DELETE') {
     try {
-      // RÈGLE 1 : Interdiction formelle de supprimer son propre compte
       if (caller.profile.id === targetUserId) {
         return res.status(400).json({
           error: 'Vous ne pouvez pas supprimer votre propre compte utilisateur.'
         });
       }
 
-      // RÈGLE MATRICE SUPPRESSION :
-      // - Super Admin : peut supprimer stagiaire, admin, super_admin (sauf son propre dernier compte)
-      // - Admin : peut supprimer stagiaire UNIQUEMENT
+      if (targetProfile.role === 'super_admin') {
+        return res.status(400).json({
+          error: 'Le Super Administrateur unique ne peut pas être supprimé.'
+        });
+      }
+
       if (caller.profile.role === 'admin') {
         if (targetProfile.role === 'admin' || targetProfile.role === 'super_admin') {
           return res.status(403).json({
@@ -270,24 +255,9 @@ export default async function handler(req: any, res: any) {
         }
       }
 
-      // RÈGLE 2 : Interdiction de supprimer le dernier super admin
-      if (targetProfile.role === 'super_admin') {
-        const { count: superAdminCount } = await supabaseAdmin
-          .from('profiles')
-          .select('*', { count: 'exact', head: true })
-          .eq('role', 'super_admin')
-          .eq('actif', true);
-
-        if ((superAdminCount || 0) <= 1) {
-          return res.status(400).json({
-            error: 'Impossible de supprimer le dernier Super Administrateur de la plateforme.'
-          });
-        }
-      }
-
-      // 1. Journalisation préalable de l'audit (avant rupture de FK)
+      // 1. Journalisation préalable de l'audit
       await supabaseAdmin.from('audit_logs').insert({
-        id: crypto.randomUUID(),
+        id: (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `log-${Date.now()}`),
         timestamp: new Date().toISOString(),
         user_id: caller.profile.id,
         user_name: caller.profile.nom_complet,
@@ -300,7 +270,7 @@ export default async function handler(req: any, res: any) {
       // 2. Révocation globale des sessions
       await supabaseAdmin.auth.admin.signOut(targetUserId, 'global').catch(() => {});
 
-      // 3. Suppression dans auth.users (cascade automatique vers public.profiles via FK)
+      // 3. Suppression dans auth.users (cascade vers profiles via FK)
       const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(targetUserId);
 
       if (deleteAuthError) {
@@ -309,11 +279,10 @@ export default async function handler(req: any, res: any) {
         });
       }
 
-      // Nettoyage de sécurité dans profiles si l'enregistrement persistait
       try {
         await supabaseAdmin.from('profiles').delete().eq('id', targetUserId);
       } catch {
-        // Ignorer si déjà supprimé par cascade
+        // Ignorer si supprimé par cascade
       }
 
       return res.status(200).json({

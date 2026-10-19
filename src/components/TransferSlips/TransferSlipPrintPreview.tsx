@@ -3,6 +3,8 @@ import { TransferSlip } from '../../types';
 import { formatNumber, formatDate } from '../../utils/formatters';
 import { exportElementToPdf } from '../../utils/pdfExport';
 import { Download, Printer, X, CheckCircle2 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { can } from '../../utils/permissions';
 
 interface TransferSlipPrintPreviewProps {
   slip: TransferSlip;
@@ -10,16 +12,21 @@ interface TransferSlipPrintPreviewProps {
 }
 
 export const TransferSlipPrintPreview: React.FC<TransferSlipPrintPreviewProps> = ({ slip, onClose }) => {
+  const { currentUser } = useAuth();
+  const canPrintDoc = can.print(currentUser?.role);
   const previewRef = useRef<HTMLDivElement>(null);
 
   const handleDownloadPdf = async () => {
+    if (!canPrintDoc) return;
     await exportElementToPdf(
       'transfer-slip-printable-doc',
-      `Bordereau_Decharge_UBA_${slip.numeroBordereau}`
+      `Bordereau_Decharge_UBA_${slip.numeroBordereau}`,
+      currentUser?.role
     );
   };
 
   const handlePrint = () => {
+    if (!canPrintDoc) return;
     window.print();
   };
 
@@ -57,10 +64,20 @@ export const TransferSlipPrintPreview: React.FC<TransferSlipPrintPreviewProps> =
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <button onClick={handleDownloadPdf} className="btn btn-primary btn-sm">
+          <button
+            onClick={handleDownloadPdf}
+            className="btn btn-primary btn-sm"
+            disabled={!canPrintDoc}
+            title={!canPrintDoc ? 'Impression et export réservés aux administrateurs' : 'Télécharger PDF'}
+          >
             <Download size={14} /> Télécharger PDF
           </button>
-          <button onClick={handlePrint} className="btn btn-secondary btn-sm">
+          <button
+            onClick={handlePrint}
+            className="btn btn-secondary btn-sm"
+            disabled={!canPrintDoc}
+            title={!canPrintDoc ? 'Impression et export réservés aux administrateurs' : 'Imprimer'}
+          >
             <Printer size={14} /> Imprimer
           </button>
           <button onClick={onClose} className="btn btn-secondary btn-sm" style={{ padding: '6px' }}>

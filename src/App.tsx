@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DataProvider } from './context/DataContext';
 import { Navbar } from './components/Layout/Navbar';
@@ -17,6 +17,7 @@ import { TeamView } from './components/Team/TeamView';
 import { AuditLogsView } from './components/AuditLogs/AuditLogsView';
 import { UsersManagementView } from './components/Users/UsersManagementView';
 import { SettingsView } from './components/Settings/SettingsView';
+import { ArchivesView } from './components/Archives/ArchivesView';
 import { LoginView } from './components/Auth/LoginView';
 import { ProfileModal } from './components/Profile/ProfileModal';
 import { can } from './utils/permissions';
@@ -28,6 +29,31 @@ const MainApp: React.FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [autoOpenAddUser, setAutoOpenAddUser] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
+  // Sécurité Stagiaire : blocage impression & touches de raccourci (Ctrl+P, Ctrl+S)
+  useEffect(() => {
+    const isStagiaire = currentUser?.role === 'stagiaire';
+    if (typeof document !== 'undefined') {
+      document.body.classList.toggle('role-stagiaire', Boolean(isStagiaire));
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (isStagiaire && (e.ctrlKey || e.metaKey)) {
+        if (e.key === 'p' || e.key === 'P' || e.key === 's' || e.key === 'S') {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      if (typeof document !== 'undefined') {
+        document.body.classList.remove('role-stagiaire');
+      }
+      window.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, [currentUser]);
 
   // Desktop sidebar collapsed preference
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
@@ -134,6 +160,10 @@ const MainApp: React.FC = () => {
 
           {currentTab === 'audit-logs' && can.viewAudit(currentUser?.role) && (
             <AuditLogsView />
+          )}
+
+          {currentTab === 'archives' && can.manageArchives(currentUser?.role) && (
+            <ArchivesView />
           )}
 
           {currentTab === 'users' && can.manageUsers(currentUser?.role) && (

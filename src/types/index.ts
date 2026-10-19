@@ -10,8 +10,6 @@ export interface User {
   dateCreation: string;
   blockedAt?: string;
   blockedBy?: string;
-  passwordHash?: string;
-  salt?: string;
 }
 
 export interface AttendanceRecord {

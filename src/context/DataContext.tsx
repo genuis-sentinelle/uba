@@ -45,6 +45,8 @@ import {
 } from '../services/sync';
 import { newId, nextSlipNumber } from '../utils/ids';
 import { todayLocal } from '../utils/dates';
+import { can, assertCan } from '../utils/permissions';
+import { isSupabaseConfigured } from '../lib/supabase';
 
 interface DataContextType {
   agencies: Agency[];
@@ -113,27 +115,29 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { currentUser } = useAuth();
 
-  // Initialisation des données opérationnelles réelles (13 au 16 octobre 2026)
+  // Initialisation ou rechargement : uniquement si mode local sans Supabase
   useEffect(() => {
-    const isSeeded = localStorage.getItem('archiva_uba_seed_v4_octobre_2026');
-    if (!isSeeded) {
-      localStorage.setItem('archiva_uba_agencies', JSON.stringify(INITIAL_AGENCIES));
-      localStorage.setItem('archiva_uba_members', JSON.stringify(INITIAL_MEMBERS));
-      localStorage.setItem('archiva_uba_daily_reports', JSON.stringify(INITIAL_DAILY_REPORTS));
-      localStorage.setItem('archiva_uba_synthesis_reports', JSON.stringify(INITIAL_SYNTHESIS_REPORTS));
-      localStorage.setItem('archiva_uba_incidents', JSON.stringify(INITIAL_INCIDENTS));
-      localStorage.setItem('archiva_uba_cartons', JSON.stringify(INITIAL_CARTONS));
-      localStorage.setItem('archiva_uba_slips', JSON.stringify(INITIAL_SLIPS));
-      localStorage.setItem('archiva_uba_logs', JSON.stringify(INITIAL_LOGS));
-      localStorage.setItem('archiva_uba_seed_v4_octobre_2026', 'true');
-      setAgencies(INITIAL_AGENCIES);
-      setTeamMembers(INITIAL_MEMBERS);
-      setDailyReports(INITIAL_DAILY_REPORTS);
-      setSynthesisReports(INITIAL_SYNTHESIS_REPORTS);
-      setIncidents(INITIAL_INCIDENTS);
-      setCartons(INITIAL_CARTONS);
-      setTransferSlips(INITIAL_SLIPS);
-      setLogs(INITIAL_LOGS);
+    if (!isSupabaseConfigured) {
+      const isSeeded = localStorage.getItem('archiva_uba_seed_v4_octobre_2026');
+      if (!isSeeded) {
+        localStorage.setItem('archiva_uba_agencies', JSON.stringify(INITIAL_AGENCIES));
+        localStorage.setItem('archiva_uba_members', JSON.stringify(INITIAL_MEMBERS));
+        localStorage.setItem('archiva_uba_daily_reports', JSON.stringify(INITIAL_DAILY_REPORTS));
+        localStorage.setItem('archiva_uba_synthesis_reports', JSON.stringify(INITIAL_SYNTHESIS_REPORTS));
+        localStorage.setItem('archiva_uba_incidents', JSON.stringify(INITIAL_INCIDENTS));
+        localStorage.setItem('archiva_uba_cartons', JSON.stringify(INITIAL_CARTONS));
+        localStorage.setItem('archiva_uba_slips', JSON.stringify(INITIAL_SLIPS));
+        localStorage.setItem('archiva_uba_logs', JSON.stringify(INITIAL_LOGS));
+        localStorage.setItem('archiva_uba_seed_v4_octobre_2026', 'true');
+        setAgencies(INITIAL_AGENCIES);
+        setTeamMembers(INITIAL_MEMBERS);
+        setDailyReports(INITIAL_DAILY_REPORTS);
+        setSynthesisReports(INITIAL_SYNTHESIS_REPORTS);
+        setIncidents(INITIAL_INCIDENTS);
+        setCartons(INITIAL_CARTONS);
+        setTransferSlips(INITIAL_SLIPS);
+        setLogs(INITIAL_LOGS);
+      }
     }
   }, []);
 
@@ -144,10 +148,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch {
-        return INITIAL_AGENCIES;
+        return !isSupabaseConfigured ? INITIAL_AGENCIES : [];
       }
     }
-    return INITIAL_AGENCIES;
+    return !isSupabaseConfigured ? INITIAL_AGENCIES : [];
   });
 
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => {
@@ -155,14 +159,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const existingIds = new Set(parsed.map((m: any) => m.id));
-          const missing = INITIAL_MEMBERS.filter(m => !existingIds.has(m.id));
-          return missing.length > 0 ? [...parsed, ...missing] : parsed;
-        }
-      } catch { return INITIAL_MEMBERS; }
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {
+        return !isSupabaseConfigured ? INITIAL_MEMBERS : [];
+      }
     }
-    return INITIAL_MEMBERS;
+    return !isSupabaseConfigured ? INITIAL_MEMBERS : [];
   });
 
   const [dailyReports, setDailyReports] = useState<DailyReport[]>(() => {
@@ -170,14 +172,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const existingIds = new Set(parsed.map((r: any) => r.id));
-          const missing = INITIAL_DAILY_REPORTS.filter(r => !existingIds.has(r.id));
-          return missing.length > 0 ? [...missing, ...parsed] : parsed;
-        }
-      } catch { return INITIAL_DAILY_REPORTS; }
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {
+        return !isSupabaseConfigured ? INITIAL_DAILY_REPORTS : [];
+      }
     }
-    return INITIAL_DAILY_REPORTS;
+    return !isSupabaseConfigured ? INITIAL_DAILY_REPORTS : [];
   });
 
   const [synthesisReports, setSynthesisReports] = useState<SynthesisReport[]>(() => {
@@ -185,46 +185,44 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const existingIds = new Set(parsed.map((s: any) => s.id));
-          const missing = INITIAL_SYNTHESIS_REPORTS.filter(s => !existingIds.has(s.id));
-          return missing.length > 0 ? [...parsed, ...missing] : parsed;
-        }
-      } catch { return INITIAL_SYNTHESIS_REPORTS; }
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {
+        return !isSupabaseConfigured ? INITIAL_SYNTHESIS_REPORTS : [];
+      }
     }
-    return INITIAL_SYNTHESIS_REPORTS;
+    return !isSupabaseConfigured ? INITIAL_SYNTHESIS_REPORTS : [];
   });
 
   const [incidents, setIncidents] = useState<ArchiveIncident[]>(() => {
     const saved = localStorage.getItem('archiva_uba_incidents');
     if (saved) {
-      try { return JSON.parse(saved); } catch { return INITIAL_INCIDENTS; }
+      try { return JSON.parse(saved); } catch { return !isSupabaseConfigured ? INITIAL_INCIDENTS : []; }
     }
-    return INITIAL_INCIDENTS;
+    return !isSupabaseConfigured ? INITIAL_INCIDENTS : [];
   });
 
   const [cartons, setCartons] = useState<CartonInventory[]>(() => {
     const saved = localStorage.getItem('archiva_uba_cartons');
     if (saved) {
-      try { return JSON.parse(saved); } catch { return INITIAL_CARTONS; }
+      try { return JSON.parse(saved); } catch { return !isSupabaseConfigured ? INITIAL_CARTONS : []; }
     }
-    return INITIAL_CARTONS;
+    return !isSupabaseConfigured ? INITIAL_CARTONS : [];
   });
 
   const [transferSlips, setTransferSlips] = useState<TransferSlip[]>(() => {
     const saved = localStorage.getItem('archiva_uba_slips');
     if (saved) {
-      try { return JSON.parse(saved); } catch { return INITIAL_SLIPS; }
+      try { return JSON.parse(saved); } catch { return !isSupabaseConfigured ? INITIAL_SLIPS : []; }
     }
-    return INITIAL_SLIPS;
+    return !isSupabaseConfigured ? INITIAL_SLIPS : [];
   });
 
   const [logs, setLogs] = useState<LogEntry[]>(() => {
     const saved = localStorage.getItem('archiva_uba_logs');
     if (saved) {
-      try { return JSON.parse(saved); } catch { return INITIAL_LOGS; }
+      try { return JSON.parse(saved); } catch { return !isSupabaseConfigured ? INITIAL_LOGS : []; }
     }
-    return INITIAL_LOGS;
+    return !isSupabaseConfigured ? INITIAL_LOGS : [];
   });
 
   const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => {
@@ -235,7 +233,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return [];
   });
 
-  // Persistent storage (local first)
+  // Persistent storage (local cache)
   useEffect(() => { localStorage.setItem('archiva_uba_agencies', JSON.stringify(agencies)); }, [agencies]);
   useEffect(() => { localStorage.setItem('archiva_uba_members', JSON.stringify(teamMembers)); }, [teamMembers]);
   useEffect(() => { localStorage.setItem('archiva_uba_daily_reports', JSON.stringify(dailyReports)); }, [dailyReports]);
@@ -246,8 +244,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => { localStorage.setItem('archiva_uba_logs', JSON.stringify(logs.slice(0, 2000))); }, [logs]);
   useEffect(() => { localStorage.setItem('archiva_uba_attendance', JSON.stringify(attendance)); }, [attendance]);
 
-  // Synchronisation distante initiale
+  // Synchronisation distante à chaque connexion authentifiée
   useEffect(() => {
+    if (!currentUser) {
+      return;
+    }
     fetchAllRemote().then(remote => {
       if (!remote) return;
       if (remote.agencies && remote.agencies.length > 0) {
@@ -307,7 +308,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       }
     });
-  }, []);
+  }, [currentUser?.id]);
 
   const addLog = useCallback((action: string, details: string, category: LogEntry['category']) => {
     const newLog: LogEntry = {
@@ -325,12 +326,19 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [currentUser]);
 
   const clearLogs = () => {
+    if (!can.deleteData(currentUser?.role)) {
+      return;
+    }
     setLogs([]);
     addLog('Journal vidé', `Historique d'audit vidé par ${currentUser?.nomComplet || 'Utilisateur'}`, 'systeme');
   };
 
-  // Pointage (Attendance)
+  // Pointage (Attendance) - Gardé pour écriture
   const saveAttendance = (date: string, entries: { memberId: string; statut: AttendanceRecord['statut']; motif?: string }[]) => {
+    if (!can.write(currentUser?.role)) {
+      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    }
+
     const newRecords: AttendanceRecord[] = entries.map(e => ({
       id: `att-${date}-${e.memberId}`,
       date,
@@ -362,8 +370,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return attendance.filter(a => a.date === date);
   };
 
-  // Agency CRUD
+  // Agency CRUD - Gardé pour écriture
   const addAgency = (agencyData: Omit<Agency, 'id' | 'dateCreation'>) => {
+    if (!can.write(currentUser?.role)) {
+      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    }
+
     const exists = agencies.some(a => a.code.trim().toLowerCase() === agencyData.code.trim().toLowerCase());
     if (exists) {
       return { success: false, message: `Le code agence ${agencyData.code} existe déjà.` };
@@ -382,6 +394,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateAgency = (updatedAgency: Agency) => {
+    if (!can.write(currentUser?.role)) {
+      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    }
+
     setAgencies(prev => prev.map(a => a.id === updatedAgency.id ? updatedAgency : a));
     addLog('Modification d\'agence', `Mise à jour de l'agence ${updatedAgency.nom} (Code ${updatedAgency.code})`, 'agence');
     pushAgency(updatedAgency);
@@ -389,6 +405,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteAgency = (agencyId: string) => {
+    if (!can.write(currentUser?.role)) {
+      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    }
+
     const target = agencies.find(a => a.id === agencyId);
     if (!target) return { success: false, message: 'Agence introuvable.' };
 
@@ -410,8 +430,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true, message: `Agence ${target.nom} supprimée.` };
   };
 
-  // Team Member CRUD
+  // Team Member CRUD - Gardé pour écriture
   const addTeamMember = (memberData: Omit<TeamMember, 'id'>) => {
+    if (!can.write(currentUser?.role)) {
+      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    }
+
     const newMember: TeamMember = {
       ...memberData,
       id: newId('m')
@@ -423,6 +447,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateTeamMember = (member: TeamMember) => {
+    if (!can.write(currentUser?.role)) {
+      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    }
+
     setTeamMembers(prev => prev.map(m => m.id === member.id ? member : m));
     addLog('Modification Membre', `Mise à jour : ${member.nomOfficiel}`, 'equipe');
     pushTeamMember(member);
@@ -430,6 +458,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteTeamMember = (memberId: string) => {
+    if (!can.write(currentUser?.role)) {
+      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    }
+
     const target = teamMembers.find(m => m.id === memberId);
     if (!target) return { success: false, message: 'Membre introuvable.' };
     setTeamMembers(prev => prev.filter(m => m.id !== memberId));
@@ -438,8 +470,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true, message: `Membre ${target.nomOfficiel} retiré.` };
   };
 
-  // Daily Report CRUD
+  // Daily Report CRUD - Gardé pour écriture
   const addDailyReport = (reportData: Omit<DailyReport, 'id' | 'dateCreation' | 'version'>) => {
+    if (!can.write(currentUser?.role)) {
+      return { success: false, reportId: '' };
+    }
+
     const newReport: DailyReport = {
       ...reportData,
       id: newId('rep'),
@@ -457,6 +493,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateDailyReport = (report: DailyReport) => {
+    if (!can.write(currentUser?.role)) {
+      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    }
+
     const updated = { ...report, version: report.version + 1 };
     setDailyReports(prev => prev.map(r => r.id === report.id ? updated : r));
     addLog('Modification Rapport', `Mise à jour du rapport (${report.titre}) - v${report.version + 1}`, 'rapport');
@@ -468,6 +508,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteDailyReport = (id: string) => {
+    if (!can.write(currentUser?.role)) {
+      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    }
+
     const report = dailyReports.find(r => r.id === id);
     setDailyReports(prev => prev.filter(r => r.id !== id));
     if (report) {
@@ -477,8 +521,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true, message: 'Rapport supprimé.' };
   };
 
-  // Synthesis Report CRUD & Auto Compiler
+  // Synthesis Report CRUD & Auto Compiler - Gardé pour écriture
   const addSynthesisReport = (synthesisData: Omit<SynthesisReport, 'id' | 'dateCreation'>) => {
+    if (!can.write(currentUser?.role)) {
+      return { success: false, reportId: '' };
+    }
+
     const newSynthesis: SynthesisReport = {
       ...synthesisData,
       id: newId('syn'),
@@ -491,6 +539,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateSynthesisReport = (synthesis: SynthesisReport) => {
+    if (!can.write(currentUser?.role)) {
+      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    }
+
     setSynthesisReports(prev => prev.map(s => s.id === synthesis.id ? synthesis : s));
     addLog('Modification Synthèse', `Mise à jour : ${synthesis.titre}`, 'rapport');
     pushSynthesisReport(synthesis);
@@ -498,6 +550,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteSynthesisReport = (id: string) => {
+    if (!can.write(currentUser?.role)) {
+      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    }
+
     setSynthesisReports(prev => prev.filter(s => s.id !== id));
     addLog('Suppression Synthèse', `Suppression synthèse ID ${id}`, 'rapport');
     deleteSynthesisReportRemote(id);
@@ -506,6 +562,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Compilation certifiée et déterministe avec calcul cumulé
   const compileSynthesisFromReports = (dateDebut: string, dateFin: string, type: 'chef_confidentiel' | 'equipe_public') => {
+    if (!can.write(currentUser?.role)) {
+      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    }
+
     const reportsInRange = dailyReports.filter(r => r.dateDebut >= dateDebut && r.dateFin <= dateFin);
     if (reportsInRange.length === 0) {
       return { success: false, message: `Aucun rapport journalier trouvé entre le ${dateDebut} et le ${dateFin}.` };
@@ -536,8 +596,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   };
 
-  // Incidents CRUD
+  // Incidents CRUD - Gardé pour écriture
   const addIncident = (incData: Omit<ArchiveIncident, 'id' | 'dateSignalement'>) => {
+    if (!can.write(currentUser?.role)) {
+      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    }
+
     const newInc: ArchiveIncident = {
       ...incData,
       id: newId('inc'),
@@ -550,6 +614,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateIncident = (inc: ArchiveIncident) => {
+    if (!can.write(currentUser?.role)) {
+      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    }
+
     setIncidents(prev => prev.map(i => i.id === inc.id ? inc : i));
     addLog('Mise à jour Incident', `Incident ${inc.titre} passé au statut ${inc.statut}`, 'systeme');
     pushIncident(inc);
@@ -557,14 +625,22 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteIncident = (id: string) => {
+    if (!can.write(currentUser?.role)) {
+      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    }
+
     setIncidents(prev => prev.filter(i => i.id !== id));
     addLog('Suppression Incident', `Incident ID ${id} supprimé`, 'systeme');
     deleteIncidentRemote(id);
     return { success: true, message: 'Incident supprimé.' };
   };
 
-  // Cartons CRUD
+  // Cartons CRUD - Gardé pour écriture
   const addCarton = (cartonData: Omit<CartonInventory, 'id' | 'dateEnregistrement'>) => {
+    if (!can.write(currentUser?.role)) {
+      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    }
+
     const newCarton: CartonInventory = {
       ...cartonData,
       id: newId('cart'),
@@ -577,6 +653,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateCarton = (carton: CartonInventory) => {
+    if (!can.write(currentUser?.role)) {
+      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    }
+
     setCartons(prev => prev.map(c => c.id === carton.id ? carton : c));
     addLog('Modification Carton', `Carton ${carton.numeroCarton} mis à jour (${carton.emplacement})`, 'agence');
     pushCarton(carton);
@@ -584,14 +664,22 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteCarton = (id: string) => {
+    if (!can.write(currentUser?.role)) {
+      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    }
+
     setCartons(prev => prev.filter(c => c.id !== id));
     addLog('Suppression Carton', `Carton ${id} retiré de l'inventaire`, 'agence');
     deleteCartonRemote(id);
     return { success: true, message: 'Carton supprimé.' };
   };
 
-  // Transfer Slips CRUD
+  // Transfer Slips CRUD - Gardé pour écriture
   const addTransferSlip = (slipData: Omit<TransferSlip, 'id' | 'numeroBordereau'>) => {
+    if (!can.write(currentUser?.role)) {
+      return { success: false, slipId: '', message: 'Action non autorisée : profil en lecture seule.' };
+    }
+
     const newSlip: TransferSlip = {
       ...slipData,
       id: newId('slip'),
@@ -604,6 +692,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateTransferSlip = (slip: TransferSlip) => {
+    if (!can.write(currentUser?.role)) {
+      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    }
+
     setTransferSlips(prev => prev.map(s => s.id === slip.id ? slip : s));
     addLog('Mise à jour Bordereau', `Bordereau ${slip.numeroBordereau} mis à jour (${slip.statut})`, 'rapport');
     pushTransferSlip(slip);
@@ -611,6 +703,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteTransferSlip = (id: string) => {
+    if (!can.write(currentUser?.role)) {
+      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    }
+
     setTransferSlips(prev => prev.filter(s => s.id !== id));
     addLog('Suppression Bordereau', `Bordereau ID ${id} supprimé`, 'rapport');
     deleteTransferSlipRemote(id);
@@ -619,7 +715,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Reset to Clean Blank State (Restricted to Super Admin)
   const clearAllData = () => {
-    if (currentUser?.role !== 'super_admin') {
+    if (!can.clearAll(currentUser?.role)) {
       return { success: false, message: 'Action réservée au Super Administrateur.' };
     }
 
@@ -647,6 +743,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Reload Reference Sample (Restricted & safe)
   const loadDemoData = () => {
+    if (!can.write(currentUser?.role)) return;
     // Non destructif : charge uniquement les agences de référence si vides
     if (agencies.length === 0) {
       setAgencies(INITIAL_AGENCIES);
@@ -655,8 +752,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Export JSON
+  // Export JSON (Restricted to Admin & Super Admin)
   const exportDataToJson = () => {
+    if (!can.export(currentUser?.role)) return;
+
     const backup = {
       version: '2.0',
       exportedAt: new Date().toISOString(),
@@ -679,9 +778,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     URL.revokeObjectURL(url);
   };
 
-  // Import JSON with validation
+  // Import JSON with validation (Restricted to Admin & Super Admin)
   const importDataFromJson = (jsonStr: string) => {
-    if (currentUser?.role === 'stagiaire') {
+    if (!can.importData(currentUser?.role)) {
       return { success: false, message: 'Droits insuffisants pour importer une sauvegarde.' };
     }
     try {

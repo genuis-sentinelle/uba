@@ -77,13 +77,17 @@ export const SynthesisView: React.FC = () => {
   };
 
   const handleDownloadPdf = async () => {
+    if (isStagiaire) {
+      toast('Export PDF non autorisé pour ce profil (Lecture Seule).', 'error');
+      return;
+    }
     if (!currentSynthesis) return;
     const filename = activeMode === 'chef_confidentiel'
       ? `Synthese_Archives_UBA_CHEF_${currentSynthesis.dateDebut}_${currentSynthesis.dateFin}`
       : `Synthese_Archives_UBA_EQUIPE_${currentSynthesis.dateDebut}_${currentSynthesis.dateFin}`;
 
     toast('Génération du PDF en cours...', 'info');
-    const ok = await exportElementToPdf('synthesis-printable-doc', filename);
+    const ok = await exportElementToPdf('synthesis-printable-doc', filename, currentUser?.role);
     if (ok) {
       toast('Document PDF généré et téléchargé.', 'success');
     } else {
@@ -92,6 +96,10 @@ export const SynthesisView: React.FC = () => {
   };
 
   const handleExportWord = () => {
+    if (isStagiaire) {
+      toast('Export Word non autorisé pour ce profil (Lecture Seule).', 'error');
+      return;
+    }
     if (!currentSynthesis) return;
     const element = document.getElementById('synthesis-printable-doc');
     if (!element) return;
@@ -121,6 +129,10 @@ export const SynthesisView: React.FC = () => {
   };
 
   const handlePrint = () => {
+    if (isStagiaire) {
+      toast('Impression non autorisée pour ce profil (Lecture Seule).', 'error');
+      return;
+    }
     window.print();
   };
 
@@ -213,13 +225,28 @@ export const SynthesisView: React.FC = () => {
 
           {currentSynthesis && (
             <>
-              <button onClick={handlePrint} className="btn btn-secondary btn-sm" title="Imprimer le document A4 officiel">
+              <button
+                onClick={handlePrint}
+                className="btn btn-secondary btn-sm"
+                disabled={isStagiaire}
+                title={isStagiaire ? "Impression réservée aux administrateurs" : "Imprimer le document A4 officiel"}
+              >
                 <Printer size={15} /> Imprimer
               </button>
-              <button onClick={handleDownloadPdf} className="btn btn-secondary btn-sm" title="Télécharger en PDF">
+              <button
+                onClick={handleDownloadPdf}
+                className="btn btn-secondary btn-sm"
+                disabled={isStagiaire}
+                title={isStagiaire ? "Export PDF réservé aux administrateurs" : "Télécharger en PDF"}
+              >
                 <Download size={15} /> PDF
               </button>
-              <button onClick={handleExportWord} className="btn btn-secondary btn-sm" title="Exporter au format Word">
+              <button
+                onClick={handleExportWord}
+                className="btn btn-secondary btn-sm"
+                disabled={isStagiaire}
+                title={isStagiaire ? "Export Word réservé aux administrateurs" : "Exporter au format Word"}
+              >
                 <FileCode size={15} /> Word
               </button>
             </>

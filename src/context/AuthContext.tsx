@@ -1,15 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { User, Role } from '../types';
-import { newId } from '../utils/ids';
-import { hashPassword, verifyPassword } from '../utils/crypto';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { Session } from '@supabase/supabase-js';
 
 export interface AuthContextType {
   currentUser: User | null;
   users: User[];
   hasSuperAdmin: boolean;
   loading: boolean;
-  login: (identifiant: string, password: string) => Promise<{ success: boolean; message: string }>;
+  login: (email: string, password: string) => Promise<{ success: boolean; message: string }>;
   logout: () => Promise<void>;
   createInitialSuperAdmin: (data: {
     nomUtilisateur: string;
@@ -29,145 +28,265 @@ export interface AuthContextType {
   canDeleteUser: (targetUser: User) => { allowed: boolean; reason?: string };
   changePassword: (newPassword: string) => Promise<{ success: boolean; message: string }>;
   refreshUsers: () => Promise<void>;
+  checkBootstrapStatus: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const USERS_STORAGE_KEY = 'archiva_uba_users_v5';
-const CURRENT_USER_STORAGE_KEY = 'archiva_uba_current_user_v5';
-const RESET_INIT_FLAG = 'archiva_uba_reset_v5_done';
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Réinitialisation contrôlée des identifiants existants pour permettre l'initialisation unique demandée
-  const [users, setUsers] = useState<User[]>(() => {
-    try {
-      const isResetDone = localStorage.getItem(RESET_INIT_FLAG);
-      if (!isResetDone) {
-        // Purge des anciennes versions de comptes
-        localStorage.removeItem('archiva_uba_users');
-        localStorage.removeItem('archiva_uba_current_user');
-        localStorage.removeItem('archiva_uba_users_v2');
-        localStorage.removeItem('archiva_uba_users_v3');
-        localStorage.removeItem('archiva_uba_users_v4');
-        localStorage.removeItem('archiva_uba_clean_v3_blank_users');
-        localStorage.removeItem(USERS_STORAGE_KEY);
-        localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
-        localStorage.setItem(RESET_INIT_FLAG, 'true');
-        return [];
-      }
-      const saved = localStorage.getItem(USERS_STORAGE_KEY);
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch {
-      // Ignorer
-    }
-    return [];
-  });
-
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    try {
-      const isResetDone = localStorage.getItem(RESET_INIT_FLAG);
-      if (!isResetDone) return null;
-      const saved = localStorage.getItem(CURRENT_USER_STORAGE_KEY);
-      if (saved) {
-        return JSON.parse(saved);
-      }
-    } catch {
-      // Ignorer
-    }
-    return null;
-  });
-
-  const [loading, setLoading] = useState<boolean>(false);
-
-  // Le Super Administrateur est actif dès qu'un utilisateur possède le rôle 'super_admin' et actif = true
-  const hasSuperAdmin = users.some(u => u.role === 'super_admin' && u.actif !== false);
-
-  // Sauvegarde persistante des utilisateurs dans le stockage local sécurisé
-  useEffect(() => {
-    try {
-      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
-    } catch {
-      // Ignorer si quota plein
-    }
-  }, [users]);
-
-  // Sauvegarde persistante de l'utilisateur actif
-  useEffect(() => {
-    try {
-      if (currentUser) {
-        localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(currentUser));
-      } else {
-        localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
-      }
-    } catch {
-      // Ignorer
-    }
-  }, [currentUser]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [isBootstrapLocked, setIsBootstrapLocked] = useState<boolean>(true); // Fail-closed par défaut
 
   /**
-   * Synchronisation des profils Supabase en arrière-plan
+   * Vérifie le verrou d'initialisation en base de données
    */
-  const syncSupabaseProfiles = useCallback(async () => {
-    if (!isSupabaseConfigured || !supabase) return;
+  const checkBootstrapStatus = useCallback(async (): Promise<boolean> => {
+    if (!isSupabaseConfigured || !supabase) {
+      setIsBootstrapLocked(true);
+      return true;
+    }
     try {
-      const { data: remoteProfiles, error } = await supabase.from('profiles').select('*');
-      if (!error && remoteProfiles && remoteProfiles.length > 0) {
-        setUsers(prev => {
-          const updated = [...prev];
-          remoteProfiles.forEach((p: any) => {
-            const idx = updated.findIndex(
-              u => u.id === p.id || u.email.toLowerCase() === (p.email || '').toLowerCase()
-            );
-            if (idx >= 0) {
-              updated[idx] = {
-                ...updated[idx],
-                nomComplet: p.nom_complet || updated[idx].nomComplet,
-                role: p.role || updated[idx].role,
-                titre: p.titre || updated[idx].titre,
-                actif: p.actif !== undefined ? p.actif : updated[idx].actif
-              };
-            } else {
-              updated.push({
-                id: p.id,
-                nomComplet: p.nom_complet || 'Archiviste UBA',
-                email: p.email,
-                role: p.role || 'stagiaire',
-                titre: p.titre || 'Archiviste Opérationnel',
-                actif: p.actif ?? true,
-                dateCreation: p.created_at || new Date().toISOString()
-              });
-            }
-          });
-          return updated;
-        });
+      const { data, error } = await supabase.rpc('is_bootstrap_locked');
+      if (!error && typeof data === 'boolean') {
+        setIsBootstrapLocked(data);
+        return data;
+      }
+      // En cas d'erreur ou indisponibilité, fail-closed
+      setIsBootstrapLocked(true);
+      return true;
+    } catch {
+      setIsBootstrapLocked(true);
+      return true;
+    }
+  }, []);
 
-        // Si le profil de l'utilisateur actuel est marqué inactif/bloqué côté serveur -> déconnexion immédiate
-        if (currentUser) {
-          const currentRemote = remoteProfiles.find(
-            (p: any) => p.id === currentUser.id || p.email.toLowerCase() === currentUser.email.toLowerCase()
-          );
-          if (currentRemote && currentRemote.actif === false) {
-            console.warn('[ARCHIVA UBA] Compte bloqué côté base de données. Déconnexion immédiate.');
-            setCurrentUser(null);
-            localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
-          }
+  /**
+   * Récupère le jeton Bearer de la session courante
+   */
+  const getAccessToken = async (): Promise<string | null> => {
+    if (!supabase) return null;
+    const { data } = await supabase.auth.getSession();
+    return data?.session?.access_token || null;
+  };
+
+  /**
+   * Charge la liste des utilisateurs depuis l'API serveur sécurisée (réservée admin)
+   */
+  const fetchUsersList = useCallback(async (tokenOverride?: string | null) => {
+    try {
+      const token = tokenOverride || (await getAccessToken());
+      if (!token) return;
+
+      const res = await fetch('/api/admin/users', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.users) {
+          setUsers(data.users);
         }
       }
-    } catch {
-      // Ignorer les erreurs temporaires
+    } catch (err) {
+      console.warn('[ARCHIVA Auth] Erreur récupération utilisateurs :', err);
     }
-  }, [currentUser]);
-
-  useEffect(() => {
-    syncSupabaseProfiles();
-    const interval = setInterval(syncSupabaseProfiles, 20000);
-    return () => clearInterval(interval);
-  }, [syncSupabaseProfiles]);
+  }, []);
 
   /**
-   * Initialisation UNIQUE du Super Administrateur (accessible une seule fois)
+   * Hydratation de la session Supabase — Source unique de vérité
+   */
+  const hydrate = useCallback(async (session: Session | null) => {
+    if (!supabase) {
+      setCurrentUser(null);
+      setUsers([]);
+      setLoading(false);
+      return;
+    }
+
+    if (!session?.user) {
+      setCurrentUser(null);
+      setUsers([]);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { data: p, error } = await supabase
+        .from('profiles')
+        .select('id, nom_complet, email, role, titre, actif, created_at, blocked_at, blocked_by')
+        .eq('id', session.user.id)
+        .maybeSingle();
+
+      if (error || !p || p.actif === false) {
+        console.warn('[ARCHIVA Auth] Compte absent ou bloqué par le serveur. Déconnexion immédiate.');
+        await supabase.auth.signOut().catch(() => {});
+        setCurrentUser(null);
+        setUsers([]);
+        setLoading(false);
+        return;
+      }
+
+      const verifiedUser: User = {
+        id: p.id,
+        nomComplet: p.nom_complet,
+        email: p.email,
+        role: p.role,
+        titre: p.titre || (p.role === 'admin' ? 'Administrateur' : p.role === 'super_admin' ? 'Super Administrateur' : 'Archiviste Opérationnel'),
+        actif: p.actif,
+        dateCreation: p.created_at || new Date().toISOString(),
+        blockedAt: p.blocked_at,
+        blockedBy: p.blocked_by
+      };
+
+      setCurrentUser(verifiedUser);
+
+      // Si l'utilisateur est admin ou super_admin, charger la liste des utilisateurs via l'API sécurisée
+      if (verifiedUser.role === 'admin' || verifiedUser.role === 'super_admin') {
+        await fetchUsersList(session.access_token);
+      } else {
+        setUsers([verifiedUser]);
+      }
+    } catch (err) {
+      console.error('[ARCHIVA Auth] Erreur vérification session :', err);
+      setCurrentUser(null);
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchUsersList]);
+
+  // Initialisation de la session et écoute des changements Supabase Auth
+  useEffect(() => {
+    checkBootstrapStatus();
+
+    if (!isSupabaseConfigured || !supabase) {
+      setLoading(false);
+      return;
+    }
+
+    supabase.auth.getSession().then(({ data }) => {
+      hydrate(data.session);
+    }).finally(() => {
+      setLoading(false);
+    });
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setTimeout(() => {
+        hydrate(session);
+      }, 0);
+    });
+
+    return () => {
+      sub.subscription.unsubscribe();
+    };
+  }, [hydrate, checkBootstrapStatus]);
+
+  // Contrôle périodique du statut du compte (toutes les 20s)
+  useEffect(() => {
+    if (!currentUser || !supabase) return;
+    const client = supabase;
+
+    const checkStatus = async () => {
+      try {
+        const { data: profile } = await client
+          .from('profiles')
+          .select('actif')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+
+        if (profile && profile.actif === false) {
+          console.warn('[ARCHIVA Auth] Compte désactivé/bloqué par le serveur. Déconnexion immédiate.');
+          await logout();
+        }
+      } catch {
+        // Ignorer les erreurs réseau temporaires
+      }
+    };
+
+    const interval = setInterval(checkStatus, 20000);
+    return () => clearInterval(interval);
+  }, [currentUser]);
+
+  /**
+   * Connexion sécurisée au logiciel via Supabase Auth
+   */
+  const login = async (email: string, password: string): Promise<{ success: boolean; message: string }> => {
+    const raw = email.trim();
+    if (!raw) return { success: false, message: 'Veuillez saisir votre adresse email.' };
+    if (!password) return { success: false, message: 'Veuillez saisir votre mot de passe.' };
+
+    if (!isSupabaseConfigured || !supabase) {
+      return {
+        success: false,
+        message: 'Supabase n\'est pas configuré. Veuillez vérifier VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY.'
+      };
+    }
+
+    const emailAuth = raw.includes('@')
+      ? raw.toLowerCase()
+      : `${raw.replace(/[^a-z0-9]/gi, '.').toLowerCase()}@uba.cg`;
+
+    try {
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: emailAuth,
+        password
+      });
+
+      if (authError || !authData?.user) {
+        // Message générique anti-énumération de comptes
+        return {
+          success: false,
+          message: 'Identifiants incorrects ou compte inactif.'
+        };
+      }
+
+      await hydrate(authData.session);
+      return { success: true, message: 'Connexion réussie.' };
+    } catch {
+      return {
+        success: false,
+        message: 'Une erreur réseau est survenue lors de la connexion.'
+      };
+    }
+  };
+
+  /**
+   * Déconnexion sécurisée et purge des données de session
+   */
+  const logout = async () => {
+    setCurrentUser(null);
+    setUsers([]);
+    try {
+      // Purge des files d'attente locales et caches sensibles
+      localStorage.removeItem('archiva_uba_sync_queue');
+      localStorage.removeItem('archiva_sync_queue_v2');
+      localStorage.removeItem('archiva_uba_users_v5');
+      localStorage.removeItem('archiva_uba_current_user_v5');
+      localStorage.removeItem('archiva_uba_agencies');
+      localStorage.removeItem('archiva_uba_members');
+      localStorage.removeItem('archiva_uba_daily_reports');
+      localStorage.removeItem('archiva_uba_synthesis_reports');
+      localStorage.removeItem('archiva_uba_incidents');
+      localStorage.removeItem('archiva_uba_cartons');
+      localStorage.removeItem('archiva_uba_slips');
+      localStorage.removeItem('archiva_uba_attendance');
+      localStorage.removeItem('archiva_uba_logs');
+    } catch {
+      // Ignorer
+    }
+
+    if (isSupabaseConfigured && supabase) {
+      await supabase.auth.signOut().catch(() => {});
+    }
+  };
+
+  /**
+   * Création UNIQUE du Super Administrateur via l'API sécurisée avec verrou atomique
    */
   const createInitialSuperAdmin = async (data: {
     nomUtilisateur: string;
@@ -175,134 +294,60 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     email?: string;
     titre?: string;
   }): Promise<{ success: boolean; message: string }> => {
-    if (hasSuperAdmin) {
-      return {
-        success: false,
-        message: 'Un compte Super Administrateur est déjà configuré. La création publique est verrouillée de manière permanente.'
-      };
-    }
-
     const nom = data.nomUtilisateur.trim();
     const mdp = data.motDePasse;
-
-    if (!nom) {
-      return { success: false, message: 'Le nom d\'utilisateur ou nom complet est obligatoire.' };
-    }
-    if (!mdp || mdp.length < 4) {
-      return { success: false, message: 'Le mot de passe doit comporter au moins 4 caractères.' };
-    }
-
     const email = data.email?.trim() || (nom.includes('@')
       ? nom.toLowerCase()
       : `${nom.replace(/[^a-z0-9]/gi, '.').toLowerCase()}@uba.cg`);
 
-    const { hash, salt } = await hashPassword(mdp);
-    const superAdmin: User = {
-      id: newId('usr'),
-      nomComplet: nom,
-      email: email,
-      role: 'super_admin',
-      titre: data.titre?.trim() || 'Super Administrateur des Archives UBA',
-      actif: true,
-      dateCreation: new Date().toISOString(),
-      passwordHash: hash,
-      salt: salt
-    };
+    if (!nom) {
+      return { success: false, message: 'Le nom d\'utilisateur ou nom complet est obligatoire.' };
+    }
+    if (!mdp) {
+      return { success: false, message: 'Le mot de passe est obligatoire.' };
+    }
 
-    const newUsers = [superAdmin];
-    setUsers(newUsers);
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(newUsers));
-    setCurrentUser(superAdmin);
-    localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(superAdmin));
-
-    // Synchronisation vers Supabase profiles
-    if (isSupabaseConfigured && supabase) {
-      supabase.from('profiles').upsert({
-        id: superAdmin.id,
-        nom_complet: superAdmin.nomComplet,
-        email: superAdmin.email,
-        role: 'super_admin',
-        titre: superAdmin.titre,
-        actif: true,
-        created_at: superAdmin.dateCreation,
-        updated_at: superAdmin.dateCreation
-      }).then(null, (err: unknown) => {
-        console.warn('[ARCHIVA UBA] Sauvegarde Supabase notice:', err);
+    try {
+      const res = await fetch('/api/auth/bootstrap', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          nomComplet: nom,
+          email,
+          password: mdp,
+          titre: data.titre || 'Super Administrateur des Archives UBA'
+        })
       });
-    }
 
-    return {
-      success: true,
-      message: `Compte Super Administrateur configuré avec succès ! L'accès libre est désormais verrouillé.`
-    };
-  };
-
-  /**
-   * Connexion sécurisée au logiciel avec vérification stricte
-   */
-  const login = async (identifiant: string, password: string): Promise<{ success: boolean; message: string }> => {
-    const query = identifiant.trim().toLowerCase();
-    if (!query) {
-      return { success: false, message: 'Veuillez saisir votre identifiant ou adresse email.' };
-    }
-    if (!password) {
-      return { success: false, message: 'Veuillez saisir votre mot de passe.' };
-    }
-
-    // Recherche de l'utilisateur
-    const found = users.find(u =>
-      u.nomComplet.toLowerCase() === query ||
-      u.email.toLowerCase() === query ||
-      u.email.split('@')[0].toLowerCase() === query ||
-      u.nomComplet.toLowerCase().replace(/[^a-z0-9]/g, '.') === query
-    );
-
-    if (!found) {
-      return { success: false, message: 'Identifiant introuvable ou accès non autorisé.' };
-    }
-
-    // SÉCURITÉ STRICTE : Si le compte est désactivé ou bloqué, accès formellement interdit
-    if (!found.actif) {
-      return {
-        success: false,
-        message: 'Ce compte utilisateur a été bloqué par le Super Administrateur. Accès strictement refusé.'
-      };
-    }
-
-    // Vérification cryptographique du mot de passe
-    if (found.passwordHash && found.salt) {
-      const isValid = await verifyPassword(password, found.passwordHash, found.salt);
-      if (!isValid) {
-        return { success: false, message: 'Mot de passe incorrect.' };
+      const body = await res.json();
+      if (!res.ok) {
+        return { success: false, message: body.error || 'Erreur lors de l\'initialisation.' };
       }
-    } else {
-      // Enregistrement immédiat du mot de passe pour les profils migrés sans hash
-      const { hash, salt } = await hashPassword(password);
-      found.passwordHash = hash;
-      found.salt = salt;
-      const updated = users.map(u => u.id === found.id ? found : u);
-      setUsers(updated);
-      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(updated));
-    }
 
-    setCurrentUser(found);
-    localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(found));
-    return { success: true, message: 'Connexion réussie.' };
-  };
+      setIsBootstrapLocked(true);
 
-  /**
-   * Déconnexion de la session
-   */
-  const logout = async () => {
-    setCurrentUser(null);
-    localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
-    if (isSupabaseConfigured && supabase) {
-      supabase.auth.signOut().catch(() => {});
+      // Connexion automatique après la création réussie
+      const loginRes = await login(email, mdp);
+      if (!loginRes.success) {
+        return {
+          success: true,
+          message: 'Super Administrateur créé avec succès. Veuillez vous connecter avec vos identifiants.'
+        };
+      }
+
+      return {
+        success: true,
+        message: 'Super Administrateur créé et initialisé avec succès. La création publique est désormais verrouillée.'
+      };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Erreur réseau lors de l\'initialisation du Super Administrateur.' };
     }
   };
 
   /**
-   * Création d'un nouvel utilisateur par le Super Administrateur ou Administrateur
+   * Création d'un utilisateur par l'administrateur via l'API serveur
    */
   const addUser = async (userData: {
     nomComplet: string;
@@ -311,126 +356,99 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     titre?: string;
     motDePasse?: string;
   }): Promise<{ success: boolean; message: string }> => {
-    if (!currentUser || (currentUser.role !== 'super_admin' && currentUser.role !== 'admin')) {
-      return { success: false, message: 'Seuls les administrateurs peuvent ajouter des utilisateurs.' };
+    const token = await getAccessToken();
+    if (!token) {
+      return { success: false, message: 'Session invalide ou expirée.' };
     }
 
-    // RÈGLE STRICTE : Seul le Super Administrateur peut créer un autre Super Administrateur
-    if (userData.role === 'super_admin' && currentUser.role !== 'super_admin') {
-      return {
-        success: false,
-        message: 'Seul le Super Administrateur a le droit de créer un autre compte Super Administrateur.'
-      };
-    }
-
-    const normalizedEmail = userData.email.trim().toLowerCase();
-    const exists = users.some(u => u.email.toLowerCase() === normalizedEmail);
-    if (exists) {
-      return { success: false, message: 'Un utilisateur avec cette adresse email existe déjà.' };
-    }
-
-    let passwordHash: string | undefined;
-    let salt: string | undefined;
-    if (userData.motDePasse) {
-      const h = await hashPassword(userData.motDePasse);
-      passwordHash = h.hash;
-      salt = h.salt;
-    }
-
-    const newUser: User = {
-      id: newId('usr'),
-      nomComplet: userData.nomComplet.trim(),
-      email: normalizedEmail,
-      role: userData.role,
-      titre: userData.titre?.trim() || (userData.role === 'admin' ? 'Administrateur' : 'Archiviste Opérationnel'),
-      actif: true,
-      dateCreation: new Date().toISOString(),
-      passwordHash,
-      salt
-    };
-
-    const updated = [newUser, ...users];
-    setUsers(updated);
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(updated));
-
-    // Synchronisation sur Supabase profiles
-    if (isSupabaseConfigured && supabase) {
-      supabase.from('profiles').upsert({
-        id: newUser.id,
-        nom_complet: newUser.nomComplet,
-        email: newUser.email,
-        role: newUser.role,
-        titre: newUser.titre,
-        actif: true,
-        created_at: newUser.dateCreation,
-        updated_at: newUser.dateCreation
-      }).then(null, () => {});
-    }
-
-    return { success: true, message: `Utilisateur ${newUser.nomComplet} créé avec succès.` };
-  };
-
-  /**
-   * Mise à jour d'un utilisateur (rôle, nom, statut actif/bloqué)
-   */
-  const updateUser = async (updatedUser: User): Promise<{ success: boolean; message: string }> => {
-    // RÈGLE STRICTE : Un admin standard ne peut pas promouvoir un utilisateur en super_admin
-    if (updatedUser.role === 'super_admin' && currentUser?.role !== 'super_admin') {
-      return { success: false, message: 'Seul le Super Administrateur peut accorder le rôle de Super Administrateur.' };
-    }
-
-    const updated = users.map(u => (u.id === updatedUser.id ? updatedUser : u));
-    setUsers(updated);
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(updated));
-
-    // Si le compte de l'utilisateur connecté est désactivé/bloqué, déconnexion immédiate
-    if (currentUser?.id === updatedUser.id) {
-      if (!updatedUser.actif) {
-        await logout();
-      } else {
-        setCurrentUser(updatedUser);
-        localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(updatedUser));
-      }
-    }
-
-    // Synchronisation immédiate du statut dans Supabase
-    if (isSupabaseConfigured && supabase) {
-      supabase
-        .from('profiles')
-        .update({
-          nom_complet: updatedUser.nomComplet,
-          role: updatedUser.role,
-          titre: updatedUser.titre,
-          actif: updatedUser.actif,
-          updated_at: new Date().toISOString()
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          nomComplet: userData.nomComplet,
+          email: userData.email,
+          role: userData.role,
+          titre: userData.titre,
+          password: userData.motDePasse
         })
-        .eq('email', updatedUser.email)
-        .then(null, () => {});
-    }
+      });
 
-    return {
-      success: true,
-      message: updatedUser.actif
-        ? `Compte de ${updatedUser.nomComplet} activé et mis à jour.`
-        : `Compte de ${updatedUser.nomComplet} BLOQUÉ avec succès. L'accès au logiciel est désormais strictement interdit.`
-    };
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, message: data.error || 'Erreur lors de la création de l\'utilisateur.' };
+      }
+
+      await fetchUsersList(token);
+      return { success: true, message: data.message || 'Utilisateur créé avec succès.' };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Erreur réseau lors de la création de l\'utilisateur.' };
+    }
   };
 
   /**
-   * Vérification des droits de suppression
+   * Mise à jour d'un utilisateur via l'API serveur
+   */
+  const updateUser = async (userToUpdate: User): Promise<{ success: boolean; message: string }> => {
+    const token = await getAccessToken();
+    if (!token) {
+      return { success: false, message: 'Session invalide ou expirée.' };
+    }
+
+    try {
+      const res = await fetch(`/api/admin/users/${userToUpdate.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          nomComplet: userToUpdate.nomComplet,
+          titre: userToUpdate.titre,
+          role: userToUpdate.role,
+          actif: userToUpdate.actif
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, message: data.error || 'Erreur lors de la mise à jour.' };
+      }
+
+      // Si l'utilisateur connecté s'est lui-même mis à jour
+      if (currentUser?.id === userToUpdate.id) {
+        if (!userToUpdate.actif) {
+          await logout();
+        } else {
+          setCurrentUser(userToUpdate);
+        }
+      }
+
+      await fetchUsersList(token);
+      return { success: true, message: data.message || 'Mise à jour réussie.' };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Erreur réseau lors de la mise à jour.' };
+    }
+  };
+
+  /**
+   * Droits de suppression
    */
   const canDeleteUser = (targetUser: User): { allowed: boolean; reason?: string } => {
     if (!currentUser) return { allowed: false, reason: 'Vous devez être connecté.' };
     if (currentUser.id === targetUser.id) {
       return { allowed: false, reason: 'Vous ne pouvez pas supprimer votre propre compte.' };
     }
+    if (targetUser.role === 'super_admin') {
+      return { allowed: false, reason: 'Le Super Administrateur unique ne peut pas être supprimé.' };
+    }
     if (currentUser.role === 'super_admin') {
       return { allowed: true };
     }
     if (currentUser.role === 'admin') {
-      if (targetUser.role === 'super_admin') {
-        return { allowed: false, reason: 'Seul le Super Administrateur peut supprimer un compte Super Admin.' };
-      }
       if (targetUser.role === 'admin') {
         return { allowed: false, reason: 'Seul le Super Administrateur a le droit de supprimer un Administrateur.' };
       }
@@ -440,46 +458,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   /**
-   * Suppression d'un utilisateur
+   * Suppression définitive d'un compte via l'API serveur
    */
   const deleteUser = async (targetUserId: string): Promise<{ success: boolean; message: string }> => {
-    const target = users.find(u => u.id === targetUserId);
-    if (!target) return { success: false, message: 'Utilisateur introuvable.' };
-
-    const check = canDeleteUser(target);
-    if (!check.allowed) {
-      return { success: false, message: check.reason || 'Action non autorisée.' };
+    const token = await getAccessToken();
+    if (!token) {
+      return { success: false, message: 'Session invalide ou expirée.' };
     }
 
-    const updated = users.filter(u => u.id !== targetUserId);
-    setUsers(updated);
-    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(updated));
+    try {
+      const res = await fetch(`/api/admin/users/${targetUserId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
 
-    if (isSupabaseConfigured && supabase) {
-      supabase.from('profiles').delete().eq('email', target.email).then(null, () => {});
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, message: data.error || 'Erreur lors de la suppression.' };
+      }
+
+      await fetchUsersList(token);
+      return { success: true, message: data.message || 'Utilisateur supprimé définitivement.' };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Erreur réseau lors de la suppression.' };
     }
-
-    return { success: true, message: `L'utilisateur ${target.nomComplet} a été supprimé avec succès.` };
   };
 
   /**
-   * Modification du mot de passe
+   * Modification du mot de passe de l'utilisateur connecté via Supabase Auth
    */
   const changePassword = async (newPassword: string): Promise<{ success: boolean; message: string }> => {
-    if (!currentUser) return { success: false, message: 'Non connecté.' };
-    if (!newPassword || newPassword.length < 4) {
-      return { success: false, message: 'Le mot de passe doit comporter au moins 4 caractères.' };
+    if (!currentUser || !supabase) return { success: false, message: 'Non connecté.' };
+    if (!newPassword || newPassword.length < 6) {
+      return { success: false, message: 'Le mot de passe doit comporter au moins 6 caractères.' };
     }
 
-    const { hash, salt } = await hashPassword(newPassword);
-    const updated = { ...currentUser, passwordHash: hash, salt: salt };
-    await updateUser(updated);
-
-    return { success: true, message: 'Mot de passe mis à jour avec succès.' };
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        return { success: false, message: 'Erreur lors de la mise à jour : ' + error.message };
+      }
+      return { success: true, message: 'Mot de passe mis à jour avec succès sur le serveur.' };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Erreur lors du changement de mot de passe.' };
+    }
   };
 
   const refreshUsers = async () => {
-    await syncSupabaseProfiles();
+    await fetchUsersList();
   };
 
   return (
@@ -487,7 +515,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         currentUser,
         users,
-        hasSuperAdmin,
+        hasSuperAdmin: isBootstrapLocked,
         loading,
         login,
         logout,
@@ -497,7 +525,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         deleteUser,
         canDeleteUser,
         changePassword,
-        refreshUsers
+        refreshUsers,
+        checkBootstrapStatus
       }}
     >
       {children}

@@ -1,4 +1,16 @@
-export async function exportElementToPdf(elementId: string, filename: string): Promise<boolean> {
+import { Role } from '../types';
+import { can, assertCan } from './permissions';
+
+export async function exportElementToPdf(elementId: string, filename: string, role?: Role): Promise<boolean> {
+  if (role) {
+    try {
+      assertCan(can.print(role));
+    } catch (e: any) {
+      console.warn('[PDF Export] Refusé :', e.message);
+      return false;
+    }
+  }
+
   const element = document.getElementById(elementId);
   if (!element) {
     console.error(`Élément #${elementId} introuvable pour l'export PDF.`);

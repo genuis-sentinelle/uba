@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import {
@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 
 export const LoginView: React.FC = () => {
-  const { login, users, hasSuperAdmin, createInitialSuperAdmin } = useAuth();
+  const { login, currentUser, hasSuperAdmin, createInitialSuperAdmin, checkBootstrapStatus } = useAuth();
   const { addLog } = useData();
 
   // Login form states
@@ -33,11 +33,15 @@ export const LoginView: React.FC = () => {
   const [showSetupPassword, setShowSetupPassword] = useState(false);
   const [setupSuccess, setSetupSuccess] = useState('');
 
+  useEffect(() => {
+    checkBootstrapStatus();
+  }, [checkBootstrapStatus]);
+
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (!identifiant.trim()) {
-      setError('Veuillez saisir votre identifiant ou adresse email.');
+      setError('Veuillez saisir votre adresse email ou identifiant.');
       return;
     }
     if (!password) {
@@ -49,14 +53,9 @@ export const LoginView: React.FC = () => {
     try {
       const res = await login(identifiant.trim(), password);
       if (res.success) {
-        const u = users.find(
-          usr =>
-            usr.email.toLowerCase() === identifiant.trim().toLowerCase() ||
-            usr.nomComplet.toLowerCase() === identifiant.trim().toLowerCase()
-        );
-        addLog('Connexion', `Session ouverte : ${u?.nomComplet || identifiant} (${u?.role || 'agent'})`, 'auth');
+        addLog('Connexion', `Session ouverte : ${currentUser?.nomComplet || identifiant}`, 'auth');
       } else {
-        setError(res.message || 'Identifiants invalides ou accès non autorisé.');
+        setError(res.message || 'Identifiants incorrects ou compte inactif.');
       }
     } catch {
       setError('Une erreur est survenue lors de la tentative de connexion.');
@@ -71,16 +70,26 @@ export const LoginView: React.FC = () => {
     setSetupSuccess('');
 
     const nom = setupNom.trim();
+    const email = setupEmail.trim();
+
     if (!nom) {
       setError('Veuillez renseigner votre nom complet ou identifiant.');
+      return;
+    }
+    if (!email || !email.includes('@')) {
+      setError('Veuillez renseigner une adresse e-mail professionnelle valide.');
       return;
     }
     if (!setupPassword) {
       setError('Veuillez saisir un mot de passe.');
       return;
     }
-    if (setupPassword.length < 4) {
-      setError('Le mot de passe doit comporter au moins 4 caractères.');
+    if (setupPassword.length < 10) {
+      setError('Le mot de passe du Super Administrateur doit comporter au moins 10 caractères.');
+      return;
+    }
+    if (!/[a-zA-Z]/.test(setupPassword) || !/[0-9]/.test(setupPassword)) {
+      setError('Le mot de passe doit comporter au moins une lettre et un chiffre.');
       return;
     }
     if (setupPassword !== setupPasswordConfirm) {
@@ -92,13 +101,13 @@ export const LoginView: React.FC = () => {
     try {
       const res = await createInitialSuperAdmin({
         nomUtilisateur: nom,
-        email: setupEmail.trim() || undefined,
+        email: email,
         motDePasse: setupPassword
       });
 
       if (res.success) {
         setSetupSuccess(res.message);
-        addLog('Initialisation Système', `Création initiale du Super Administrateur : ${nom}`, 'auth');
+        addLog('Initialisation Système', `Création initiale du Super Administrateur : ${nom} (${email})`, 'auth');
       } else {
         setError(res.message);
       }
@@ -193,7 +202,7 @@ export const LoginView: React.FC = () => {
                 <strong style={{ color: 'var(--text-1)', display: 'block', marginBottom: '3px' }}>
                   Configuration Initiale requise (Accès unique)
                 </strong>
-                Initialisez le premier compte <strong>Super Administrateur</strong>. Ce champ est accessible <strong>une seule fois</strong> : dès validation, la création publique sera définitivement verrouillée.
+                Initialisez le premier compte <strong>Super Administrateur</strong>. Ce champ est accessible <strong>une seule fois</strong> : dès validation, la création publique sera définitivement verrouillée au niveau serveur.
               </div>
             </div>
 
@@ -259,7 +268,7 @@ export const LoginView: React.FC = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Adresse Email officielle UBA (optionnelle)</label>
+                <label className="form-label">Adresse Email officielle UBA *</label>
                 <div style={{ position: 'relative' }}>
                   <Mail
                     size={17}
@@ -272,11 +281,9 @@ export const LoginView: React.FC = () => {
                     placeholder="Ex: chef.archives@uba.cg"
                     value={setupEmail}
                     onChange={e => setSetupEmail(e.target.value)}
+                    required
                     style={{ paddingLeft: '38px' }}
                   />
-                </div>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-3)', marginTop: '4px' }}>
-                  Si laissée vide, une adresse @uba.cg sera automatiquement générée.
                 </div>
               </div>
 
@@ -291,7 +298,7 @@ export const LoginView: React.FC = () => {
                   <input
                     type={showSetupPassword ? 'text' : 'password'}
                     className="form-input"
-                    placeholder="Au moins 4 caractères"
+                    placeholder="Au moins 10 caractères (lettres + chiffres)"
                     value={setupPassword}
                     onChange={e => setSetupPassword(e.target.value)}
                     required
@@ -336,7 +343,7 @@ export const LoginView: React.FC = () => {
                 style={{ marginTop: '16px' }}
               >
                 <ShieldCheck size={18} />
-                <span>{loading ? 'Création en cours...' : 'Initialiser le Super Admin & Verrouiller'}</span>
+                <span>{loading ? 'Création et verrouillage en cours...' : 'Initialiser le Super Admin & Verrouiller'}</span>
               </button>
             </form>
           </div>
@@ -383,7 +390,7 @@ export const LoginView: React.FC = () => {
 
             <form onSubmit={handleLoginSubmit}>
               <div className="form-group">
-                <label className="form-label">Identifiant ou Email *</label>
+                <label className="form-label">Adresse Email officielle *</label>
                 <div style={{ position: 'relative' }}>
                   <UserIcon
                     size={17}
@@ -397,7 +404,7 @@ export const LoginView: React.FC = () => {
                     autoCapitalize="none"
                     autoCorrect="off"
                     className="form-input"
-                    placeholder="Ex: chef.archives ou nom@uba.cg"
+                    placeholder="Ex: chef.archives@uba.cg"
                     value={identifiant}
                     onChange={e => setIdentifiant(e.target.value)}
                     required

@@ -1,12 +1,11 @@
 import { getSupabaseAdmin } from '../_lib/supabaseAdmin';
 import { authenticateCaller } from '../_lib/authMiddleware';
 import { checkRateLimit, getClientIp } from '../_lib/rateLimit';
+import { assertAllowedOrigin } from '../_lib/cors';
+import { validatePassword, validateEmail } from '../_lib/validators';
 
 export default async function handler(req: any, res: any) {
-  // CORS & Options
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (!assertAllowedOrigin(req, res)) return;
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -35,7 +34,12 @@ export default async function handler(req: any, res: any) {
     return res.status(403).json({ error: 'Accès réservé aux administrateurs.' });
   }
 
-  const supabaseAdmin = getSupabaseAdmin();
+  let supabaseAdmin;
+  try {
+    supabaseAdmin = getSupabaseAdmin();
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Configuration administrative indisponible.' });
+  }
 
   // -------------------------------------------------------------
   // GET : Lister tous les utilisateurs et profils
@@ -77,34 +81,27 @@ export default async function handler(req: any, res: any) {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
       const { email, password, nomComplet, role, titre } = body || {};
 
-      if (!email || !password || !nomComplet || !role) {
+      if (!nomComplet?.trim() || !validateEmail(email)) {
         return res.status(400).json({
-          error: 'Les champs nomComplet, email, password et role sont obligatoires.'
+          error: 'Nom complet et adresse e-mail valides obligatoires.'
         });
       }
 
-      if (typeof password !== 'string' || password.length < 6) {
+      const validRoles = ['admin', 'stagiaire'];
+      if (!validRoles.includes(role)) {
         return res.status(400).json({
-          error: 'Le mot de passe doit comporter au moins 6 caractères.'
+          error: 'Rôle invalide. La création d\'un Super Administrateur est formellement interdite (compte unique).'
         });
+      }
+
+      const pwdError = validatePassword(password, role);
+      if (pwdError) {
+        return res.status(400).json({ error: pwdError });
       }
 
       const normalizedEmail = email.trim().toLowerCase();
-      const validRoles = ['super_admin', 'admin', 'stagiaire'];
-      if (!validRoles.includes(role)) {
-        return res.status(400).json({ error: 'Rôle invalide.' });
-      }
 
-      // RÈGLE MATRICE D'HABILITATION :
-      // - Super Admin : peut créer stagiaire, admin, super_admin
-      // - Admin : peut créer stagiaire, admin. INTERDIT de créer super_admin
-      if (role === 'super_admin' && caller.profile.role !== 'super_admin') {
-        return res.status(403).json({
-          error: 'Seul un Super Administrateur a le droit de créer ou promouvoir un Super Administrateur.'
-        });
-      }
-
-      // 1. Vérifier si un profil existe déjà avec cet email
+      // Vérifier si l'email existe déjà dans profiles
       const { data: existingProfile } = await supabaseAdmin
         .from('profiles')
         .select('id')
@@ -112,85 +109,70 @@ export default async function handler(req: any, res: any) {
         .maybeSingle();
 
       if (existingProfile) {
-        return res.status(409).json({
-          error: 'Un utilisateur avec cette adresse email existe déjà.'
-        });
+        return res.status(409).json({ error: 'Un compte avec cette adresse email existe déjà.' });
       }
 
-      // 2. Création dans auth.users de Supabase
-      const { data: authCreated, error: authCreateError } = await supabaseAdmin.auth.admin.createUser({
+      // 1. Création dans auth.users
+      const { data: authCreated, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: normalizedEmail,
-        password: password,
+        password: String(password),
         email_confirm: true,
-        user_metadata: {
-          nom_complet: nomComplet.trim(),
-          titre: (titre || '').trim()
-        },
-        app_metadata: {
-          role: role
-        }
+        user_metadata: { nom_complet: nomComplet.trim(), titre: (titre || '').trim() },
+        app_metadata: { role }
       });
 
-      if (authCreateError || !authCreated?.user) {
+      if (authError || !authCreated?.user) {
         return res.status(400).json({
-          error: 'Échec de la création dans Supabase Auth : ' + (authCreateError?.message || 'Erreur inconnue')
+          error: 'Erreur lors de la création d\'authentification : ' + (authError?.message || 'Inconnue')
         });
       }
 
       const newUserId = authCreated.user.id;
 
-      // 3. Création atomique dans public.profiles avec le même UUID
-      const { data: profileCreated, error: profileError } = await supabaseAdmin
-        .from('profiles')
-        .insert({
-          id: newUserId,
-          nom_complet: nomComplet.trim(),
-          email: normalizedEmail,
-          role: role,
-          titre: (titre || 'Archiviste Opérationnel').trim(),
-          actif: true,
-          created_by: caller.profile.id,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .select('*')
-        .single();
+      // 2. Création atomique dans public.profiles avec le même UUID
+      const { error: profileError } = await supabaseAdmin.from('profiles').insert({
+        id: newUserId,
+        nom_complet: nomComplet.trim(),
+        email: normalizedEmail,
+        role,
+        titre: (titre || (role === 'admin' ? 'Administrateur' : 'Archiviste Opérationnel')).trim(),
+        actif: true,
+        created_by: caller.user.id
+      });
 
-      // Compensation en cas d'échec sur le profil pour garantir l'atomicité
       if (profileError) {
+        // Rollback : suppression de l'utilisateur dans auth.users
         await supabaseAdmin.auth.admin.deleteUser(newUserId).catch(() => {});
         return res.status(500).json({
           error: 'Échec de création du profil (opération annulée) : ' + profileError.message
         });
       }
 
-      // 4. Journal d'audit immuable
+      // 3. Journal d'audit immuable
       await supabaseAdmin.from('audit_logs').insert({
-        id: crypto.randomUUID(),
-        timestamp: new Date().toISOString(),
-        user_id: caller.profile.id,
+        id: (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `log-${Date.now()}`),
+        user_id: caller.user.id,
         user_name: caller.profile.nom_complet,
         user_role: caller.profile.role,
         action: 'Création Utilisateur',
-        details: `Création du compte ${nomComplet.trim()} (${role}, ${normalizedEmail}) par ${caller.profile.nom_complet}`,
+        details: `Création du compte ${nomComplet.trim()} (${normalizedEmail}) avec le rôle ${role}`,
         category: 'utilisateur'
       });
 
       return res.status(201).json({
         success: true,
-        message: `Compte de ${nomComplet.trim()} créé avec succès.`,
+        message: `Utilisateur ${nomComplet.trim()} créé avec succès.`,
         user: {
-          id: profileCreated.id,
-          nomComplet: profileCreated.nom_complet,
-          email: profileCreated.email,
-          role: profileCreated.role,
-          titre: profileCreated.titre,
-          actif: profileCreated.actif,
-          dateCreation: profileCreated.created_at
+          id: newUserId,
+          nomComplet: nomComplet.trim(),
+          email: normalizedEmail,
+          role,
+          titre: (titre || (role === 'admin' ? 'Administrateur' : 'Archiviste Opérationnel')).trim(),
+          actif: true
         }
       });
     } catch (err: any) {
-      return res.status(500).json({ error: err.message || 'Erreur interne du serveur.' });
+      return res.status(500).json({ error: err.message || 'Erreur interne lors de la création de l\'utilisateur.' });
     }
   }
 

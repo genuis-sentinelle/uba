@@ -3,6 +3,8 @@ import { DailyReport } from '../../types';
 import { formatNumber, formatDate } from '../../utils/formatters';
 import { exportElementToPdf } from '../../utils/pdfExport';
 import { Download, Printer, X, CheckCircle2 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { can } from '../../utils/permissions';
 
 interface DailyReportPrintPreviewProps {
   report: DailyReport;
@@ -10,16 +12,21 @@ interface DailyReportPrintPreviewProps {
 }
 
 export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = ({ report, onClose }) => {
+  const { currentUser } = useAuth();
+  const canPrintDoc = can.print(currentUser?.role);
   const previewRef = useRef<HTMLDivElement>(null);
 
   const handleDownloadPdf = async () => {
+    if (!canPrintDoc) return;
     await exportElementToPdf(
       'daily-report-printable-doc',
-      `Rapport_Journalier_UBA_${report.dateDebut}_${report.dateFin}`
+      `Rapport_Journalier_UBA_${report.dateDebut}_${report.dateFin}`,
+      currentUser?.role
     );
   };
 
   const handlePrint = () => {
+    if (!canPrintDoc) return;
     window.print();
   };
 
@@ -86,10 +93,20 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <button onClick={handleDownloadPdf} className="btn btn-primary btn-sm">
+          <button
+            onClick={handleDownloadPdf}
+            className="btn btn-primary btn-sm"
+            disabled={!canPrintDoc}
+            title={!canPrintDoc ? 'Impression et export réservés aux administrateurs' : 'Télécharger en PDF'}
+          >
             <Download size={15} /> Télécharger en PDF
           </button>
-          <button onClick={handlePrint} className="btn btn-secondary btn-sm">
+          <button
+            onClick={handlePrint}
+            className="btn btn-secondary btn-sm"
+            disabled={!canPrintDoc}
+            title={!canPrintDoc ? 'Impression et export réservés aux administrateurs' : 'Imprimer'}
+          >
             <Printer size={15} /> Imprimer
           </button>
           <button onClick={onClose} className="btn btn-secondary btn-sm" style={{ padding: '6px' }}>
