@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
-import { Lock, Eye, EyeOff, ArrowRight, ShieldCheck, CheckCircle2, AlertTriangle, UserPlus, User as UserIcon } from 'lucide-react';
+import { Lock, Eye, EyeOff, ArrowRight, ShieldCheck, AlertTriangle, User as UserIcon } from 'lucide-react';
 
 export const LoginView: React.FC = () => {
-  const { login, users, hasSuperAdmin, createInitialSuperAdmin } = useAuth();
+  const { login, users } = useAuth();
   const { addLog } = useData();
 
   const [email, setEmail] = useState('');
@@ -13,11 +13,6 @@ export const LoginView: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Initial Super Admin setup states (si aucun compte n'existe)
-  const [setupNom, setSetupNom] = useState('');
-  const [setupPassword, setSetupPassword] = useState('');
-  const [setupSuccess, setSetupSuccess] = useState('');
-
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -25,6 +20,11 @@ export const LoginView: React.FC = () => {
       setError('Veuillez saisir votre nom d\'utilisateur ou adresse email.');
       return;
     }
+    if (!password) {
+      setError('Veuillez saisir votre mot de passe.');
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await login(email.trim(), password);
@@ -35,48 +35,10 @@ export const LoginView: React.FC = () => {
         );
         addLog('Connexion', `Session ouverte : ${u?.nomComplet || email} (${u?.role || 'agent'})`, 'auth');
       } else {
-        setError(res.message || 'Identifiants incorrects ou compte inactif.');
+        setError(res.message || 'Identifiants invalides ou accès non autorisé.');
       }
     } catch {
       setError('Une erreur est survenue lors de la tentative de connexion.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSetupSuperAdmin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setSetupSuccess('');
-
-    if (!setupNom.trim()) {
-      setError('Veuillez renseigner votre nom d\'utilisateur.');
-      return;
-    }
-    if (!setupPassword) {
-      setError('Veuillez saisir votre mot de passe.');
-      return;
-    }
-    if (setupPassword.length < 4) {
-      setError('Le mot de passe doit comporter au moins 4 caractères.');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await createInitialSuperAdmin({
-        nomUtilisateur: setupNom.trim(),
-        motDePasse: setupPassword
-      });
-
-      if (res.success) {
-        setSetupSuccess(res.message);
-        addLog('Initialisation Système', `Création du Super Administrateur : ${setupNom}`, 'auth');
-      } else {
-        setError(res.message);
-      }
-    } catch {
-      setError('Erreur lors de la configuration du compte.');
     } finally {
       setLoading(false);
     }
@@ -145,240 +107,111 @@ export const LoginView: React.FC = () => {
           </p>
         </div>
 
-        {/* CAS 1 : Configuration initiale Super Admin */}
-        {!hasSuperAdmin ? (
-          <div>
-            <div
-              className="card"
-              style={{
-                backgroundColor: 'var(--brand-tint)',
-                borderColor: 'rgba(227, 30, 36, 0.3)',
-                padding: '12px 14px',
-                marginBottom: '20px',
-                display: 'flex',
-                gap: '10px'
-              }}
-            >
-              <ShieldCheck size={20} color="var(--brand-hi)" style={{ flexShrink: 0, marginTop: '2px' }} />
-              <div className="text-sm">
-                <strong style={{ color: 'var(--text-1)', display: 'block', marginBottom: '2px' }}>
-                  Configuration Initiale requise
-                </strong>
-                Créez le premier compte <strong>Super Administrateur</strong>. Par sécurité, l'accès public sera verrouillé dès sa création.
-              </div>
-            </div>
-
-            {error && (
-              <div
-                className="card"
-                style={{
-                  backgroundColor: 'rgba(255, 69, 58, 0.12)',
-                  borderColor: 'var(--danger)',
-                  padding: '10px 14px',
-                  fontSize: '0.875rem',
-                  marginBottom: '16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  color: 'var(--text-1)'
-                }}
-              >
-                <AlertTriangle size={18} color="var(--danger)" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            {setupSuccess && (
-              <div
-                className="card"
-                style={{
-                  backgroundColor: 'rgba(52, 199, 89, 0.12)',
-                  borderColor: 'var(--success)',
-                  padding: '10px 14px',
-                  fontSize: '0.875rem',
-                  marginBottom: '16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  color: 'var(--success)'
-                }}
-              >
-                <CheckCircle2 size={18} />
-                <span>{setupSuccess}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleSetupSuperAdmin}>
-              <div className="form-group">
-                <label className="form-label">Nom d'utilisateur du Super Admin *</label>
-                <div style={{ position: 'relative' }}>
-                  <UserIcon
-                    size={17}
-                    className="text-muted"
-                    style={{ position: 'absolute', left: '12px', top: '14px' }}
-                  />
-                  <input
-                    type="text"
-                    name="username"
-                    autoComplete="username"
-                    className="form-input"
-                    placeholder="Ex: chef.archives"
-                    value={setupNom}
-                    onChange={e => setSetupNom(e.target.value)}
-                    required
-                    style={{ paddingLeft: '38px' }}
-                  />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Mot de passe *</label>
-                <div style={{ position: 'relative' }}>
-                  <Lock
-                    size={17}
-                    className="text-muted"
-                    style={{ position: 'absolute', left: '12px', top: '14px' }}
-                  />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    name="new-password"
-                    autoComplete="new-password"
-                    className="form-input"
-                    placeholder="Au moins 4 caractères"
-                    value={setupPassword}
-                    onChange={e => setSetupPassword(e.target.value)}
-                    required
-                    style={{ paddingLeft: '38px', paddingRight: '40px' }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="btn btn-ghost btn-icon"
-                    style={{ position: 'absolute', right: '4px', top: '2px' }}
-                    aria-label="Afficher ou masquer mot de passe"
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="btn btn-primary btn-block"
-                disabled={loading}
-                style={{ marginTop: '8px' }}
-              >
-                <UserPlus size={18} /> {loading ? 'Configuration en cours...' : 'Initialiser le Super Admin'}
-              </button>
-            </form>
+        {/* Connexion sécurisée 100% serveur */}
+        <div>
+          <div
+            className="card"
+            style={{
+              padding: '8px 12px',
+              marginBottom: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '0.8rem',
+              backgroundColor: 'var(--surface-2)'
+            }}
+          >
+            <ShieldCheck size={16} color="var(--brand-hi)" />
+            <span className="text-muted">Accès sécurisé contrôlé par le serveur Supabase Auth.</span>
           </div>
-        ) : (
-          /* CAS 2 : Connexion sécurisée avec compte existant */
-          <div>
+
+          {error && (
             <div
               className="card"
               style={{
-                padding: '8px 12px',
-                marginBottom: '20px',
+                backgroundColor: 'rgba(255, 69, 58, 0.12)',
+                borderColor: 'var(--danger)',
+                padding: '10px 14px',
+                fontSize: '0.875rem',
+                marginBottom: '16px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                fontSize: '0.8rem',
-                backgroundColor: 'var(--surface-2)'
+                color: 'var(--text-1)'
               }}
             >
-              <ShieldCheck size={16} color="var(--brand-hi)" />
-              <span className="text-muted">Accès contrôlé. Comptes administrés par le Chef d'équipe.</span>
+              <AlertTriangle size={18} color="var(--danger)" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleLoginSubmit}>
+            <div className="form-group">
+              <label className="form-label">Nom d'utilisateur ou Email *</label>
+              <div style={{ position: 'relative' }}>
+                <UserIcon
+                  size={17}
+                  className="text-muted"
+                  style={{ position: 'absolute', left: '12px', top: '14px' }}
+                />
+                <input
+                  type="text"
+                  name="username"
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  className="form-input"
+                  placeholder="Ex: chef.archives ou nom@uba.cg"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  required
+                  style={{ paddingLeft: '38px' }}
+                />
+              </div>
             </div>
 
-            {error && (
-              <div
-                className="card"
-                style={{
-                  backgroundColor: 'rgba(255, 69, 58, 0.12)',
-                  borderColor: 'var(--danger)',
-                  padding: '10px 14px',
-                  fontSize: '0.875rem',
-                  marginBottom: '16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  color: 'var(--text-1)'
-                }}
-              >
-                <AlertTriangle size={18} color="var(--danger)" />
-                <span>{error}</span>
+            <div className="form-group">
+              <label className="form-label">Mot de passe *</label>
+              <div style={{ position: 'relative' }}>
+                <Lock
+                  size={17}
+                  className="text-muted"
+                  style={{ position: 'absolute', left: '12px', top: '14px' }}
+                />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  autoComplete="current-password"
+                  className="form-input"
+                  placeholder="Votre mot de passe"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  style={{ paddingLeft: '38px', paddingRight: '40px' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="btn btn-ghost btn-icon"
+                  style={{ position: 'absolute', right: '4px', top: '2px' }}
+                  aria-label="Afficher ou masquer mot de passe"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
-            )}
+            </div>
 
-            <form onSubmit={handleLoginSubmit}>
-              <div className="form-group">
-                <label className="form-label">Nom d'utilisateur ou Email *</label>
-                <div style={{ position: 'relative' }}>
-                  <UserIcon
-                    size={17}
-                    className="text-muted"
-                    style={{ position: 'absolute', left: '12px', top: '14px' }}
-                  />
-                  <input
-                    type="text"
-                    name="username"
-                    autoComplete="username"
-                    autoCapitalize="none"
-                    autoCorrect="off"
-                    className="form-input"
-                    placeholder="Ex: chef.archives ou email"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    required
-                    style={{ paddingLeft: '38px' }}
-                  />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Mot de passe *</label>
-                <div style={{ position: 'relative' }}>
-                  <Lock
-                    size={17}
-                    className="text-muted"
-                    style={{ position: 'absolute', left: '12px', top: '14px' }}
-                  />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    name="password"
-                    autoComplete="current-password"
-                    className="form-input"
-                    placeholder="Votre mot de passe"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    required
-                    style={{ paddingLeft: '38px', paddingRight: '40px' }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="btn btn-ghost btn-icon"
-                    style={{ position: 'absolute', right: '4px', top: '2px' }}
-                    aria-label="Afficher ou masquer mot de passe"
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="btn btn-primary btn-block"
-                disabled={loading}
-                style={{ marginTop: '12px' }}
-              >
-                <span>{loading ? 'Connexion en cours...' : 'Accéder à la plateforme'}</span>
-                <ArrowRight size={18} />
-              </button>
-            </form>
-          </div>
-        )}
+            <button
+              type="submit"
+              className="btn btn-primary btn-block"
+              disabled={loading}
+              style={{ marginTop: '12px' }}
+            >
+              <span>{loading ? 'Vérification serveur...' : 'Accéder à la plateforme'}</span>
+              <ArrowRight size={18} />
+            </button>
+          </form>
+        </div>
 
         {/* Footer officiel */}
         <div

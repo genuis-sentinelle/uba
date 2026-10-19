@@ -113,10 +113,351 @@ export const INITIAL_MEMBERS: TeamMember[] = [
     categorie: 'superviseur',
     site: 'Mazala',
     actif: true
+  },
+  {
+    id: 'tm-4',
+    nomOfficiel: 'Lorich',
+    alias: ['Lorich'],
+    categorie: 'nouveau_stagiaire',
+    site: 'Mazala',
+    actif: true
+  },
+  {
+    id: 'tm-5',
+    nomOfficiel: 'Déo',
+    alias: ['Déo'],
+    categorie: 'nouveau_stagiaire',
+    site: 'Mazala',
+    actif: true
   }
 ];
 
 export const INITIAL_DAILY_REPORTS: DailyReport[] = [
+  {
+    id: 'dr-2026-10-12-14-mazala',
+    titre: "Rapport d'Activité — Site de Mazala (Période du 12 au 14/10/2026)",
+    dateDebut: '2026-10-12',
+    dateFin: '2026-10-14',
+    horaires: '07:30 - 16:30',
+    chefNom: 'Équipe Archiviste UBA',
+    superviseurs: ['Lorich', 'Déo'],
+    effectifTotal: 2,
+    presents: 2,
+    absents: 0,
+    equipeMazala: ['Lorich (Stagiaire)', 'Déo (Stagiaire)'],
+    equipeOrdinateur: [],
+    groupes: [
+      {
+        nom: 'Équipe Archiviste Mazala',
+        membres: ['Lorich', 'Déo'],
+        tachesAssignees: 'Comptage physique et récolement des dossiers par agence et par année (2018–2024)'
+      }
+    ],
+    taches: [
+      {
+        numero: 1,
+        titre: 'Comptage physique des dossiers 2018 par agence (9 069 dossiers)',
+        horaire: '12 au 14/10/2026',
+        description: 'Dénombrement physique exhaustif de l\'exercice 2018 sur Mazala : 9 069 dossiers recensés représentant 98,7 % du volume total (BaCongo : 2 445, Mougali : 2 291, City Center : 2 260, Poto Poto : 2 073).'
+      },
+      {
+        numero: 2,
+        titre: 'Recensement des exercices 2019 à 2024 (120 dossiers)',
+        horaire: '12 au 14/10/2026',
+        description: 'Inventaire des exercices secondaires : 2019 (21 dossiers), 2020 (6 dossiers), 2021 (69 dossiers dont 61 Maya Maya), 2022 (8 dossiers dont 1 Plateau-Ville), 2023 (4 dossiers), 2024 (12 dossiers).'
+      },
+      {
+        numero: 3,
+        titre: 'Vérification arithmétique et concordance des relevés manuscrits',
+        horaire: '14 au 15/10/2026',
+        description: 'Vérification ligne par ligne et agence par agence : concordance certifiée à 100% sur un total général de 9 189 dossiers. Validation de la case barrée d\'une croix pour BaCongo 2022 (aucun dossier).'
+      }
+    ],
+    transferts: [
+      // 901 City Center — Total 2 272 (24,7 %)
+      {
+        id: 'mv-mazala-901-2018',
+        agenceId: 'ag-901',
+        agenceNom: 'City Center',
+        code: '901',
+        exercice: 2018,
+        conventions: 2260,
+        boites: 0,
+        traitement: 'Dossiers recensés à Mazala'
+      },
+      {
+        id: 'mv-mazala-901-2019',
+        agenceId: 'ag-901',
+        agenceNom: 'City Center',
+        code: '901',
+        exercice: 2019,
+        conventions: 8,
+        boites: 0,
+        traitement: 'Dossiers recensés à Mazala'
+      },
+      {
+        id: 'mv-mazala-901-2022',
+        agenceId: 'ag-901',
+        agenceNom: 'City Center',
+        code: '901',
+        exercice: 2022,
+        conventions: 3,
+        boites: 0,
+        traitement: 'Dossiers recensés à Mazala'
+      },
+      {
+        id: 'mv-mazala-901-2023',
+        agenceId: 'ag-901',
+        agenceNom: 'City Center',
+        code: '901',
+        exercice: 2023,
+        conventions: 1,
+        boites: 0,
+        traitement: 'Dossiers recensés à Mazala'
+      },
+
+      // 902 Poto Poto — Total 2 093 (22,8 %)
+      {
+        id: 'mv-mazala-902-2018',
+        agenceId: 'ag-902',
+        agenceNom: 'Poto Poto',
+        code: '902',
+        exercice: 2018,
+        conventions: 2073,
+        boites: 0,
+        traitement: 'Dossiers recensés à Mazala'
+      },
+      {
+        id: 'mv-mazala-902-2019',
+        agenceId: 'ag-902',
+        agenceNom: 'Poto Poto',
+        code: '902',
+        exercice: 2019,
+        conventions: 3,
+        boites: 0,
+        traitement: 'Dossiers recensés à Mazala'
+      },
+      {
+        id: 'mv-mazala-902-2021',
+        agenceId: 'ag-902',
+        agenceNom: 'Poto Poto',
+        code: '902',
+        exercice: 2021,
+        conventions: 6,
+        boites: 0,
+        traitement: 'Dossiers recensés à Mazala'
+      },
+      {
+        id: 'mv-mazala-902-2022',
+        agenceId: 'ag-902',
+        agenceNom: 'Poto Poto',
+        code: '902',
+        exercice: 2022,
+        conventions: 3,
+        boites: 0,
+        traitement: 'Dossiers recensés à Mazala'
+      },
+      {
+        id: 'mv-mazala-902-2024',
+        agenceId: 'ag-902',
+        agenceNom: 'Poto Poto',
+        code: '902',
+        exercice: 2024,
+        conventions: 8,
+        boites: 0,
+        traitement: 'Dossiers recensés à Mazala'
+      },
+
+      // 904 BaCongo — Total 2 461 (26,8 %)
+      {
+        id: 'mv-mazala-904-2018',
+        agenceId: 'ag-904',
+        agenceNom: 'BaCongo',
+        code: '904',
+        exercice: 2018,
+        conventions: 2445,
+        boites: 0,
+        traitement: 'Dossiers recensés à Mazala'
+      },
+      {
+        id: 'mv-mazala-904-2019',
+        agenceId: 'ag-904',
+        agenceNom: 'BaCongo',
+        code: '904',
+        exercice: 2019,
+        conventions: 10,
+        boites: 0,
+        traitement: 'Dossiers recensés à Mazala'
+      },
+      {
+        id: 'mv-mazala-904-2020',
+        agenceId: 'ag-904',
+        agenceNom: 'BaCongo',
+        code: '904',
+        exercice: 2020,
+        conventions: 3,
+        boites: 0,
+        traitement: 'Dossiers recensés à Mazala'
+      },
+      {
+        id: 'mv-mazala-904-2021',
+        agenceId: 'ag-904',
+        agenceNom: 'BaCongo',
+        code: '904',
+        exercice: 2021,
+        conventions: 1,
+        boites: 0,
+        traitement: 'Dossiers recensés à Mazala'
+      },
+      {
+        id: 'mv-mazala-904-2023',
+        agenceId: 'ag-904',
+        agenceNom: 'BaCongo',
+        code: '904',
+        exercice: 2023,
+        conventions: 1,
+        boites: 0,
+        traitement: 'Dossiers recensés à Mazala'
+      },
+      {
+        id: 'mv-mazala-904-2024',
+        agenceId: 'ag-904',
+        agenceNom: 'BaCongo',
+        code: '904',
+        exercice: 2024,
+        conventions: 1,
+        boites: 0,
+        traitement: 'Dossiers recensés à Mazala'
+      },
+
+      // 906 Maya Maya — Total 67 (0,7 %)
+      {
+        id: 'mv-mazala-906-2021',
+        agenceId: 'ag-906',
+        agenceNom: 'Maya Maya',
+        code: '906',
+        exercice: 2021,
+        conventions: 61,
+        boites: 0,
+        traitement: 'Dossiers recensés à Mazala'
+      },
+      {
+        id: 'mv-mazala-906-2022',
+        agenceId: 'ag-906',
+        agenceNom: 'Maya Maya',
+        code: '906',
+        exercice: 2022,
+        conventions: 1,
+        boites: 0,
+        traitement: 'Dossiers recensés à Mazala'
+      },
+      {
+        id: 'mv-mazala-906-2023',
+        agenceId: 'ag-906',
+        agenceNom: 'Maya Maya',
+        code: '906',
+        exercice: 2023,
+        conventions: 2,
+        boites: 0,
+        traitement: 'Dossiers recensés à Mazala'
+      },
+      {
+        id: 'mv-mazala-906-2024',
+        agenceId: 'ag-906',
+        agenceNom: 'Maya Maya',
+        code: '906',
+        exercice: 2024,
+        conventions: 3,
+        boites: 0,
+        traitement: 'Dossiers recensés à Mazala'
+      },
+
+      // 907 Mougali — Total 2 295 (25,0 %)
+      {
+        id: 'mv-mazala-907-2018',
+        agenceId: 'ag-907',
+        agenceNom: 'Mougali',
+        code: '907',
+        exercice: 2018,
+        conventions: 2291,
+        boites: 0,
+        traitement: 'Dossiers recensés à Mazala'
+      },
+      {
+        id: 'mv-mazala-907-2020',
+        agenceId: 'ag-907',
+        agenceNom: 'Mougali',
+        code: '907',
+        exercice: 2020,
+        conventions: 3,
+        boites: 0,
+        traitement: 'Dossiers recensés à Mazala'
+      },
+      {
+        id: 'mv-mazala-907-2021',
+        agenceId: 'ag-907',
+        agenceNom: 'Mougali',
+        code: '907',
+        exercice: 2021,
+        conventions: 1,
+        boites: 0,
+        traitement: 'Dossiers recensés à Mazala'
+      },
+
+      // 909 Plateau-Ville — Total 1 (0,0 %)
+      {
+        id: 'mv-mazala-909-2022',
+        agenceId: 'ag-909',
+        agenceNom: 'Plateau-Ville',
+        code: '909',
+        exercice: 2022,
+        conventions: 1,
+        boites: 0,
+        traitement: 'Dossiers recensés à Mazala'
+      }
+    ],
+    receptions: [],
+    chronologie: [
+      { heure: 'Lundi 12/10', evenement: 'Démarrage du comptage sur le site de Mazala — Focus BaCongo (2 445) et Mougali (2 291) 2018' },
+      { heure: 'Mardi 13/10', evenement: 'Comptage physique City Center (2 260) et Poto Poto (2 073) 2018' },
+      { heure: 'Mercredi 14/10', evenement: 'Recensement des exercices 2019 à 2024, Maya Maya (67) et Plateau-Ville (1)' },
+      { heure: 'Jeudi 15/10', evenement: 'Arrêté définitif des comptes, réconciliation générale des 9 189 dossiers et validation' }
+    ],
+    observations: [
+      {
+        point: 'Totaux vérifiés',
+        constat: 'La somme de chaque ligne correspond au total noté, et la somme des totaux d\'agences donne bien 9 189 dossiers.',
+        estIncident: false
+      },
+      {
+        point: '2018 domine',
+        constat: 'Les dossiers 2018 (9 069) forment la quasi-totalité du volume (98,7 %) ; les exercices 2019 à 2024 totalisent 120 dossiers.',
+        estIncident: false
+      },
+      {
+        point: 'Maya Maya',
+        constat: 'Aucun dossier de 2018 à 2020 ; l\'essentiel de ses 67 dossiers se situe en 2021 (61 dossiers).',
+        estIncident: false
+      },
+      {
+        point: 'Plateau-Ville',
+        constat: 'Un seul dossier relevé sur l\'ensemble des exercices (année 2022).',
+        estIncident: false
+      },
+      {
+        point: 'BaCongo 2022',
+        constat: 'Case barrée d\'une croix sur le relevé manuscrit ; comptée comme « aucun dossier » (cohérent avec le total 2 461).',
+        estIncident: false
+      }
+    ],
+    totalDeclare: 9189,
+    totalCalcule: 9189,
+    ecart: 0,
+    statut: 'valide',
+    version: 1,
+    creePar: 'Lorich & Déo (Stagiaires)',
+    dateCreation: '2026-10-15'
+  },
   {
     id: 'dr-2026-10-13',
     titre: 'Rapport Journalier du Mardi 13/10/2026 — Cartographie & Conventions Oubliées',
@@ -986,6 +1327,163 @@ export const INITIAL_SYNTHESIS_REPORTS: SynthesisReport[] = [
     ],
     creePar: 'Équipe Archiviste — UBA Congo',
     dateCreation: '2026-10-18'
+  },
+  {
+    id: 'syn-2026-10-12-14-mazala',
+    titre: "Rapport d'Activité — Site de Mazala (Comptage des dossiers par agence et par année)",
+    dateDebut: '2026-10-12',
+    dateFin: '2026-10-14',
+    type: 'equipe_public',
+    dossiersTraites: 9189,
+    dossiersEnAttente: 0,
+    totalGlobal: 9189,
+    boitesTotal: 0,
+    agencesCount: 6,
+    joursCouverts: 3,
+    joursManquants: [],
+    matrice: [
+      {
+        agenceNom: 'City Center',
+        code: '901',
+        annees: {
+          2018: '2 260',
+          2019: '8',
+          2020: '—',
+          2021: '—',
+          2022: '3',
+          2023: '1',
+          2024: '—'
+        }
+      },
+      {
+        agenceNom: 'Poto Poto',
+        code: '902',
+        annees: {
+          2018: '2 073',
+          2019: '3',
+          2020: '—',
+          2021: '6',
+          2022: '3',
+          2023: '—',
+          2024: '8'
+        }
+      },
+      {
+        agenceNom: 'BaCongo',
+        code: '904',
+        annees: {
+          2018: '2 445',
+          2019: '10',
+          2020: '3',
+          2021: '1',
+          2022: '—',
+          2023: '1',
+          2024: '1'
+        }
+      },
+      {
+        agenceNom: 'Maya Maya',
+        code: '906',
+        annees: {
+          2018: '—',
+          2019: '—',
+          2020: '—',
+          2021: '61',
+          2022: '1',
+          2023: '2',
+          2024: '3'
+        }
+      },
+      {
+        agenceNom: 'Mougali',
+        code: '907',
+        annees: {
+          2018: '2 291',
+          2019: '—',
+          2020: '3',
+          2021: '1',
+          2022: '—',
+          2023: '—',
+          2024: '—'
+        }
+      },
+      {
+        agenceNom: 'Plateau-Ville',
+        code: '909',
+        annees: {
+          2018: '—',
+          2019: '—',
+          2020: '—',
+          2021: '—',
+          2022: '1',
+          2023: '—',
+          2024: '—'
+        }
+      }
+    ],
+    repartitionAgences: [
+      {
+        nom: 'BaCongo',
+        code: '904',
+        traite: 2461,
+        attente: 0,
+        total: 2461,
+        taux: 26.8
+      },
+      {
+        nom: 'Mougali',
+        code: '907',
+        traite: 2295,
+        attente: 0,
+        total: 2295,
+        taux: 25.0
+      },
+      {
+        nom: 'City Center',
+        code: '901',
+        traite: 2272,
+        attente: 0,
+        total: 2272,
+        taux: 24.7
+      },
+      {
+        nom: 'Poto Poto',
+        code: '902',
+        traite: 2093,
+        attente: 0,
+        total: 2093,
+        taux: 22.8
+      },
+      {
+        nom: 'Maya Maya',
+        code: '906',
+        traite: 67,
+        attente: 0,
+        total: 67,
+        taux: 0.7
+      },
+      {
+        nom: 'Plateau-Ville',
+        code: '909',
+        traite: 1,
+        attente: 0,
+        total: 1,
+        taux: 0.0
+      }
+    ],
+    pointsAConfirmer: [
+      'Synthèse générale : 9 189 dossiers au total, 6 agences concernées, 7 années (2018–2024), 2 stagiaires (Lorich et Déo). 98,7 % des dossiers sont concentrés sur l\'exercice 2018 (9 069 dossiers).',
+      'Classement par agence : BaCongo en tête (2 461 dossiers, 26,8 %) · Mougali (2 295 dossiers, 25,0 %) · City Center (2 272 dossiers, 24,7 %) · Poto Poto (2 093 dossiers, 22,8 %).',
+      'Agences marginales : Maya Maya (67 dossiers, 0,7 % — dont 61 en 2021) · Plateau-Ville (1 seul dossier relevé en 2022).',
+      'Totaux vérifiés : La somme de chaque ligne correspond au total noté, et la somme des totaux d\'agences donne bien 9 189 dossiers.',
+      '2018 domine : Les dossiers 2018 (9 069) forment la quasi-totalité du volume ; 2019 à 2024 totalisent 120 dossiers.',
+      'Maya Maya : Aucun dossier de 2018 à 2020 ; l\'essentiel de ses 67 dossiers se situe en 2021 (61 dossiers).',
+      'Plateau-Ville : Un seul dossier relevé sur l\'ensemble des exercices (année 2022).',
+      'BaCongo 2022 : Case barrée d\'une croix sur le relevé manuscrit ; comptée comme « aucun dossier » (cohérent avec le total 2 461).',
+      'Validation : Relevé effectué et validé par les stagiaires Lorich et Déo le 15/10/2026.'
+    ],
+    creePar: 'Lorich & Déo (Stagiaires)',
+    dateCreation: '2026-10-15'
   }
 ];
 

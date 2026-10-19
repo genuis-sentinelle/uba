@@ -8,6 +8,8 @@ export interface User {
   titre: string;
   actif: boolean;
   dateCreation: string;
+  blockedAt?: string;
+  blockedBy?: string;
   passwordHash?: string;
   salt?: string;
 }

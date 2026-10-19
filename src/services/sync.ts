@@ -90,21 +90,17 @@ export async function flushSyncQueue() {
 
 // ----------------- Typed Push Helpers -----------------
 
-export const pushLog = (log: LogEntry) => {
-  return pushSync({
-    table: 'audit_logs',
-    kind: 'upsert',
-    row: {
-      id: log.id,
-      timestamp: log.timestamp,
-      user_id: log.userId && !log.userId.startsWith('u-') && !log.userId.startsWith('log-') ? log.userId : null,
-      user_name: log.userName,
-      user_role: log.userRole,
-      action: log.action,
-      details: log.details,
-      category: log.category
-    }
-  });
+export const pushLog = async (log: LogEntry) => {
+  if (!isSupabaseConfigured || !supabase) return;
+  try {
+    await supabase.rpc('log_audit_event', {
+      p_action: log.action,
+      p_details: log.details,
+      p_category: log.category
+    });
+  } catch (e) {
+    console.warn('[Sync] Info journalisation audit serveur:', e);
+  }
 };
 
 export const pushAgency = (agency: Agency) => {

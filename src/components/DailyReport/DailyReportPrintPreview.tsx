@@ -23,6 +23,32 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
     window.print();
   };
 
+  const distinctYears = Array.from(new Set(report.transferts.map(t => t.exercice))).sort((a, b) => a - b);
+  const isMultiYearReport = distinctYears.length > 1;
+  const isComptageReport = report.titre.toLowerCase().includes('dossier') || report.titre.toLowerCase().includes('mazala');
+  const uniqueAgenciesCount = new Set(report.transferts.map(t => t.agenceNom)).size || report.transferts.length;
+
+  const matrixAgencies = isMultiYearReport
+    ? Array.from(
+        report.transferts.reduce((map, t) => {
+          if (!map.has(t.code)) {
+            map.set(t.code, { code: t.code, nom: t.agenceNom, annees: {} as Record<number, number>, total: 0 });
+          }
+          const item = map.get(t.code)!;
+          item.annees[t.exercice] = (item.annees[t.exercice] || 0) + t.conventions;
+          item.total += t.conventions;
+          return map;
+        }, new Map<string, { code: string; nom: string; annees: Record<number, number>; total: number }>()).values()
+      ).sort((a, b) => b.total - a.total)
+    : [];
+
+  const yearTotals = isMultiYearReport
+    ? distinctYears.reduce((acc, yr) => {
+        acc[yr] = report.transferts.filter(t => t.exercice === yr).reduce((s, t) => s + t.conventions, 0);
+        return acc;
+      }, {} as Record<number, number>)
+    : {};
+
   return (
     <div style={{
       position: 'fixed',
@@ -105,10 +131,10 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
         }}>
           <div>
             <div style={{ fontSize: '14pt', fontWeight: 900, letterSpacing: '0.03em', color: '#FFFFFF' }}>
-              RAPPORT JOURNALIER D'ACTIVITÉ
+              RAPPORT D'ACTIVITÉ — ÉQUIPE ARCHIVISTE
             </div>
             <div style={{ fontSize: '8.5pt', fontWeight: 600, opacity: 0.95, color: '#FFFFFF', marginTop: '2px' }}>
-              ÉQUIPE ARCHIVISTE UBA CONGO · SITES MAYA-MAYA & MAZALA
+              UBA CONGO · SITES MAYA-MAYA & MAZALA
             </div>
           </div>
           <div style={{
@@ -169,23 +195,23 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
                 {formatNumber(report.totalCalcule)}
               </div>
               <div style={{ fontSize: '7.5pt', color: '#4B5563', fontWeight: 700, textTransform: 'uppercase', marginTop: '2px' }}>
-                Conventions Traitées
+                {isComptageReport ? 'Dossiers Recensés' : 'Conventions Traitées'}
               </div>
             </div>
             <div>
               <div style={{ fontSize: '13pt', fontWeight: 900, color: '#111111' }}>
-                {report.transferts.reduce((sum, t) => sum + t.boites, 0)}
+                {isMultiYearReport ? `${distinctYears.length} Années` : `${report.transferts.reduce((sum, t) => sum + t.boites, 0)} Boîtes`}
               </div>
               <div style={{ fontSize: '7.5pt', color: '#4B5563', fontWeight: 700, textTransform: 'uppercase', marginTop: '2px' }}>
-                Boîtes Transférées
+                {isMultiYearReport ? 'Exercices Couverts' : 'Boîtes Transférées'}
               </div>
             </div>
             <div>
               <div style={{ fontSize: '13pt', fontWeight: 900, color: 'var(--brand)' }}>
-                {report.transferts.length}
+                {uniqueAgenciesCount}
               </div>
               <div style={{ fontSize: '7.5pt', color: '#4B5563', fontWeight: 700, textTransform: 'uppercase', marginTop: '2px' }}>
-                Agences Traitées
+                Agences Concernées
               </div>
             </div>
           </div>
@@ -214,47 +240,119 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
                 <td style={{ padding: '6px 8px', border: '1px solid #E5E7EB', color: '#111111' }}>{report.horaires}</td>
               </tr>
               <tr>
-                <td style={{ padding: '6px 8px', fontWeight: 700, backgroundColor: '#F3F4F6', border: '1px solid #E5E7EB', color: '#111111' }}>Chef d'équipe</td>
+                <td style={{ padding: '6px 8px', fontWeight: 700, backgroundColor: '#F3F4F6', border: '1px solid #E5E7EB', color: '#111111' }}>Équipe / Chef</td>
                 <td style={{ padding: '6px 8px', border: '1px solid #E5E7EB', color: '#111111' }}><strong>{report.chefNom}</strong></td>
-                <td style={{ padding: '6px 8px', fontWeight: 700, backgroundColor: '#F3F4F6', border: '1px solid #E5E7EB', color: '#111111' }}>Superviseurs</td>
-                <td style={{ padding: '6px 8px', border: '1px solid #E5E7EB', color: '#111111' }}>{report.superviseurs.join(', ')}</td>
+                <td style={{ padding: '6px 8px', fontWeight: 700, backgroundColor: '#F3F4F6', border: '1px solid #E5E7EB', color: '#111111' }}>
+                  {report.superviseurs && report.superviseurs.length > 0 ? 'Stagiaires / Validateurs' : 'Superviseurs'}
+                </td>
+                <td style={{ padding: '6px 8px', border: '1px solid #E5E7EB', color: '#111111' }}>
+                  {report.superviseurs && report.superviseurs.length > 0 ? report.superviseurs.join(' et ') : '—'}
+                </td>
               </tr>
               <tr>
                 <td style={{ padding: '6px 8px', fontWeight: 700, backgroundColor: '#F3F4F6', border: '1px solid #E5E7EB', color: '#111111' }}>Site Mazala</td>
-                <td style={{ padding: '6px 8px', border: '1px solid #E5E7EB', color: '#111111' }}>{report.equipeMazala.join(', ')}</td>
+                <td style={{ padding: '6px 8px', border: '1px solid #E5E7EB', color: '#111111' }}>{report.equipeMazala.length > 0 ? report.equipeMazala.join(', ') : '—'}</td>
                 <td style={{ padding: '6px 8px', fontWeight: 700, backgroundColor: '#F3F4F6', border: '1px solid #E5E7EB', color: '#111111' }}>Travail Ordinateur</td>
-                <td style={{ padding: '6px 8px', border: '1px solid #E5E7EB', color: '#111111' }}>{report.equipeOrdinateur.join(', ')}</td>
+                <td style={{ padding: '6px 8px', border: '1px solid #E5E7EB', color: '#111111' }}>{report.equipeOrdinateur.length > 0 ? report.equipeOrdinateur.join(', ') : '—'}</td>
               </tr>
             </tbody>
           </table>
         </div>
 
         {/* ▌2. GROUPES DE TRAVAIL */}
-        <div style={{ marginBottom: '16px' }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontSize: '10.5pt',
-            fontWeight: 800,
-            color: '#111111',
-            marginBottom: '6px'
-          }}>
-            <span style={{ display: 'inline-block', width: '4px', height: '14px', backgroundColor: 'var(--brand)', borderRadius: '2px' }} />
-            2. RÉPARTITION DES GROUPES DE TRAVAIL
+        {report.groupes.length > 0 && (
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '10.5pt',
+              fontWeight: 800,
+              color: '#111111',
+              marginBottom: '6px'
+            }}>
+              <span style={{ display: 'inline-block', width: '4px', height: '14px', backgroundColor: 'var(--brand)', borderRadius: '2px' }} />
+              2. RÉPARTITION DES GROUPES DE TRAVAIL
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: report.groupes.length > 1 ? 'repeat(2, 1fr)' : '1fr', gap: '8px', fontSize: '8.5pt' }}>
+              {report.groupes.map((grp, idx) => (
+                <div key={idx} style={{ border: '1px solid #E5E7EB', backgroundColor: '#F9FAFB', padding: '8px 12px', borderRadius: '4px' }}>
+                  <div style={{ fontWeight: 800, color: 'var(--brand)', marginBottom: '3px' }}>{grp.nom}</div>
+                  <div style={{ color: '#111111' }}><strong>Membres :</strong> {grp.membres.join(', ')}</div>
+                  {grp.tachesAssignees && <div style={{ color: '#4B5563', marginTop: '3px' }}><em>Mission :</em> {grp.tachesAssignees}</div>}
+                </div>
+              ))}
+            </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', fontSize: '8.5pt' }}>
-            {report.groupes.map((grp, idx) => (
-              <div key={idx} style={{ border: '1px solid #E5E7EB', backgroundColor: '#F9FAFB', padding: '8px 12px', borderRadius: '4px' }}>
-                <div style={{ fontWeight: 800, color: 'var(--brand)', marginBottom: '3px' }}>{grp.nom}</div>
-                <div style={{ color: '#111111' }}><strong>Membres :</strong> {grp.membres.join(', ')}</div>
-                {grp.tachesAssignees && <div style={{ color: '#4B5563', marginTop: '3px' }}><em>Mission :</em> {grp.tachesAssignees}</div>}
-              </div>
-            ))}
-          </div>
-        </div>
+        )}
 
-        {/* ▌3. TRANSFERTS VERS MAZALA (TABLEAU OFFICIEL UBA AVEC EN-TÊTE ROUGE) */}
+        {/* ▌TABLEAU RÉCAPITULATIF PAR AGENCE ET PAR ANNÉE (Affiché si multi-exercices) */}
+        {isMultiYearReport && (
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '10.5pt',
+              fontWeight: 800,
+              color: '#111111',
+              marginBottom: '6px'
+            }}>
+              <span style={{ display: 'inline-block', width: '4px', height: '14px', backgroundColor: 'var(--brand)', borderRadius: '2px' }} />
+              TABLEAU RÉCAPITULATIF PAR AGENCE ET PAR ANNÉE
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt' }}>
+              <thead>
+                <tr style={{ backgroundColor: 'var(--brand)', color: '#FFFFFF' }}>
+                  <th style={{ padding: '6px 8px', textAlign: 'center', border: '1px solid var(--brand)', width: '60px' }}>CODE</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'left', border: '1px solid var(--brand)' }}>AGENCE</th>
+                  {distinctYears.map(yr => (
+                    <th key={yr} style={{ padding: '6px 6px', textAlign: 'right', border: '1px solid var(--brand)' }}>{yr}</th>
+                  ))}
+                  <th style={{ padding: '6px 8px', textAlign: 'right', border: '1px solid var(--brand)', width: '80px' }}>TOTAL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {matrixAgencies.map((ag, idx) => (
+                  <tr key={idx} style={{ backgroundColor: idx % 2 === 1 ? '#FAFAFA' : '#FFFFFF', color: '#111111' }}>
+                    <td style={{ padding: '5px 8px', textAlign: 'center', border: '1px solid #E5E7EB', color: '#6B7280', fontWeight: 600 }}>{ag.code}</td>
+                    <td style={{ padding: '5px 8px', border: '1px solid #E5E7EB', fontWeight: 700, color: '#111111' }}>{ag.nom}</td>
+                    {distinctYears.map(yr => {
+                      const count = ag.annees[yr];
+                      return (
+                        <td key={yr} style={{ padding: '5px 6px', textAlign: 'right', border: '1px solid #E5E7EB', color: count ? '#111111' : '#9CA3AF' }}>
+                          {count ? formatNumber(count) : '—'}
+                        </td>
+                      );
+                    })}
+                    <td style={{ padding: '5px 8px', textAlign: 'right', border: '1px solid #E5E7EB', fontWeight: 800, color: 'var(--brand)' }}>
+                      {formatNumber(ag.total)}
+                    </td>
+                  </tr>
+                ))}
+                {/* Ligne TOTAL PAR ANNÉE */}
+                <tr style={{ backgroundColor: '#F3F4F6', fontWeight: 900, borderTop: '2px solid var(--brand)' }}>
+                  <td colSpan={2} style={{ padding: '7px 8px', border: '1px solid #E5E7EB', textAlign: 'left', color: '#111111' }}>
+                    TOTAL PAR ANNÉE
+                  </td>
+                  {distinctYears.map(yr => (
+                    <td key={yr} style={{ padding: '7px 6px', textAlign: 'right', border: '1px solid #E5E7EB', color: 'var(--brand)', fontWeight: 800 }}>
+                      {formatNumber(yearTotals[yr] || 0)}
+                    </td>
+                  ))}
+                  <td style={{ padding: '7px 8px', textAlign: 'right', border: '1px solid #E5E7EB', color: 'var(--brand)', fontSize: '9.5pt', fontWeight: 900 }}>
+                    {formatNumber(report.totalCalcule)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div style={{ fontSize: '7.5pt', color: '#6B7280', fontStyle: 'italic', marginTop: '4px' }}>
+              « — » : aucun dossier (case barrée d'une croix sur le relevé manuscrit). La ligne « Total par année » est calculée à partir du relevé.
+            </div>
+          </div>
+        )}
+
+        {/* ▌3. TRANSFERTS / DÉTAIL DES DOSSIERS RECENSÉS */}
         <div style={{ marginBottom: '16px' }}>
           <div style={{
             display: 'flex',
@@ -266,7 +364,7 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
             marginBottom: '6px'
           }}>
             <span style={{ display: 'inline-block', width: '4px', height: '14px', backgroundColor: 'var(--brand)', borderRadius: '2px' }} />
-            3. TRANSFERTS VERS LE SITE DE STOCKAGE MAZALA
+            {isComptageReport ? '3. DÉTAIL DES DOSSIERS PAR AGENCE ET PAR EXERCICE' : '3. TRANSFERTS VERS LE SITE DE STOCKAGE MAZALA'}
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt' }}>
             <thead>
@@ -274,7 +372,9 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
                 <th style={{ padding: '7px 8px', textAlign: 'left', border: '1px solid var(--brand)', color: '#FFFFFF' }}>AGENCE</th>
                 <th style={{ padding: '7px 8px', textAlign: 'center', border: '1px solid var(--brand)', color: '#FFFFFF' }}>CODE</th>
                 <th style={{ padding: '7px 8px', textAlign: 'center', border: '1px solid var(--brand)', color: '#FFFFFF' }}>EXERCICE</th>
-                <th style={{ padding: '7px 8px', textAlign: 'right', border: '1px solid var(--brand)', color: '#FFFFFF' }}>CONVENTIONS</th>
+                <th style={{ padding: '7px 8px', textAlign: 'right', border: '1px solid var(--brand)', color: '#FFFFFF' }}>
+                  {isComptageReport ? 'DOSSIERS' : 'CONVENTIONS'}
+                </th>
                 <th style={{ padding: '7px 8px', textAlign: 'right', border: '1px solid var(--brand)', color: '#FFFFFF' }}>BOÎTES</th>
                 <th style={{ padding: '7px 8px', textAlign: 'left', border: '1px solid var(--brand)', color: '#FFFFFF' }}>TRAITEMENT APPLIQUÉ</th>
               </tr>
@@ -295,7 +395,7 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
               {/* Ligne TOTAL */}
               <tr style={{ backgroundColor: '#F9FAFB', fontWeight: 900, borderTop: '2px solid var(--brand)', color: '#111111' }}>
                 <td colSpan={3} style={{ padding: '8px', border: '1px solid #E5E7EB', textAlign: 'right', color: '#111111' }}>
-                  TOTAL CONVENTIONS CERTIFIÉES :
+                  {isComptageReport ? 'TOTAL DOSSIERS CERTIFIÉS :' : 'TOTAL CONVENTIONS CERTIFIÉES :'}
                 </td>
                 <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #E5E7EB', color: 'var(--brand)', fontSize: '10pt', fontWeight: 900 }}>
                   {formatNumber(report.totalCalcule)}
@@ -351,7 +451,7 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
         <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '14px', marginBottom: '16px' }}>
           <div style={{ border: '1px solid #E5E7EB', backgroundColor: '#F9FAFB', padding: '10px 12px', borderRadius: '4px' }}>
             <div style={{ fontWeight: 800, fontSize: '9pt', color: '#111111', marginBottom: '6px' }}>
-              OBSERVATIONS DU TERRAIN
+              5. OBSERVATIONS DU TERRAIN
             </div>
             {report.observations.map((obs, i) => (
               <div key={i} style={{ fontSize: '8pt', marginBottom: '4px', color: '#374151' }}>
@@ -362,14 +462,26 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
 
           <div style={{ border: '1px solid #E5E7EB', backgroundColor: '#F9FAFB', padding: '10px 12px', borderRadius: '4px', textAlign: 'center' }}>
             <div style={{ fontSize: '8.5pt', fontWeight: 800, color: '#111111' }}>
-              LE CHEF D'ÉQUIPE DES ARCHIVES
+              6. VALIDATION DU RAPPORT
             </div>
-            <div style={{ fontSize: '7.5pt', color: '#6B7280', margin: '4px 0 28px' }}>
+            <div style={{ fontSize: '7.5pt', color: '#6B7280', margin: '4px 0 10px' }}>
               Certifié exact et conforme
             </div>
-            <div style={{ fontWeight: 900, color: 'var(--brand)', fontSize: '9.5pt', textDecoration: 'underline' }}>
-              {report.chefNom}
-            </div>
+            {report.superviseurs && report.superviseurs.length > 0 ? (
+              <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', marginTop: '6px' }}>
+                {report.superviseurs.map((sup, idx) => (
+                  <div key={idx} style={{ textAlign: 'center' }}>
+                    <div style={{ fontWeight: 800, color: 'var(--brand)', fontSize: '9pt' }}>{sup}</div>
+                    <div style={{ fontSize: '7.5pt', color: '#4B5563', fontWeight: 600 }}>Stagiaire</div>
+                    <div style={{ fontSize: '7pt', fontStyle: 'italic', color: '#9CA3AF', marginTop: '12px' }}>Signature : ✍️</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ fontWeight: 900, color: 'var(--brand)', fontSize: '9.5pt', textDecoration: 'underline' }}>
+                {report.chefNom}
+              </div>
+            )}
           </div>
         </div>
 

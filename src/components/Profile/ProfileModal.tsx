@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
-import { verifyPassword } from '../../utils/crypto';
+import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { X, Lock, CheckCircle, AlertTriangle, LogOut } from 'lucide-react';
 
 interface ProfileModalProps {
@@ -23,25 +23,43 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
 
   const [activeTab, setActiveTab] = useState<'info' | 'password'>('info');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleUpdateInfo = (e: React.FormEvent) => {
+  const handleUpdateInfo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nomComplet.trim()) {
       setMessage({ type: 'error', text: 'Le nom complet est obligatoire.' });
       return;
     }
 
-    const res = updateUser({
-      ...currentUser,
-      nomComplet: nomComplet.trim(),
-      titre: titre.trim()
-    });
+    setIsSubmitting(true);
+    try {
+      // 1. Mise à jour via procédure stockée sécurisée sur profiles
+      if (isSupabaseConfigured && supabase) {
+        const { error: rpcErr } = await supabase.rpc('update_my_profile', {
+          p_nom_complet: nomComplet.trim(),
+          p_titre: titre.trim()
+        });
 
-    if (res.success) {
-      setMessage({ type: 'success', text: 'Profil mis à jour avec succès.' });
-      addLog('Profil', `Mise à jour du profil de ${nomComplet}`, 'utilisateur');
-    } else {
-      setMessage({ type: 'error', text: res.message });
+        if (rpcErr) {
+          setMessage({ type: 'error', text: 'Erreur lors de la mise à jour du profil : ' + rpcErr.message });
+          return;
+        }
+      }
+
+      // 2. Mise à jour du state AuthContext
+      await updateUser({
+        ...currentUser,
+        nomComplet: nomComplet.trim(),
+        titre: titre.trim()
+      });
+
+      setMessage({ type: 'success', text: 'Profil mis à jour avec succès sur le serveur.' });
+      addLog('Profil', `Mise à jour du profil de ${nomComplet.trim()}`, 'utilisateur');
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Erreur lors de la mise à jour.' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -52,17 +70,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
       return;
     }
 
-    // Vérifier l'ancien mot de passe
-    if (currentUser.passwordHash && currentUser.salt) {
-      const validOld = await verifyPassword(ancienMdp, currentUser.passwordHash, currentUser.salt);
-      if (!validOld) {
-        setMessage({ type: 'error', text: 'L\'ancien mot de passe saisi est incorrect.' });
-        return;
-      }
-    }
-
-    if (nouveauMdp.length < 4) {
-      setMessage({ type: 'error', text: 'Le nouveau mot de passe doit comporter au moins 4 caractères.' });
+    if (nouveauMdp.length < 6) {
+      setMessage({ type: 'error', text: 'Le nouveau mot de passe doit comporter au moins 6 caractères.' });
       return;
     }
     if (nouveauMdp !== confirmerMdp) {
@@ -70,15 +79,35 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
       return;
     }
 
-    const res = await changePassword(nouveauMdp);
-    if (res.success) {
-      setMessage({ type: 'success', text: 'Mot de passe mis à jour avec succès.' });
-      setAncienMdp('');
-      setNouveauMdp('');
-      setConfirmerMdp('');
-      addLog('Sécurité', `Changement de mot de passe pour ${currentUser.nomComplet}`, 'utilisateur');
-    } else {
-      setMessage({ type: 'error', text: res.message });
+    setIsSubmitting(true);
+    try {
+      // Vérification serveur de l'ancien mot de passe via Supabase Auth
+      if (isSupabaseConfigured && supabase) {
+        const { error: verifyErr } = await supabase.auth.signInWithPassword({
+          email: currentUser.email,
+          password: ancienMdp
+        });
+
+        if (verifyErr) {
+          setMessage({ type: 'error', text: 'L\'ancien mot de passe saisi est incorrect.' });
+          return;
+        }
+      }
+
+      const res = await changePassword(nouveauMdp);
+      if (res.success) {
+        setMessage({ type: 'success', text: 'Mot de passe mis à jour avec succès sur le serveur.' });
+        setAncienMdp('');
+        setNouveauMdp('');
+        setConfirmerMdp('');
+        addLog('Sécurité', `Changement de mot de passe pour ${currentUser.nomComplet}`, 'utilisateur');
+      } else {
+        setMessage({ type: 'error', text: res.message });
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Erreur lors de la mise à jour du mot de passe.' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 

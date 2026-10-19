@@ -153,7 +153,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => {
     const saved = localStorage.getItem('archiva_uba_members');
     if (saved) {
-      try { return JSON.parse(saved); } catch { return INITIAL_MEMBERS; }
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const existingIds = new Set(parsed.map((m: any) => m.id));
+          const missing = INITIAL_MEMBERS.filter(m => !existingIds.has(m.id));
+          return missing.length > 0 ? [...parsed, ...missing] : parsed;
+        }
+      } catch { return INITIAL_MEMBERS; }
     }
     return INITIAL_MEMBERS;
   });
@@ -161,7 +168,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [dailyReports, setDailyReports] = useState<DailyReport[]>(() => {
     const saved = localStorage.getItem('archiva_uba_daily_reports');
     if (saved) {
-      try { return JSON.parse(saved); } catch { return INITIAL_DAILY_REPORTS; }
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const existingIds = new Set(parsed.map((r: any) => r.id));
+          const missing = INITIAL_DAILY_REPORTS.filter(r => !existingIds.has(r.id));
+          return missing.length > 0 ? [...missing, ...parsed] : parsed;
+        }
+      } catch { return INITIAL_DAILY_REPORTS; }
     }
     return INITIAL_DAILY_REPORTS;
   });
@@ -169,7 +183,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [synthesisReports, setSynthesisReports] = useState<SynthesisReport[]>(() => {
     const saved = localStorage.getItem('archiva_uba_synthesis_reports');
     if (saved) {
-      try { return JSON.parse(saved); } catch { return INITIAL_SYNTHESIS_REPORTS; }
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const existingIds = new Set(parsed.map((s: any) => s.id));
+          const missing = INITIAL_SYNTHESIS_REPORTS.filter(s => !existingIds.has(s.id));
+          return missing.length > 0 ? [...parsed, ...missing] : parsed;
+        }
+      } catch { return INITIAL_SYNTHESIS_REPORTS; }
     }
     return INITIAL_SYNTHESIS_REPORTS;
   });

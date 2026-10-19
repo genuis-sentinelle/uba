@@ -54,6 +54,8 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
     setShowModal(true);
   };
 
+  const [submitting, setSubmitting] = useState(false);
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nomComplet.trim() || !email.trim()) {
@@ -61,36 +63,40 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
       return;
     }
 
-    if (editingUser) {
-      const res = updateUser({
-        ...editingUser,
-        nomComplet: nomComplet.trim(),
-        email: email.trim(),
-        role,
-        titre: titre.trim() || editingUser.titre
-      });
-      toast(res.message, res.success ? 'success' : 'error');
-      if (res.success) {
-        addLog('Modification Utilisateur', `Profil modifié : ${nomComplet} (${role})`, 'utilisateur');
-        setShowModal(false);
-      }
-    } else {
-      const res = await addUser({
-        nomComplet: nomComplet.trim(),
-        email: email.trim(),
-        role,
-        titre: titre.trim() || (role === 'admin' ? 'Administrateur' : role === 'super_admin' ? 'Chef d\'équipe' : 'Archiviste'),
-        actif: true,
-        motDePasse: motDePasse.trim()
-      });
-
-      if (res.success) {
-        toast(res.message, 'success');
-        addLog('Création Utilisateur', `Nouvel utilisateur créé avec mot de passe sécurisé : ${nomComplet} (${role})`, 'utilisateur');
-        setShowModal(false);
+    setSubmitting(true);
+    try {
+      if (editingUser) {
+        const res = await updateUser({
+          ...editingUser,
+          nomComplet: nomComplet.trim(),
+          email: email.trim(),
+          role,
+          titre: titre.trim() || editingUser.titre
+        });
+        toast(res.message, res.success ? 'success' : 'error');
+        if (res.success) {
+          addLog('Modification Utilisateur', `Profil modifié : ${nomComplet} (${role})`, 'utilisateur');
+          setShowModal(false);
+        }
       } else {
-        toast(res.message, 'error');
+        const res = await addUser({
+          nomComplet: nomComplet.trim(),
+          email: email.trim(),
+          role,
+          titre: titre.trim() || (role === 'admin' ? 'Administrateur' : role === 'super_admin' ? 'Chef d\'équipe' : 'Archiviste'),
+          motDePasse: motDePasse.trim()
+        });
+
+        if (res.success) {
+          toast(res.message, 'success');
+          addLog('Création Utilisateur', `Nouvel utilisateur créé côté serveur : ${nomComplet} (${role})`, 'utilisateur');
+          setShowModal(false);
+        } else {
+          toast(res.message, 'error');
+        }
       }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -103,21 +109,28 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
     if (u.actif) {
       const ok = await confirm({
         title: `Bloquer l'utilisateur "${u.nomComplet}" ?`,
-        message: `Êtes-vous sûr de vouloir bloquer ce compte (${u.email}) ? L'utilisateur sera immédiatement déconnecté et ne pourra plus du tout se connecter au logiciel ARCHIVA tant qu'il n'aura pas été débloqué.`,
+        message: `Êtes-vous sûr de vouloir bloquer ce compte (${u.email}) ? Toutes ses sessions seront révoquées immédiatement et l'accès serveur aux données sera formellement refusé.`,
         confirmLabel: 'Bloquer l\'accès',
         danger: true
       });
       if (!ok) return;
     }
 
-    const updated = { ...u, actif: !u.actif };
-    const res = updateUser(updated);
-    toast(res.message, updated.actif ? 'success' : 'info');
-    addLog(
-      'Sécurité Utilisateur',
-      `Compte ${u.nomComplet} (${u.role}) ${updated.actif ? 'DÉBLOQUÉ et activé' : 'BLOQUÉ et accès interdit'}`,
-      'utilisateur'
-    );
+    setSubmitting(true);
+    try {
+      const updated = { ...u, actif: !u.actif };
+      const res = await updateUser(updated);
+      toast(res.message, res.success ? (updated.actif ? 'success' : 'info') : 'error');
+      if (res.success) {
+        addLog(
+          'Sécurité Utilisateur',
+          `Compte ${u.nomComplet} (${u.role}) ${updated.actif ? 'DÉBLOQUÉ et activé' : 'BLOQUÉ et sessions révoquées'}`,
+          'utilisateur'
+        );
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleDelete = async (target: User) => {
@@ -129,18 +142,23 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
 
     const ok = await confirm({
       title: 'Supprimer cet utilisateur ?',
-      message: `Confirmer la suppression du compte de "${target.nomComplet}" (${target.role}) ? Cette action est irréversible.`,
+      message: `Confirmer la suppression définitive du compte de "${target.nomComplet}" (${target.role}) ? L'utilisateur sera supprimé de Supabase Auth et de la base. Cette action est irréversible.`,
       confirmLabel: 'Supprimer définitivement',
       danger: true
     });
 
     if (ok) {
-      const res = deleteUser(target.id);
-      if (res.success) {
-        toast(res.message, 'success');
-        addLog('Suppression Utilisateur', `Compte supprimé : ${target.nomComplet} (${target.role})`, 'utilisateur');
-      } else {
-        toast(res.message, 'error');
+      setSubmitting(true);
+      try {
+        const res = await deleteUser(target.id);
+        if (res.success) {
+          toast(res.message, 'success');
+          addLog('Suppression Utilisateur', `Compte supprimé : ${target.nomComplet} (${target.role})`, 'utilisateur');
+        } else {
+          toast(res.message, 'error');
+        }
+      } finally {
+        setSubmitting(false);
       }
     }
   };
@@ -434,17 +452,17 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
                     </button>
                   </div>
                   <p className="text-muted text-sm" style={{ marginTop: '8px' }}>
-                    Le mot de passe sera haché avec sel cryptographique (SHA-256). L'agent pourra le modifier à tout moment.
+                    Le compte sera créé de façon atomique dans Supabase Auth et Profiles. L'agent pourra changer son mot de passe à tout moment.
                   </p>
                 </div>
               )}
 
               <div className="modal-actions">
-                <button type="button" onClick={() => setShowModal(false)} className="btn btn-secondary">
+                <button type="button" onClick={() => setShowModal(false)} className="btn btn-secondary" disabled={submitting}>
                   Annuler
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  {editingUser ? 'Enregistrer les modifications' : 'Créer l\'utilisateur'}
+                <button type="submit" className="btn btn-primary" disabled={submitting}>
+                  {submitting ? 'Traitement sécurisé...' : (editingUser ? 'Enregistrer les modifications' : 'Créer l\'utilisateur')}
                 </button>
               </div>
             </form>

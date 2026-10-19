@@ -1,9 +1,16 @@
 -- ============================================================================
 -- ARCHIVA UBA — SCHÉMA POSTGRESQL COMPLET SUPABASE (Sites Maya-Maya & Mazala)
+-- Version durcie & sécurisée côté serveur
 -- ============================================================================
 
 -- Extensions nécessaires
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Schéma interne d'authentification non exposé à l'API publique
+CREATE SCHEMA IF NOT EXISTS app_auth;
+REVOKE ALL ON SCHEMA app_auth FROM PUBLIC;
+REVOKE ALL ON SCHEMA app_auth FROM anon;
+GRANT USAGE ON SCHEMA app_auth TO authenticated, service_role;
 
 -- 1. Table des Profils Utilisateurs (Liée à auth.users de Supabase)
 CREATE TABLE IF NOT EXISTS public.profiles (
@@ -12,10 +19,19 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     email TEXT NOT NULL UNIQUE,
     role TEXT NOT NULL CHECK (role IN ('super_admin', 'admin', 'stagiaire')),
     titre TEXT DEFAULT 'Archiviste Opérationnel',
-    actif BOOLEAN DEFAULT TRUE,
+    actif BOOLEAN DEFAULT TRUE NOT NULL,
+    created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    blocked_at TIMESTAMP WITH TIME ZONE,
+    blocked_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    deleted_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_email_lower ON public.profiles (lower(email));
+CREATE INDEX IF NOT EXISTS idx_profiles_actif_role ON public.profiles (actif, role);
+CREATE INDEX IF NOT EXISTS idx_profiles_created_by ON public.profiles (created_by);
+CREATE INDEX IF NOT EXISTS idx_profiles_blocked_by ON public.profiles (blocked_by);
 
 -- 2. Table des Agences Bancaires UBA
 CREATE TABLE IF NOT EXISTS public.agencies (
@@ -177,7 +193,7 @@ CREATE TABLE IF NOT EXISTS public.incidents (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 10. Journal d'Audit & Sécurité
+-- 10. Journal d'Audit & Sécurité Immuable
 CREATE TABLE IF NOT EXISTS public.audit_logs (
     id TEXT PRIMARY KEY,
     timestamp TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
@@ -190,9 +206,249 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
 );
 
 -- ============================================================================
--- SÉCURITÉ AU NIVEAU DES LIGNES (RLS - Row Level Security)
+-- SÉCURITÉ AU NIVEAU DES LIGNES (RLS), PRIVILÈGES & FONCTIONS D'HABILITATION
 -- ============================================================================
 
+-- Trigger updated_at
+CREATE OR REPLACE FUNCTION public.handle_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    NEW.updated_at = timezone('utc'::text, now());
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_profiles_updated_at ON public.profiles;
+CREATE TRIGGER trg_profiles_updated_at
+    BEFORE UPDATE ON public.profiles
+    FOR EACH ROW
+    EXECUTE FUNCTION public.handle_updated_at();
+
+-- Fonctions d'habilitation dans app_auth (schéma privé)
+CREATE OR REPLACE FUNCTION app_auth.is_active_user()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = ''
+STABLE
+AS $$
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.profiles
+        WHERE id = (SELECT auth.uid())
+          AND actif = true
+    );
+$$;
+
+CREATE OR REPLACE FUNCTION app_auth.current_role()
+RETURNS TEXT
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = ''
+STABLE
+AS $$
+    SELECT role
+    FROM public.profiles
+    WHERE id = (SELECT auth.uid())
+      AND actif = true
+    LIMIT 1;
+$$;
+
+CREATE OR REPLACE FUNCTION app_auth.is_admin_or_super()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = ''
+STABLE
+AS $$
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.profiles
+        WHERE id = (SELECT auth.uid())
+          AND actif = true
+          AND role IN ('admin', 'super_admin')
+    );
+$$;
+
+CREATE OR REPLACE FUNCTION app_auth.is_super_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = ''
+STABLE
+AS $$
+    SELECT EXISTS (
+        SELECT 1
+        FROM public.profiles
+        WHERE id = (SELECT auth.uid())
+          AND actif = true
+          AND role = 'super_admin'
+    );
+$$;
+
+REVOKE ALL ON FUNCTION app_auth.is_active_user() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION app_auth.is_active_user() TO authenticated, service_role;
+
+REVOKE ALL ON FUNCTION app_auth.current_role() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION app_auth.current_role() TO authenticated, service_role;
+
+REVOKE ALL ON FUNCTION app_auth.is_admin_or_super() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION app_auth.is_admin_or_super() TO authenticated, service_role;
+
+REVOKE ALL ON FUNCTION app_auth.is_super_admin() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION app_auth.is_super_admin() TO authenticated, service_role;
+
+-- Fonctions publiques déléguées pour rétro-compatibilité
+CREATE OR REPLACE FUNCTION public.current_user_role()
+RETURNS TEXT LANGUAGE sql STABLE AS $$
+    SELECT app_auth.current_role();
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_admin_or_super()
+RETURNS BOOLEAN LANGUAGE sql STABLE AS $$
+    SELECT app_auth.is_admin_or_super();
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_active_user()
+RETURNS BOOLEAN LANGUAGE sql STABLE AS $$
+    SELECT app_auth.is_active_user();
+$$;
+
+REVOKE ALL ON FUNCTION public.current_user_role() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.current_user_role() TO authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.is_admin_or_super() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.is_admin_or_super() TO authenticated, service_role;
+
+REVOKE ALL ON FUNCTION public.is_active_user() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.is_active_user() TO authenticated, service_role;
+
+-- Journalisation vérifiée
+CREATE OR REPLACE FUNCTION public.log_audit_event(
+    p_action TEXT,
+    p_details TEXT,
+    p_category TEXT
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_user_id UUID;
+    v_user_name TEXT;
+    v_user_role TEXT;
+    v_log_id UUID;
+BEGIN
+    v_user_id := (SELECT auth.uid());
+    IF v_user_id IS NULL THEN
+        RAISE EXCEPTION 'Authentification requise pour enregistrer un journal d''audit';
+    END IF;
+
+    SELECT nom_complet, role INTO v_user_name, v_user_role
+    FROM public.profiles
+    WHERE id = v_user_id AND actif = true;
+
+    IF v_user_role IS NULL THEN
+        RAISE EXCEPTION 'Profil utilisateur actif introuvable';
+    END IF;
+
+    v_log_id := gen_random_uuid();
+
+    INSERT INTO public.audit_logs (
+        id,
+        timestamp,
+        user_id,
+        user_name,
+        user_role,
+        action,
+        details,
+        category
+    ) VALUES (
+        v_log_id::text,
+        timezone('utc'::text, now()),
+        v_user_id::text,
+        v_user_name,
+        v_user_role,
+        p_action,
+        p_details,
+        p_category
+    );
+
+    RETURN v_log_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.log_audit_event(TEXT, TEXT, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.log_audit_event(TEXT, TEXT, TEXT) TO authenticated, service_role;
+
+-- Modification restreinte de son propre profil
+CREATE OR REPLACE FUNCTION public.update_my_profile(
+    p_nom_complet TEXT,
+    p_titre TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_user_id UUID;
+    v_res JSONB;
+BEGIN
+    v_user_id := (SELECT auth.uid());
+    IF v_user_id IS NULL THEN
+        RAISE EXCEPTION 'Non authentifié';
+    END IF;
+
+    UPDATE public.profiles
+    SET
+        nom_complet = COALESCE(NULLIF(TRIM(p_nom_complet), ''), nom_complet),
+        titre = COALESCE(TRIM(p_titre), titre),
+        updated_at = timezone('utc'::text, now())
+    WHERE id = v_user_id AND actif = true;
+
+    SELECT to_jsonb(p) INTO v_res
+    FROM public.profiles p
+    WHERE p.id = v_user_id;
+
+    RETURN v_res;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.update_my_profile(TEXT, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.update_my_profile(TEXT, TEXT) TO authenticated, service_role;
+
+-- Révocation des privilèges par défaut
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM anon;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM anon;
+REVOKE ALL ON ALL ROUTINES IN SCHEMA public FROM anon;
+
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM authenticated;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM authenticated;
+REVOKE ALL ON ALL ROUTINES IN SCHEMA public FROM authenticated;
+
+-- Accès granulaires accordés
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE
+    public.agencies,
+    public.team_members,
+    public.lots,
+    public.mouvements,
+    public.daily_reports,
+    public.synthesis_reports,
+    public.transfer_slips,
+    public.cartons,
+    public.incidents
+TO authenticated;
+
+GRANT SELECT ON TABLE public.profiles TO authenticated;
+GRANT SELECT ON TABLE public.audit_logs TO authenticated;
+
+-- Activation RLS
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.agencies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.team_members ENABLE ROW LEVEL SECURITY;
@@ -205,44 +461,91 @@ ALTER TABLE public.cartons ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.incidents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
--- Fonctions utilitaires d'habilitation
-CREATE OR REPLACE FUNCTION public.current_user_role()
-RETURNS TEXT LANGUAGE SQL STABLE AS $$
-    SELECT role FROM public.profiles WHERE id = auth.uid() LIMIT 1;
-$$;
+-- Politiques RLS de lecture : utilisateur ACTIF requis
+CREATE POLICY "agencies_select_active" ON public.agencies FOR SELECT TO authenticated
+    USING (app_auth.is_active_user());
 
-CREATE OR REPLACE FUNCTION public.is_admin_or_super()
-RETURNS BOOLEAN LANGUAGE SQL STABLE AS $$
-    SELECT current_user_role() IN ('super_admin', 'admin');
-$$;
+CREATE POLICY "team_members_select_active" ON public.team_members FOR SELECT TO authenticated
+    USING (app_auth.is_active_user());
 
--- Politiques de lecture : Tout utilisateur connecté peut lire les données métier
-CREATE POLICY "Lecture autorisée pour utilisateurs authentifiés" ON public.agencies FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Lecture autorisée pour utilisateurs authentifiés" ON public.team_members FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Lecture autorisée pour utilisateurs authentifiés" ON public.lots FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Lecture autorisée pour utilisateurs authentifiés" ON public.mouvements FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Lecture autorisée pour utilisateurs authentifiés" ON public.daily_reports FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Lecture autorisée pour utilisateurs authentifiés" ON public.synthesis_reports FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Lecture autorisée pour utilisateurs authentifiés" ON public.transfer_slips FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Lecture autorisée pour utilisateurs authentifiés" ON public.cartons FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Lecture autorisée pour utilisateurs authentifiés" ON public.incidents FOR SELECT TO authenticated USING (true);
+CREATE POLICY "lots_select_active" ON public.lots FOR SELECT TO authenticated
+    USING (app_auth.is_active_user());
 
--- Politiques sur profiles et logs : Stagiaire INTERDIT en lecture sur les logs et profils
-CREATE POLICY "Lecture profiles admin seulement" ON public.profiles FOR SELECT TO authenticated USING (is_admin_or_super() OR id = auth.uid());
-CREATE POLICY "Lecture audit_logs admin seulement" ON public.audit_logs FOR SELECT TO authenticated USING (is_admin_or_super());
+CREATE POLICY "mouvements_select_active" ON public.mouvements FOR SELECT TO authenticated
+    USING (app_auth.is_active_user());
 
--- Politiques d'écriture : SEULS les Administrateurs et Super Admins peuvent écrire/modifier
-CREATE POLICY "Écriture agences réservée admin" ON public.agencies FOR ALL TO authenticated USING (is_admin_or_super()) WITH CHECK (is_admin_or_super());
-CREATE POLICY "Écriture membres réservée admin" ON public.team_members FOR ALL TO authenticated USING (is_admin_or_super()) WITH CHECK (is_admin_or_super());
-CREATE POLICY "Écriture lots réservée admin" ON public.lots FOR ALL TO authenticated USING (is_admin_or_super()) WITH CHECK (is_admin_or_super());
-CREATE POLICY "Écriture mouvements réservée admin" ON public.mouvements FOR ALL TO authenticated USING (is_admin_or_super()) WITH CHECK (is_admin_or_super());
-CREATE POLICY "Écriture rapports réservée admin" ON public.daily_reports FOR ALL TO authenticated USING (is_admin_or_super()) WITH CHECK (is_admin_or_super());
-CREATE POLICY "Écriture synthèses réservée admin" ON public.synthesis_reports FOR ALL TO authenticated USING (is_admin_or_super()) WITH CHECK (is_admin_or_super());
-CREATE POLICY "Écriture bordereaux réservée admin" ON public.transfer_slips FOR ALL TO authenticated USING (is_admin_or_super()) WITH CHECK (is_admin_or_super());
-CREATE POLICY "Écriture cartons réservée admin" ON public.cartons FOR ALL TO authenticated USING (is_admin_or_super()) WITH CHECK (is_admin_or_super());
-CREATE POLICY "Écriture incidents réservée admin" ON public.incidents FOR ALL TO authenticated USING (is_admin_or_super()) WITH CHECK (is_admin_or_super());
-CREATE POLICY "Écriture profiles réservée admin" ON public.profiles FOR ALL TO authenticated USING (is_admin_or_super()) WITH CHECK (is_admin_or_super());
-CREATE POLICY "Insertion logs autorisée" ON public.audit_logs FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "daily_reports_select_active" ON public.daily_reports FOR SELECT TO authenticated
+    USING (app_auth.is_active_user());
+
+CREATE POLICY "synthesis_reports_select_active" ON public.synthesis_reports FOR SELECT TO authenticated
+    USING (app_auth.is_active_user());
+
+CREATE POLICY "transfer_slips_select_active" ON public.transfer_slips FOR SELECT TO authenticated
+    USING (app_auth.is_active_user());
+
+CREATE POLICY "cartons_select_active" ON public.cartons FOR SELECT TO authenticated
+    USING (app_auth.is_active_user());
+
+CREATE POLICY "incidents_select_active" ON public.incidents FOR SELECT TO authenticated
+    USING (app_auth.is_active_user());
+
+-- Politiques RLS d'écriture : administrateurs ou super administrateurs ACTIFS
+CREATE POLICY "agencies_write_admin" ON public.agencies FOR ALL TO authenticated
+    USING (app_auth.is_admin_or_super())
+    WITH CHECK (app_auth.is_admin_or_super());
+
+CREATE POLICY "team_members_write_admin" ON public.team_members FOR ALL TO authenticated
+    USING (app_auth.is_admin_or_super())
+    WITH CHECK (app_auth.is_admin_or_super());
+
+CREATE POLICY "lots_write_admin" ON public.lots FOR ALL TO authenticated
+    USING (app_auth.is_admin_or_super())
+    WITH CHECK (app_auth.is_admin_or_super());
+
+CREATE POLICY "mouvements_write_admin" ON public.mouvements FOR ALL TO authenticated
+    USING (app_auth.is_admin_or_super())
+    WITH CHECK (app_auth.is_admin_or_super());
+
+CREATE POLICY "daily_reports_write_admin" ON public.daily_reports FOR ALL TO authenticated
+    USING (app_auth.is_admin_or_super())
+    WITH CHECK (app_auth.is_admin_or_super());
+
+CREATE POLICY "synthesis_reports_write_admin" ON public.synthesis_reports FOR ALL TO authenticated
+    USING (app_auth.is_admin_or_super())
+    WITH CHECK (app_auth.is_admin_or_super());
+
+CREATE POLICY "transfer_slips_write_admin" ON public.transfer_slips FOR ALL TO authenticated
+    USING (app_auth.is_admin_or_super())
+    WITH CHECK (app_auth.is_admin_or_super());
+
+CREATE POLICY "cartons_write_admin" ON public.cartons FOR ALL TO authenticated
+    USING (app_auth.is_admin_or_super())
+    WITH CHECK (app_auth.is_admin_or_super());
+
+CREATE POLICY "incidents_write_admin" ON public.incidents FOR ALL TO authenticated
+    USING (app_auth.is_admin_or_super())
+    WITH CHECK (app_auth.is_admin_or_super());
+
+-- Politiques sur profiles :
+CREATE POLICY "profiles_select_policy" ON public.profiles FOR SELECT TO authenticated
+    USING (
+        app_auth.is_active_user() AND (
+            app_auth.is_admin_or_super() OR id = (SELECT auth.uid())
+        )
+    );
+
+-- Politiques sur audit_logs :
+CREATE POLICY "audit_logs_select_admin" ON public.audit_logs FOR SELECT TO authenticated
+    USING (app_auth.is_admin_or_super());
+
+-- Index de performance
+CREATE INDEX IF NOT EXISTS idx_lots_agence_id ON public.lots(agence_id);
+CREATE INDEX IF NOT EXISTS idx_mouvements_lot_id ON public.mouvements(lot_id);
+CREATE INDEX IF NOT EXISTS idx_mouvements_agence_id ON public.mouvements(agence_id);
+CREATE INDEX IF NOT EXISTS idx_cartons_agence_id ON public.cartons(agence_id);
+CREATE INDEX IF NOT EXISTS idx_cartons_lot_id ON public.cartons(lot_id);
+CREATE INDEX IF NOT EXISTS idx_incidents_agence_id ON public.incidents(agence_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON public.audit_logs(timestamp DESC);
 
 -- Synchronisation Realtime pour multi-sites
 ALTER PUBLICATION supabase_realtime ADD TABLE public.agencies, public.daily_reports, public.synthesis_reports, public.transfer_slips, public.cartons, public.incidents, public.lots;

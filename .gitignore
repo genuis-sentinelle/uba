@@ -31,3 +31,4 @@ dist-ssr
 # Temporary files
 *.tsbuildinfo
 .agents
+supabase/.temp/

@@ -448,78 +448,142 @@ export const SynthesisView: React.FC = () => {
             </div>
           </div>
 
-          {/* 4. MATRICE STATUT PAR EXERCICE (Uniquement mode chef) */}
-          {activeMode === 'chef_confidentiel' && (
+          {/* 4. MATRICE STATUT OU VOLUMÉTRIQUE PAR EXERCICE */}
+          {currentSynthesis.matrice && currentSynthesis.matrice.length > 0 && (
             <div style={{ marginBottom: '18px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '10.5pt', fontWeight: 700, color: '#111111' }}>
-                  <span style={{ display: 'inline-block', width: '4px', height: '14px', backgroundColor: 'var(--brand)', borderRadius: '2px' }} />
-                  4. MATRICE STATUT PAR EXERCICE (T / A / O)
-                </div>
-                <div style={{ fontSize: '7.5pt', display: 'flex', gap: '10px', fontWeight: 700 }}>
-                  <span><strong style={{ color: 'var(--brand)' }}>● T</strong> = Traité</span>
-                  <span><strong style={{ color: '#4B5563' }}>● A</strong> = En Attente</span>
-                  <span><strong style={{ color: 'var(--red)' }}>● O</strong> = Oublié</span>
-                </div>
-              </div>
+              {(() => {
+                const isNumericMatrix = currentSynthesis.matrice.some(r =>
+                  Object.values(r.annees).some(v => v !== 'T' && v !== 'A' && v !== 'O' && v !== '-' && v !== '—' && v !== '')
+                );
+                const yearsList = Object.keys(currentSynthesis.matrice[0]?.annees || {});
 
-              <div className="uba-table-container uba-table--scroll">
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8pt', textAlign: 'center' }}>
-                  <thead>
-                    <tr style={{ backgroundColor: 'var(--red)', color: '#FFFFFF' }}>
-                      <th style={{ padding: '6px', textAlign: 'left', width: '140px', position: 'sticky', left: 0, backgroundColor: 'var(--red)', color: '#FFFFFF' }}>
-                        AGENCE
-                      </th>
-                      {Object.keys(currentSynthesis.matrice[0]?.annees || {}).map(yr => (
-                        <th key={yr} style={{ padding: '6px', color: '#FFFFFF' }}>{yr}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {currentSynthesis.matrice.map((row, idx) => (
-                      <tr key={idx} style={{ backgroundColor: idx % 2 === 1 ? '#FAFAFA' : '#FFFFFF' }}>
-                        <td style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 600, border: '1px solid #E5E7EB', position: 'sticky', left: 0, backgroundColor: idx % 2 === 1 ? '#FAFAFA' : '#FFFFFF' }}>
-                          {row.agenceNom} <span style={{ color: '#9CA3AF', fontSize: '7pt' }}>({row.code})</span>
-                        </td>
-                        {Object.keys(row.annees).map(yr => {
-                          const st = row.annees[Number(yr)] || '-';
-                          let bg = '#F3F4F6';
-                          let color = '#4B5563';
+                return (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '10.5pt', fontWeight: 700, color: '#111111' }}>
+                        <span style={{ display: 'inline-block', width: '4px', height: '14px', backgroundColor: 'var(--brand)', borderRadius: '2px' }} />
+                        {isNumericMatrix
+                          ? '4. TABLEAU RÉCAPITULATIF PAR AGENCE ET PAR ANNÉE'
+                          : '4. MATRICE STATUT PAR EXERCICE (T / A / O)'}
+                      </div>
+                      <div style={{ fontSize: '7.5pt', display: 'flex', gap: '10px', fontWeight: 700 }}>
+                        {isNumericMatrix ? (
+                          <span style={{ color: '#6B7280', fontStyle: 'italic' }}>« — » : Aucun dossier (case barrée manuscrite)</span>
+                        ) : (
+                          <>
+                            <span><strong style={{ color: 'var(--brand)' }}>● T</strong> = Traité</span>
+                            <span><strong style={{ color: '#4B5563' }}>● A</strong> = En Attente</span>
+                            <span><strong style={{ color: 'var(--red)' }}>● O</strong> = Oublié</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
 
-                          if (st === 'T') {
-                            bg = 'var(--brand)';
-                            color = '#ffffff';
-                          } else if (st === 'A') {
-                            bg = '#E5E7EB';
-                            color = '#111111';
-                          } else if (st === 'O') {
-                            bg = '#DC2626';
-                            color = '#ffffff';
-                          }
+                    <div className="uba-table-container uba-table--scroll">
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8pt', textAlign: 'center' }}>
+                        <thead>
+                          <tr style={{ backgroundColor: 'var(--red)', color: '#FFFFFF' }}>
+                            <th style={{ padding: '6px 8px', textAlign: 'left', width: '140px', position: 'sticky', left: 0, backgroundColor: 'var(--red)', color: '#FFFFFF' }}>
+                              AGENCE
+                            </th>
+                            {yearsList.map(yr => (
+                              <th key={yr} style={{ padding: '6px', color: '#FFFFFF' }}>{yr}</th>
+                            ))}
+                            {isNumericMatrix && (
+                              <th style={{ padding: '6px 8px', textAlign: 'right', color: '#FFFFFF', width: '80px' }}>TOTAL</th>
+                            )}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {currentSynthesis.matrice.map((row, idx) => {
+                            const rowNumericTotal = isNumericMatrix
+                              ? Object.values(row.annees).reduce((sum, v) => {
+                                  const num = parseInt(String(v).replace(/\s/g, ''), 10);
+                                  return sum + (isNaN(num) ? 0 : num);
+                                }, 0)
+                              : 0;
 
-                          return (
-                            <td key={yr} style={{ padding: '4px', border: '1px solid #E5E7EB' }}>
-                              <span style={{
-                                display: 'inline-block',
-                                width: '18px',
-                                height: '18px',
-                                lineHeight: '18px',
-                                borderRadius: '3px',
-                                backgroundColor: bg,
-                                color,
-                                fontWeight: 700,
-                                fontSize: '7.5pt'
-                              }}>
-                                {st}
-                              </span>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                            return (
+                              <tr key={idx} style={{ backgroundColor: idx % 2 === 1 ? '#FAFAFA' : '#FFFFFF' }}>
+                                <td style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 600, border: '1px solid #E5E7EB', position: 'sticky', left: 0, backgroundColor: idx % 2 === 1 ? '#FAFAFA' : '#FFFFFF' }}>
+                                  {row.agenceNom} <span style={{ color: '#9CA3AF', fontSize: '7pt' }}>({row.code})</span>
+                                </td>
+                                {yearsList.map(yr => {
+                                  const st = row.annees[Number(yr)] ?? '—';
+                                  let bg = '#F3F4F6';
+                                  let color = '#4B5563';
+
+                                  if (st === 'T') {
+                                    bg = 'var(--brand)';
+                                    color = '#ffffff';
+                                  } else if (st === 'A') {
+                                    bg = '#E5E7EB';
+                                    color = '#111111';
+                                  } else if (st === 'O') {
+                                    bg = '#DC2626';
+                                    color = '#ffffff';
+                                  } else if (st !== '-' && st !== '—' && st !== '0') {
+                                    bg = 'rgba(228, 30, 38, 0.08)';
+                                    color = 'var(--brand)';
+                                  }
+
+                                  return (
+                                    <td key={yr} style={{ padding: '4px', border: '1px solid #E5E7EB' }}>
+                                      <span style={{
+                                        display: 'inline-block',
+                                        minWidth: isNumericMatrix ? '26px' : '18px',
+                                        padding: isNumericMatrix ? '2px 5px' : '0',
+                                        height: '18px',
+                                        lineHeight: '18px',
+                                        borderRadius: '3px',
+                                        backgroundColor: bg,
+                                        color,
+                                        fontWeight: 700,
+                                        fontSize: '7.5pt',
+                                        whiteSpace: 'nowrap'
+                                      }}>
+                                        {st}
+                                      </span>
+                                    </td>
+                                  );
+                                })}
+                                {isNumericMatrix && (
+                                  <td style={{ padding: '6px 8px', textAlign: 'right', border: '1px solid #E5E7EB', fontWeight: 800, color: 'var(--brand)' }}>
+                                    {formatNumber(rowNumericTotal)}
+                                  </td>
+                                )}
+                              </tr>
+                            );
+                          })}
+
+                          {/* Ligne TOTAL PAR ANNÉE si matrice numérique */}
+                          {isNumericMatrix && (
+                            <tr style={{ backgroundColor: '#F3F4F6', fontWeight: 900, borderTop: '2px solid var(--brand)' }}>
+                              <td style={{ textAlign: 'left', padding: '6px 8px', border: '1px solid #E5E7EB', position: 'sticky', left: 0, backgroundColor: '#F3F4F6', color: '#111111' }}>
+                                TOTAL PAR ANNÉE
+                              </td>
+                              {yearsList.map(yr => {
+                                const colTotal = currentSynthesis.matrice.reduce((sum, r) => {
+                                  const num = parseInt(String(r.annees[Number(yr)] || '').replace(/\s/g, ''), 10);
+                                  return sum + (isNaN(num) ? 0 : num);
+                                }, 0);
+                                return (
+                                  <td key={yr} style={{ padding: '6px', textAlign: 'center', border: '1px solid #E5E7EB', color: 'var(--brand)', fontWeight: 800 }}>
+                                    {colTotal > 0 ? formatNumber(colTotal) : '—'}
+                                  </td>
+                                );
+                              })}
+                              <td style={{ padding: '6px 8px', textAlign: 'right', border: '1px solid #E5E7EB', color: 'var(--brand)', fontSize: '9pt', fontWeight: 900 }}>
+                                {formatNumber(currentSynthesis.totalGlobal)}
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           )}
 
@@ -555,10 +619,12 @@ export const SynthesisView: React.FC = () => {
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '8.5pt', fontWeight: 700, color: '#111111' }}>
-                LE CHEF D'ÉQUIPE DES ARCHIVES
+                {currentSynthesis.creePar.toLowerCase().includes('stagiaire')
+                  ? 'VALIDATION DES STAGIAIRES ARCHIVISTES'
+                  : "LE CHEF D'ÉQUIPE DES ARCHIVES"}
               </div>
-              <div style={{ fontSize: '9pt', color: 'var(--brand)', fontWeight: 700, marginTop: '20px' }}>
-                {currentUser?.nomComplet || currentSynthesis.creePar || 'Le Chef d\'équipe'}
+              <div style={{ fontSize: '9pt', color: 'var(--brand)', fontWeight: 700, marginTop: '16px' }}>
+                {currentUser?.nomComplet || currentSynthesis.creePar}
               </div>
             </div>
           </div>
