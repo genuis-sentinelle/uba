@@ -1,26 +1,77 @@
-import { getSupabaseAdmin } from '../../_lib/supabaseAdmin.ts';
-import { authenticateCaller } from '../../_lib/authMiddleware.ts';
-import { checkRateLimit, getClientIp } from '../../_lib/rateLimit.ts';
-import { assertAllowedOrigin } from '../../_lib/cors.ts';
+import { createClient } from '@supabase/supabase-js';
+
+function applyCors(req: any, res: any): boolean {
+  const allowed = process.env.ALLOWED_ORIGINS || 'http://localhost:5173,https://uba-rapport.vercel.app,https://archiva-uba.vercel.app';
+  const origins = allowed.split(',').map(o => o.trim().toLowerCase());
+  const origin = (req.headers?.origin || '').trim().toLowerCase();
+  res.setHeader('Access-Control-Allow-Origin', (origin && origins.includes(origin)) ? req.headers.origin : (origins[0] || '*'));
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  return true;
+}
+
+function getSupabaseAdmin() {
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+  if (!url || !key) {
+    throw new Error('Variables SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY requises sur Vercel.');
+  }
+  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+}
+
+async function authenticateCaller(req: any) {
+  const authHeader = req.headers?.authorization || req.headers?.Authorization;
+  if (!authHeader || typeof authHeader !== 'string' || !authHeader.startsWith('Bearer ')) {
+    const error: any = new Error('Jeton d\'authentification manquant ou format invalide (Bearer token requis).');
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const token = authHeader.substring(7).trim();
+  if (!token) {
+    const error: any = new Error('Jeton d\'authentification vide.');
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const supabaseAdmin = getSupabaseAdmin();
+  const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token);
+  if (authError || !authData?.user) {
+    const error: any = new Error('Session invalide ou expirée. Veuillez vous reconnecter.');
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const user = authData.user;
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from('profiles')
+    .select('id, nom_complet, email, role, actif')
+    .eq('id', user.id)
+    .single();
+
+  if (profileError || !profile) {
+    const error: any = new Error('Profil utilisateur introuvable dans la base de données.');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  if (!profile.actif) {
+    const error: any = new Error('Ce compte utilisateur a été désactivé ou bloqué.');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  return { user, profile };
+}
 
 export default async function handler(req: any, res: any) {
-  if (!assertAllowedOrigin(req, res)) return;
+  applyCors(req, res);
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  // 1. Anti-brute-force & limitation
-  const clientIp = getClientIp(req);
-  const rateLimit = checkRateLimit(`admin-user-op-${clientIp}`, 40, 60000);
-  if (!rateLimit.allowed) {
-    return res.status(429).json({
-      error: 'Trop de requêtes administratives. Veuillez patienter avant de réessayer.',
-      retryAfterSeconds: rateLimit.retryAfterSeconds
-    });
-  }
-
-  // 2. Authentification de l'appelant
+  // 1. Authentification de l'appelant
   let caller;
   try {
     caller = await authenticateCaller(req);
