@@ -834,17 +834,21 @@ REVOKE ALL ON FUNCTION public.verify_archive(UUID) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.verify_archive(UUID) TO authenticated;
 
 -- 5) Planification pg_cron si l'extension est disponible
-DO $$
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+DO $cron$
 BEGIN
-    BEGIN
-        CREATE EXTENSION IF NOT EXISTS pg_cron;
-        PERFORM cron.unschedule('archiva-weekly-archive');
-    EXCEPTION WHEN OTHERS THEN
-        NULL;
-    END;
-    BEGIN
-        PERFORM cron.schedule('archiva-weekly-archive', '0 22 * * 0', $$SELECT app_auth.run_weekly_archive();$$);
-    EXCEPTION WHEN OTHERS THEN
-        NULL;
-    END;
-END $$;
+    PERFORM cron.unschedule('archiva-weekly-archive');
+EXCEPTION WHEN OTHERS THEN
+    NULL;
+END;
+$cron$;
+
+DO $cron$
+BEGIN
+    PERFORM cron.schedule('archiva-weekly-archive', '0 22 * * 0', $job$SELECT app_auth.run_weekly_archive();$job$);
+EXCEPTION WHEN OTHERS THEN
+    NULL;
+END;
+$cron$;
+
