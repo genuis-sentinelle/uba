@@ -24,13 +24,15 @@ loadEnv();
 
 const password = process.env.SUPABASE_DB_PASSWORD || process.env.PGPASSWORD || '';
 const host = process.env.SUPABASE_DB_HOST || 'db.ahukxrgkpwfvxwtqelcw.supabase.co';
-const poolerHost = process.env.SUPABASE_POOLER_HOST || 'aws-0-eu-central-1.pooler.supabase.com';
 
 async function tryConnect(config) {
-  const client = new Client(config);
+  const client = new Client({
+    ...config,
+    connectionTimeoutMillis: 5000
+  });
   try {
     await client.connect();
-    console.log(`Connecté avec succès à ${config.host}:${config.port} !`);
+    console.log(`\x1b[32m[SUCCÈS]\x1b[0m Connecté à ${config.host}:${config.port} (${config.user}) !`);
     return client;
   } catch (err) {
     console.warn(`Échec connexion à ${config.host}:${config.port} :`, err.message);
@@ -42,62 +44,50 @@ async function tryConnect(config) {
 async function run() {
   console.log('--- EXÉCUTION DE LA MIGRATION SUR SUPABASE ---');
 
-  // Essai 1 : Direct host port 5432
-  let client = await tryConnect({
-    user: 'postgres',
-    password: password,
-    host: host,
-    port: 5432,
-    database: 'postgres',
-    ssl: { rejectUnauthorized: false }
-  });
+  const poolerRegions = [
+    process.env.SUPABASE_POOLER_HOST || 'aws-0-eu-west-1.pooler.supabase.com',
+    'aws-0-eu-central-1.pooler.supabase.com',
+    'aws-0-eu-west-3.pooler.supabase.com',
+    'aws-0-af-south-1.pooler.supabase.com',
+    'aws-0-us-east-1.pooler.supabase.com',
+    'aws-0-us-east-2.pooler.supabase.com',
+    'aws-0-us-west-1.pooler.supabase.com',
+    'aws-0-ap-southeast-1.pooler.supabase.com'
+  ];
 
-  // Essai 2 : Direct host port 6543 (transaction mode)
-  if (!client) {
+  let client = null;
+
+  // 1. Essai direct db host port 5432 & 6543
+  for (const port of [5432, 6543]) {
+    console.log(`Essai direct ${host}:${port}...`);
     client = await tryConnect({
       user: 'postgres',
       password: password,
       host: host,
-      port: 6543,
+      port: port,
       database: 'postgres',
       ssl: { rejectUnauthorized: false }
     });
+    if (client) break;
   }
 
-  // Essai 3 : Pooler IPv4 Supabase (eu-central-1 / global pooler)
+  // 2. Essai des poolers Supabase IPv4 (mode session 5432 puis transaction 6543)
   if (!client) {
-    client = await tryConnect({
-      user: 'postgres.ahukxrgkpwfvxwtqelcw',
-      password: password,
-      host: poolerHost,
-      port: 6543,
-      database: 'postgres',
-      ssl: { rejectUnauthorized: false }
-    });
-  }
-
-  // Essai 4 : Pooler IPv4 Supabase (us-east-1 / standard pooler)
-  if (!client) {
-    client = await tryConnect({
-      user: 'postgres.ahukxrgkpwfvxwtqelcw',
-      password: password,
-      host: 'aws-0-us-east-1.pooler.supabase.com',
-      port: 6543,
-      database: 'postgres',
-      ssl: { rejectUnauthorized: false }
-    });
-  }
-
-  // Essai 5 : Pooler IPv4 Supabase (session mode port 5432)
-  if (!client) {
-    client = await tryConnect({
-      user: 'postgres.ahukxrgkpwfvxwtqelcw',
-      password: password,
-      host: poolerHost,
-      port: 5432,
-      database: 'postgres',
-      ssl: { rejectUnauthorized: false }
-    });
+    for (const pooler of poolerRegions) {
+      console.log(`Essai pooler ${pooler}...`);
+      for (const port of [5432, 6543]) {
+        client = await tryConnect({
+          user: 'postgres.ahukxrgkpwfvxwtqelcw',
+          password: password,
+          host: pooler,
+          port: port,
+          database: 'postgres',
+          ssl: { rejectUnauthorized: false }
+        });
+        if (client) break;
+      }
+      if (client) break;
+    }
   }
 
   if (!client) {
