@@ -428,7 +428,45 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
           </table>
         </div>
 
-        {/* ▌4. TÂCHES RÉALISÉES & CHRONOLOGIE */}
+        {/* ▌4. RÉCEPTIONS (SI PRÉSENTES) */}
+        {report.receptions && report.receptions.length > 0 && (
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '10.5pt',
+              fontWeight: 800,
+              color: '#111111',
+              marginBottom: '6px'
+            }}>
+              <span style={{ display: 'inline-block', width: '4px', height: '14px', backgroundColor: 'var(--brand)', borderRadius: '2px' }} />
+              RÉCEPTIONS DE MATÉRIEL & CARTONS
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#1F2937', color: '#FFFFFF' }}>
+                  <th style={{ padding: '6px 8px', textAlign: 'left', border: '1px solid #1F2937', color: '#FFFFFF' }}>PROVENANCE</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'left', border: '1px solid #1F2937', color: '#FFFFFF' }}>DESCRIPTION</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'right', border: '1px solid #1F2937', color: '#FFFFFF', width: '90px' }}>BOÎTES</th>
+                  <th style={{ padding: '6px 8px', textAlign: 'center', border: '1px solid #1F2937', color: '#FFFFFF', width: '100px' }}>STATUT</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.receptions.map((rec, i) => (
+                  <tr key={rec.id || i} style={{ borderBottom: '1px solid #E5E7EB', backgroundColor: i % 2 === 1 ? '#FAFAFA' : '#FFFFFF', color: '#111111' }}>
+                    <td style={{ padding: '5px 8px', fontWeight: 700, border: '1px solid #E5E7EB' }}>{rec.provenance}</td>
+                    <td style={{ padding: '5px 8px', border: '1px solid #E5E7EB' }}>{rec.description}</td>
+                    <td style={{ padding: '5px 8px', textAlign: 'right', fontWeight: 800, border: '1px solid #E5E7EB', color: 'var(--brand)' }}>{rec.boites}</td>
+                    <td style={{ padding: '5px 8px', textAlign: 'center', border: '1px solid #E5E7EB' }}>{rec.statut}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* ▌5. TÂCHES RÉALISÉES */}
         <div style={{ marginBottom: '16px' }}>
           <div style={{
             display: 'flex',
@@ -464,13 +502,13 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
           </table>
         </div>
 
-        {/* ▌5. OBSERVATIONS & SIGNATURES */}
+        {/* ▌6. OBSERVATIONS & SIGNATURES */}
         <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '14px', marginBottom: '16px' }}>
           <div style={{ border: '1px solid #E5E7EB', backgroundColor: '#F9FAFB', padding: '10px 12px', borderRadius: '4px' }}>
             <div style={{ fontWeight: 800, fontSize: '9pt', color: '#111111', marginBottom: '6px' }}>
               5. OBSERVATIONS DU TERRAIN
             </div>
-            {report.observations.map((obs, i) => (
+            {Array.isArray(report.observations) && report.observations.map((obs, i) => (
               <div key={i} style={{ fontSize: '8pt', marginBottom: '4px', color: '#374151' }}>
                 <strong style={{ color: '#111111' }}>• {obs.point} :</strong> {obs.constat}
               </div>

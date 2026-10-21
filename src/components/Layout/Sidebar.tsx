@@ -86,7 +86,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'conventions', label: 'Conventions & Matrice', shortLabel: 'Matrice', icon: FolderArchive },
     { id: 'team', label: 'Équipe Archiviste', shortLabel: 'Équipe', icon: Users },
     { id: 'audit-logs', label: 'Journal d\'Audit', shortLabel: 'Audit', icon: History, adminOnly: true },
-    { id: 'archives', label: 'Archives Hebdo', shortLabel: 'Archives', icon: Archive, adminOnly: true },
+    { id: 'archives', label: 'Archives', shortLabel: 'Archives', icon: Archive },
     { id: 'users', label: 'Utilisateurs & Droits', shortLabel: 'Droits', icon: ShieldCheck, adminOnly: true },
     { id: 'settings', label: 'Paramètres & Données', shortLabel: 'Config', icon: Settings }
   ];

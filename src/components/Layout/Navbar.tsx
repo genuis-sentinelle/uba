@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
-import { LogOut, ChevronDown, Menu, UserPlus, Search, X, User as UserIcon } from 'lucide-react';
+import { LogOut, ChevronDown, Menu, UserPlus, Search, X, User as UserIcon, WifiOff } from 'lucide-react';
 
 interface NavbarProps {
   currentTab?: string;
@@ -36,6 +36,19 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const { currentUser, logout } = useAuth();
   const { agencies, dailyReports, cartons, teamMembers } = useData();
+
+  const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
+
+  React.useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
@@ -120,6 +133,27 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Search button & User bar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {!isOnline && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                border: '1px solid #f59e0b',
+                color: '#f59e0b',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontSize: '0.78rem',
+                fontWeight: 600
+              }}
+              title="Connexion réseau perdue. Les modifications locales seront synchronisées lors du retour du réseau."
+            >
+              <WifiOff size={14} />
+              <span className="desktop-only">Mode Hors-ligne</span>
+            </div>
+          )}
+
           {/* Quick Universal Search Trigger */}
           <button
             type="button"

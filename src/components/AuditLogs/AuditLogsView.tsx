@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
+import { can } from '../../utils/permissions';
 import { formatDateTime } from '../../utils/formatters';
+import { todayLocal } from '../../utils/dates';
 import { Search, Download, Trash2 } from 'lucide-react';
 
 import { useFeedback } from '../ui/Feedback';
 
 export const AuditLogsView: React.FC = () => {
   const { logs, clearLogs } = useData();
+  const { currentUser } = useAuth();
   const { confirm, toast } = useFeedback();
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -52,7 +56,7 @@ export const AuditLogsView: React.FC = () => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `audit_logs_uba_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `audit_logs_uba_${todayLocal()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -75,24 +79,27 @@ export const AuditLogsView: React.FC = () => {
           <button onClick={handleExportCsv} className="btn btn-secondary btn-sm">
             <Download size={14} /> Exporter CSV
           </button>
-          <button
-            onClick={async () => {
-              const ok = await confirm({
-                title: 'Vider le journal d\'audit ?',
-                message: 'Voulez-vous réinitialiser l\'historique des logs d\'audit ?',
-                confirmLabel: 'Vider le journal',
-                danger: true
-              });
-              if (ok) {
-                clearLogs();
-                toast('Journal d\'audit vidé.', 'info');
-              }
-            }}
-            className="btn btn-secondary btn-sm"
-            style={{ color: '#DC2626' }}
-          >
-            <Trash2 size={14} /> Vider
-          </button>
+          {can.clearAll(currentUser?.role) && (
+            <button
+              onClick={async () => {
+                const ok = await confirm({
+                  title: 'Vider l\'affichage local du journal ?',
+                  message: 'Cette action vide uniquement l\'affichage local sur votre écran. Le journal d\'audit serveur en base de données reste protégé et inviolable.',
+                  confirmLabel: 'Vider l\'affichage local',
+                  danger: true
+                });
+                if (ok) {
+                  clearLogs();
+                  toast('Affichage local vidé (les logs serveur restent intacts).', 'info');
+                }
+              }}
+              className="btn btn-secondary btn-sm"
+              style={{ color: '#DC2626' }}
+              title="Vider l'affichage local du journal"
+            >
+              <Trash2 size={14} /> Vider l'affichage local
+            </button>
+          )}
         </div>
       </div>
 

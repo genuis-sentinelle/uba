@@ -27,7 +27,9 @@ function getSupabaseAdmin() {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
   if (!url || !key) {
-    throw new Error('Variables SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY requises sur Vercel.');
+    const error: any = new Error('Configuration serveur incomplète : variable manquante (voir /api/health).');
+    error.statusCode = 500;
+    throw error;
   }
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 }
@@ -47,9 +49,11 @@ async function authenticateCaller(req: any) {
     throw error;
   }
 
+  // Si getSupabaseAdmin() lève une erreur (ex: variables manquantes -> 500), elle est propagée telle quelle
   const supabaseAdmin = getSupabaseAdmin();
   const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token);
   if (authError || !authData?.user) {
+    console.error('[ARCHIVA API] Auth getUser error:', authError);
     const error: any = new Error('Session invalide ou expirée. Veuillez vous reconnecter.');
     error.statusCode = 401;
     throw error;
@@ -63,6 +67,7 @@ async function authenticateCaller(req: any) {
     .single();
 
   if (profileError || !profile) {
+    console.error('[ARCHIVA API] Profile error:', profileError);
     const error: any = new Error('Profil utilisateur introuvable dans la base de données.');
     error.statusCode = 403;
     throw error;
@@ -78,6 +83,7 @@ async function authenticateCaller(req: any) {
 }
 
 export default async function handler(req: any, res: any) {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   applyCors(req, res);
 
   if (req.method === 'OPTIONS') {
@@ -89,7 +95,8 @@ export default async function handler(req: any, res: any) {
   try {
     caller = await authenticateCaller(req);
   } catch (err: any) {
-    return res.status(err.statusCode || 401).json({ error: err.message || 'Authentification requise.' });
+    console.error('[ARCHIVA API] Authenticate caller error:', err?.message || err);
+    return res.status(err.statusCode || 500).json({ error: err.message || 'Authentification requise.' });
   }
 
   // Seuls les administrateurs et super administrateurs ont accès à cet endpoint
@@ -101,7 +108,7 @@ export default async function handler(req: any, res: any) {
   try {
     supabaseAdmin = getSupabaseAdmin();
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || 'Configuration administrative indisponible.' });
+    return res.status(err.statusCode || 500).json({ error: err.message || 'Configuration administrative indisponible.' });
   }
 
   // -------------------------------------------------------------
@@ -115,7 +122,8 @@ export default async function handler(req: any, res: any) {
         .order('created_at', { ascending: false });
 
       if (error) {
-        return res.status(500).json({ error: 'Erreur lors de la récupération des utilisateurs : ' + error.message });
+        console.error('[ARCHIVA API] Error fetching profiles:', error);
+        return res.status(500).json({ error: 'Erreur lors de la récupération des utilisateurs.' });
       }
 
       const users = (profiles || []).map((p: any) => ({
@@ -132,7 +140,8 @@ export default async function handler(req: any, res: any) {
 
       return res.status(200).json({ success: true, users });
     } catch (err: any) {
-      return res.status(500).json({ error: err.message || 'Erreur interne du serveur.' });
+      console.error('[ARCHIVA API] GET users internal error:', err);
+      return res.status(500).json({ error: 'Erreur interne lors de la récupération des utilisateurs.' });
     }
   }
 
@@ -141,10 +150,21 @@ export default async function handler(req: any, res: any) {
   // -------------------------------------------------------------
   if (req.method === 'POST') {
     try {
-      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      const { email, password, nomComplet, role, titre } = body || {};
+      let body: any;
+      try {
+        body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+        if (typeof body !== 'object' || body === null) body = {};
+      } catch {
+        return res.status(400).json({ error: 'Format JSON invalide dans le corps de la requête.' });
+      }
 
-      if (!nomComplet?.trim() || !validateEmail(email)) {
+      const email = typeof body.email === 'string' ? body.email.trim() : '';
+      const password = body.password;
+      const nomComplet = typeof body.nomComplet === 'string' ? body.nomComplet.trim().slice(0, 150) : '';
+      const role = body.role;
+      const titre = typeof body.titre === 'string' ? body.titre.trim().slice(0, 150) : (role === 'admin' ? 'Administrateur' : 'Archiviste Opérationnel');
+
+      if (!nomComplet || !validateEmail(email)) {
         return res.status(400).json({
           error: 'Nom complet et adresse e-mail valides obligatoires.'
         });
@@ -154,6 +174,12 @@ export default async function handler(req: any, res: any) {
       if (!validRoles.includes(role)) {
         return res.status(400).json({
           error: 'Rôle invalide. La création d\'un Super Administrateur est formellement interdite (compte unique).'
+        });
+      }
+
+      if (caller.profile.role === 'admin' && role !== 'stagiaire') {
+        return res.status(403).json({
+          error: 'Un administrateur ne peut créer que des comptes stagiaires.'
         });
       }
 
@@ -185,8 +211,9 @@ export default async function handler(req: any, res: any) {
       });
 
       if (authError || !authCreated?.user) {
+        console.error('[ARCHIVA API] Auth createUser error:', authError);
         return res.status(400).json({
-          error: 'Erreur lors de la création d\'authentification : ' + (authError?.message || 'Inconnue')
+          error: 'Erreur lors de la création d\'authentification de l\'utilisateur.'
         });
       }
 
@@ -204,10 +231,11 @@ export default async function handler(req: any, res: any) {
       });
 
       if (profileError) {
+        console.error('[ARCHIVA API] Profile insert error:', profileError);
         // Rollback : suppression de l'utilisateur dans auth.users
         await supabaseAdmin.auth.admin.deleteUser(newUserId).catch(() => {});
         return res.status(500).json({
-          error: 'Échec de création du profil (opération annulée) : ' + profileError.message
+          error: 'Échec de création du profil (opération annulée).'
         });
       }
 

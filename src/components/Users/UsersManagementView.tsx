@@ -3,7 +3,25 @@ import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { useFeedback } from '../ui/Feedback';
 import { User, Role } from '../../types';
-import { UserPlus, Trash2, Edit2, Lock, X, ShieldCheck, Power, Shield, UserCheck, KeyRound } from 'lucide-react';
+import { generatePassword } from '../../utils/password';
+import {
+  UserPlus,
+  Trash2,
+  Edit2,
+  Lock,
+  X,
+  ShieldCheck,
+  Power,
+  Shield,
+  UserCheck,
+  KeyRound,
+  AlertTriangle,
+  RefreshCw,
+  Eye,
+  EyeOff,
+  Copy,
+  Check
+} from 'lucide-react';
 
 interface UsersManagementViewProps {
   autoOpenAdd?: boolean;
@@ -11,7 +29,7 @@ interface UsersManagementViewProps {
 }
 
 export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOpenAdd, onModalClosed }) => {
-  const { users, currentUser, addUser, updateUser, deleteUser, canDeleteUser } = useAuth();
+  const { users, usersError, refreshUsers, currentUser, addUser, updateUser, deleteUser, canDeleteUser } = useAuth();
   const { addLog } = useData();
   const { toast, confirm } = useFeedback();
 
@@ -23,7 +41,9 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<Role>('stagiaire');
   const [titre, setTitre] = useState('');
-  const [motDePasse, setMotDePasse] = useState('uba2026');
+  const [motDePasse, setMotDePasse] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [copiedPassword, setCopiedPassword] = useState(false);
 
   useEffect(() => {
     if (autoOpenAdd) {
@@ -40,7 +60,10 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
     setEmail('');
     setRole('stagiaire');
     setTitre('');
-    setMotDePasse('uba' + Math.floor(1000 + Math.random() * 9000));
+    const newPwd = generatePassword(14);
+    setMotDePasse(newPwd);
+    setShowPassword(true);
+    setCopiedPassword(false);
     setShowModal(true);
   };
 
@@ -51,7 +74,18 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
     setRole(u.role);
     setTitre(u.titre);
     setMotDePasse('••••••••');
+    setShowPassword(false);
+    setCopiedPassword(false);
     setShowModal(true);
+  };
+
+  const handleCopyPassword = () => {
+    if (motDePasse) {
+      navigator.clipboard.writeText(motDePasse);
+      setCopiedPassword(true);
+      toast('Mot de passe copié dans le presse-papier !', 'info');
+      setTimeout(() => setCopiedPassword(false), 2000);
+    }
   };
 
   const [submitting, setSubmitting] = useState(false);
@@ -180,7 +214,7 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
         <div>
           <h1>Utilisateurs & Droits d'Accès</h1>
           <p className="text-muted text-sm" style={{ marginTop: '4px' }}>
-            {users.length} compte(s) enregistré(s)
+            {usersError ? 'Liste indisponible' : `${users.length} compte(s) enregistré(s)`}
           </p>
         </div>
 
@@ -188,6 +222,36 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
           <UserPlus size={16} /> Créer un Utilisateur
         </button>
       </div>
+
+      {/* Bandeau d'erreur serveur explicite */}
+      {usersError && (
+        <div
+          className="card"
+          style={{
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid var(--danger)',
+            color: 'var(--danger)',
+            padding: '14px 18px',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <AlertTriangle size={20} />
+            <span style={{ fontWeight: 500 }}>{usersError}</span>
+          </div>
+          <button
+            onClick={() => refreshUsers()}
+            className="btn btn-secondary btn-sm"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <RefreshCw size={14} /> Réessayer
+          </button>
+        </div>
+      )}
 
       {/* Users Table */}
       <div className="uba-table-container">
@@ -337,13 +401,20 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   required
+                  readOnly={Boolean(editingUser)}
+                  style={editingUser ? { backgroundColor: 'var(--surface-2)', cursor: 'not-allowed', opacity: 0.8 } : {}}
                 />
+                {editingUser && (
+                  <p className="text-muted text-sm" style={{ marginTop: '4px', fontSize: '0.8rem' }}>
+                    Modifiable uniquement par le Super Admin dans Supabase
+                  </p>
+                )}
               </div>
 
               {/* Choix visuel du Rôle */}
               <div className="form-group">
                 <label className="form-label">Niveau d'habilitation & Rôle *</label>
-                <div className="grid-3" style={{ marginTop: '8px' }}>
+                <div style={{ marginTop: '8px', display: 'grid', gridTemplateColumns: currentUser?.role === 'admin' ? '1fr' : 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
                   {/* Stagiaire */}
                   <div
                     onClick={() => setRole('stagiaire')}
@@ -363,42 +434,23 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
                     </div>
                   </div>
 
-                  {/* Administrateur */}
-                  <div
-                    onClick={() => setRole('admin')}
-                    className="card card--interactive"
-                    style={{
-                      borderColor: role === 'admin' ? 'var(--brand)' : 'var(--line)',
-                      backgroundColor: role === 'admin' ? 'var(--brand-tint)' : 'var(--surface-2)',
-                      padding: '14px'
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                      <Shield size={18} color="var(--brand-hi)" />
-                      <strong>Administrateur</strong>
-                    </div>
-                    <div className="text-muted text-sm">
-                      Gestion des référentiels, équipes, synthèses et création de comptes.
-                    </div>
-                  </div>
-
-                  {/* Super Admin */}
+                  {/* Administrateur (accessible seulement pour le Super Admin) */}
                   {currentUser?.role === 'super_admin' && (
                     <div
-                      onClick={() => setRole('super_admin')}
+                      onClick={() => setRole('admin')}
                       className="card card--interactive"
                       style={{
-                        borderColor: role === 'super_admin' ? 'var(--brand)' : 'var(--line)',
-                        backgroundColor: role === 'super_admin' ? 'var(--brand-tint)' : 'var(--surface-2)',
+                        borderColor: role === 'admin' ? 'var(--brand)' : 'var(--line)',
+                        backgroundColor: role === 'admin' ? 'var(--brand-tint)' : 'var(--surface-2)',
                         padding: '14px'
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                        <ShieldCheck size={18} color="var(--brand-hi)" />
-                        <strong>Super Admin</strong>
+                        <Shield size={18} color="var(--brand-hi)" />
+                        <strong>Administrateur</strong>
                       </div>
                       <div className="text-muted text-sm">
-                        Chef d'équipe (Accès total, purge et suppression).
+                        Gestion des référentiels, équipes, synthèses et création de stagiaires.
                       </div>
                     </div>
                   )}
@@ -434,25 +486,46 @@ export const UsersManagementView: React.FC<UsersManagementViewProps> = ({ autoOp
                 <div className="card" style={{ backgroundColor: 'var(--surface-2)', marginBottom: '16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                     <KeyRound size={18} color="var(--brand-hi)" />
-                    <label className="form-label" style={{ margin: 0 }}>Mot de passe initial sécurisé</label>
+                    <label className="form-label" style={{ margin: 0 }}>Mot de passe initial sécurisé (≥ 14 caractères)</label>
                   </div>
-                  <div style={{ display: 'flex', gap: '10px' }}>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <input
-                      type="text"
+                      type={showPassword ? 'text' : 'password'}
                       className="form-input num"
                       value={motDePasse}
                       onChange={e => setMotDePasse(e.target.value)}
+                      style={{ flex: 1, letterSpacing: showPassword ? 'normal' : '0.15em' }}
                     />
                     <button
                       type="button"
-                      onClick={() => setMotDePasse('uba' + Math.floor(1000 + Math.random() * 9000))}
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="btn btn-secondary btn-icon"
+                      title={showPassword ? 'Masquer' : 'Afficher'}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCopyPassword}
+                      className="btn btn-secondary btn-icon"
+                      title="Copier le mot de passe"
+                    >
+                      {copiedPassword ? <Check size={16} color="var(--green)" /> : <Copy size={16} />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newPwd = generatePassword(14);
+                        setMotDePasse(newPwd);
+                        setShowPassword(true);
+                      }}
                       className="btn btn-secondary"
                     >
                       Générer
                     </button>
                   </div>
                   <p className="text-muted text-sm" style={{ marginTop: '8px' }}>
-                    Le compte sera créé de façon atomique dans Supabase Auth et Profiles. L'agent pourra changer son mot de passe à tout moment.
+                    Communiquez ce mot de passe de façon sécurisée ; l'agent devra le changer à sa première connexion.
                   </p>
                 </div>
               )}

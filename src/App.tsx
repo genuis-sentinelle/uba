@@ -20,6 +20,7 @@ import { SettingsView } from './components/Settings/SettingsView';
 import { ArchivesView } from './components/Archives/ArchivesView';
 import { LoginView } from './components/Auth/LoginView';
 import { ProfileModal } from './components/Profile/ProfileModal';
+import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { can } from './utils/permissions';
 
 const MainApp: React.FC = () => {
@@ -162,7 +163,7 @@ const MainApp: React.FC = () => {
             <AuditLogsView />
           )}
 
-          {currentTab === 'archives' && can.manageArchives(currentUser?.role) && (
+          {currentTab === 'archives' && can.viewArchives(currentUser?.role) && (
             <ArchivesView />
           )}
 
@@ -196,11 +197,13 @@ const MainApp: React.FC = () => {
 
 export const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <DataProvider>
-        <MainApp />
-      </DataProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <DataProvider>
+          <MainApp />
+        </DataProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 };
 

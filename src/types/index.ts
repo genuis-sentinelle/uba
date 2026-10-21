@@ -125,6 +125,10 @@ export interface DailyReport {
   version: number;
   creePar: string;
   dateCreation: string;
+  archived?: boolean;
+  archivedAt?: string;
+  archivedBy?: string;
+  archiveNote?: string;
 }
 
 export interface SynthesisReport {
@@ -156,6 +160,10 @@ export interface SynthesisReport {
   pointsAConfirmer: string[];
   creePar: string;
   dateCreation: string;
+  archived?: boolean;
+  archivedAt?: string;
+  archivedBy?: string;
+  archiveNote?: string;
 }
 
 export interface ArchiveIncident {
@@ -215,6 +223,23 @@ export interface TransferSlip {
   totalConventions: number;
   statut: 'en_transit' | 'receptionne' | 'valide';
   observations?: string;
+  archived?: boolean;
+  archivedAt?: string;
+  archivedBy?: string;
+  archiveNote?: string;
+}
+
+export type ArchivableKind = 'daily' | 'synthesis' | 'slip';
+
+export interface ArchivedDocument {
+  id: string;
+  kind: ArchivableKind;
+  titre: string;
+  dateDoc: string;
+  archivedAt: string;
+  archivedBy?: string;
+  archiveNote?: string;
+  raw: DailyReport | SynthesisReport | TransferSlip;
 }
 
 // ============================================================================

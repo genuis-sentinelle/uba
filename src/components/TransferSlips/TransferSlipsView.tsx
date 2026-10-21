@@ -2,8 +2,11 @@ import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { TransferSlip, TransferSlipLine } from '../../types';
+import { can } from '../../utils/permissions';
 import { formatNumber, formatDate } from '../../utils/formatters';
+import { todayLocal } from '../../utils/dates';
 import { TransferSlipPrintPreview } from './TransferSlipPrintPreview';
+import { isReportArchivable } from '../../services/reportArchives';
 import {
   Truck,
   Plus,
@@ -12,13 +15,23 @@ import {
   Edit2,
   X,
   FileCheck,
-  CheckCircle2
+  CheckCircle2,
+  Archive,
+  RotateCcw
 } from 'lucide-react';
 
 import { useFeedback } from '../ui/Feedback';
 
 export const TransferSlipsView: React.FC = () => {
-  const { transferSlips, agencies, addTransferSlip, updateTransferSlip, deleteTransferSlip } = useData();
+  const {
+    transferSlips,
+    agencies,
+    addTransferSlip,
+    updateTransferSlip,
+    deleteTransferSlip,
+    archiveDocument,
+    unarchiveDocument
+  } = useData();
   const { currentUser } = useAuth();
   const { confirm, toast } = useFeedback();
   const isStagiaire = currentUser?.role === 'stagiaire';
@@ -26,9 +39,10 @@ export const TransferSlipsView: React.FC = () => {
   const [previewSlip, setPreviewSlip] = useState<TransferSlip | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [editingSlip, setEditingSlip] = useState<TransferSlip | null>(null);
+  const [archiveFilter, setArchiveFilter] = useState<'active' | 'archived' | 'all'>('active');
 
   // Form states — Propres et dynamiques
-  const [dateTransfert, setDateTransfert] = useState(new Date().toISOString().split('T')[0]);
+  const [dateTransfert, setDateTransfert] = useState(todayLocal());
   const [chauffeurNom, setChauffeurNom] = useState('');
   const [vehicule, setVehicule] = useState('');
   const [responsableDepart, setResponsableDepart] = useState(
@@ -43,7 +57,7 @@ export const TransferSlipsView: React.FC = () => {
 
   const handleOpenAdd = () => {
     setEditingSlip(null);
-    setDateTransfert(new Date().toISOString().split('T')[0]);
+    setDateTransfert(todayLocal());
     setResponsableDepart(currentUser ? `${currentUser.nomComplet} (${currentUser.titre || 'Chef de mission'})` : '');
     setChauffeurNom('');
     setVehicule('');
@@ -129,28 +143,105 @@ export const TransferSlipsView: React.FC = () => {
     setShowModal(false);
   };
 
+  const handleArchive = async (slip: TransferSlip) => {
+    const { eligible, reason } = isReportArchivable('slip', slip);
+    if (!eligible) {
+      toast(reason || 'Ce bordereau ne peut pas être archivé.', 'error');
+      return;
+    }
+    const ok = await confirm({
+      title: 'Archiver ce bordereau ?',
+      message: `Voulez-vous archiver le bordereau ${slip.numeroBordereau} ? Une fois archivé, il deviendra immuable (non modifiable et non supprimable).`,
+      confirmLabel: 'Archiver'
+    });
+    if (ok) {
+      const note = window.prompt('Note ou motif d\'archivage (optionnel) :') || undefined;
+      const res = await archiveDocument('slip', slip.id, note);
+      if (res.success) {
+        toast('Bordereau archivé avec succès.', 'success');
+      } else {
+        toast(res.message, 'error');
+      }
+    }
+  };
+
+  const handleUnarchive = async (slip: TransferSlip) => {
+    const ok = await confirm({
+      title: 'Désarchiver ce bordereau ?',
+      message: `Restaurer le bordereau ${slip.numeroBordereau} dans les bordereaux actifs ?`,
+      confirmLabel: 'Désarchiver'
+    });
+    if (ok) {
+      const res = await unarchiveDocument('slip', slip.id);
+      if (res.success) {
+        toast('Bordereau restauré dans les actifs avec succès.', 'success');
+      } else {
+        toast(res.message, 'error');
+      }
+    }
+  };
+
+  const activeSlipsCount = transferSlips.filter(s => !s.archived).length;
+  const archivedSlipsCount = transferSlips.filter(s => s.archived).length;
+
+  const filteredSlips = transferSlips.filter(s => {
+    if (archiveFilter === 'active' && s.archived) return false;
+    if (archiveFilter === 'archived' && !s.archived) return false;
+    return true;
+  });
+
   return (
     <div style={{ padding: '28px 32px', maxWidth: '1400px', margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '14px' }}>
         <div>
           <h1 style={{ fontSize: '1.55rem', fontWeight: 800, color: '#FFFFFF', margin: 0 }}>
             Bordereaux de Transfert & Décharge
           </h1>
           <div style={{ fontSize: '0.92rem', color: '#D9D9D9', marginTop: '4px' }}>
-            {transferSlips.length} bordereau(x) émis (Maya-Maya ⇄ Mazala)
+            {activeSlipsCount} actif(s) · {archivedSlipsCount} archivé(s) (Maya-Maya ⇄ Mazala)
           </div>
         </div>
 
-        {isStagiaire ? (
-          <span className="badge badge-black" style={{ padding: '8px 14px', fontSize: '0.85rem', border: '1px solid var(--uba-anthracite)' }}>
-            Mode Consultation (Lecture seule)
-          </span>
-        ) : (
-          <button onClick={handleOpenAdd} className="btn btn-primary btn-sm">
-            <Plus size={15} /> + Nouveau Bordereau
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Segmented Filter */}
+          <div style={{ display: 'inline-flex', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--uba-anthracite)' }}>
+            <button
+              type="button"
+              onClick={() => setArchiveFilter('active')}
+              className={`btn btn-sm ${archiveFilter === 'active' ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ borderRadius: 0, height: '36px', padding: '0 12px' }}
+            >
+              Actifs ({activeSlipsCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setArchiveFilter('archived')}
+              className={`btn btn-sm ${archiveFilter === 'archived' ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ borderRadius: 0, height: '36px', padding: '0 12px' }}
+            >
+              <Archive size={13} style={{ marginRight: '4px' }} /> Archivés ({archivedSlipsCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setArchiveFilter('all')}
+              className={`btn btn-sm ${archiveFilter === 'all' ? 'btn-primary' : 'btn-ghost'}`}
+              style={{ borderRadius: 0, height: '36px', padding: '0 12px' }}
+            >
+              Tous ({transferSlips.length})
+            </button>
+          </div>
+
+          {isStagiaire ? (
+            <span className="badge badge-black" style={{ padding: '8px 14px', fontSize: '0.85rem', border: '1px solid var(--uba-anthracite)' }}>
+              Mode Consultation (Lecture seule)
+            </span>
+          ) : (
+            <button onClick={handleOpenAdd} className="btn btn-primary btn-sm">
+              <Plus size={15} /> + Nouveau Bordereau
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Table */}
@@ -165,18 +256,18 @@ export const TransferSlipsView: React.FC = () => {
               <th style={{ textAlign: 'right' }}>Boîtes</th>
               <th style={{ textAlign: 'right' }}>Conventions</th>
               <th>Statut</th>
-              <th style={{ textAlign: 'right', width: '220px' }}>Actions</th>
+              <th style={{ textAlign: 'right', width: '260px' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {transferSlips.length === 0 ? (
+            {filteredSlips.length === 0 ? (
               <tr>
                 <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: '#D9D9D9' }}>
-                  Aucun bordereau de transfert émis.
+                  Aucun bordereau correspondant au filtre sélectionné.
                 </td>
               </tr>
             ) : (
-              transferSlips.map(slip => (
+              filteredSlips.map(slip => (
                 <tr key={slip.id}>
                   <td>
                     <strong style={{ color: 'var(--uba-red-bright)', fontSize: '0.92rem' }}>{slip.numeroBordereau}</strong>
@@ -195,7 +286,24 @@ export const TransferSlipsView: React.FC = () => {
                     {formatNumber(slip.totalConventions)}
                   </td>
                   <td>
-                    <span className="badge badge-white">Déchargé & Validé</span>
+                    {slip.archived ? (
+                      <span
+                        className="badge"
+                        style={{
+                          backgroundColor: 'rgba(220, 38, 38, 0.2)',
+                          color: '#F87171',
+                          border: '1px solid rgba(220, 38, 38, 0.4)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontWeight: 800
+                        }}
+                      >
+                        <Archive size={12} /> ARCHIVÉ
+                      </span>
+                    ) : (
+                      <span className="badge badge-white">Déchargé & Validé</span>
+                    )}
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     <div style={{ display: 'inline-flex', gap: '6px' }}>
@@ -207,35 +315,64 @@ export const TransferSlipsView: React.FC = () => {
                       >
                         <Printer size={13} /> Imprimer A4
                       </button>
-                      {!isStagiaire && (
-                        <>
+
+                      {slip.archived ? (
+                        can.unarchive(currentUser?.role) && (
                           <button
-                            onClick={() => handleOpenEdit(slip)}
+                            onClick={() => handleUnarchive(slip)}
                             className="btn btn-secondary btn-sm"
                             style={{ padding: '5px 8px' }}
-                            title="Modifier"
+                            title="Désarchiver (Restaurer dans les actifs)"
                           >
-                            <Edit2 size={13} /> Modifier
+                            <RotateCcw size={13} /> Désarchiver
                           </button>
-                          <button
-                            onClick={async () => {
-                              const ok = await confirm({
-                                title: 'Supprimer ce bordereau ?',
-                                message: `Supprimer le bordereau ${slip.numeroBordereau} ?`,
-                                confirmLabel: 'Supprimer',
-                                danger: true
-                              });
-                              if (ok) {
-                                deleteTransferSlip(slip.id);
-                                toast(`Bordereau ${slip.numeroBordereau} supprimé.`, 'info');
-                              }
-                            }}
-                            className="btn btn-secondary btn-sm"
-                            style={{ padding: '5px 8px', color: '#DC2626' }}
-                            title="Supprimer"
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                        )
+                      ) : (
+                        <>
+                          {can.archive(currentUser?.role) && isReportArchivable('slip', slip).eligible && (
+                            <button
+                              onClick={() => handleArchive(slip)}
+                              className="btn btn-secondary btn-sm"
+                              style={{ padding: '5px 8px' }}
+                              title="Archiver ce bordereau (Scellement immuable)"
+                            >
+                              <Archive size={13} /> Archiver
+                            </button>
+                          )}
+
+                          {!isStagiaire && (
+                            <>
+                              <button
+                                onClick={() => handleOpenEdit(slip)}
+                                className="btn btn-secondary btn-sm"
+                                style={{ padding: '5px 8px' }}
+                                title="Modifier"
+                              >
+                                <Edit2 size={13} /> Modifier
+                              </button>
+                              {can.deleteData(currentUser?.role) && (
+                                <button
+                                  onClick={async () => {
+                                    const ok = await confirm({
+                                      title: 'Supprimer ce bordereau ?',
+                                      message: `Supprimer le bordereau ${slip.numeroBordereau} ?`,
+                                      confirmLabel: 'Supprimer',
+                                      danger: true
+                                    });
+                                    if (ok) {
+                                      deleteTransferSlip(slip.id);
+                                      toast(`Bordereau ${slip.numeroBordereau} supprimé.`, 'info');
+                                    }
+                                  }}
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ padding: '5px 8px', color: '#DC2626' }}
+                                  title="Supprimer"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              )}
+                            </>
+                          )}
                         </>
                       )}
                     </div>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { ArchiveIncident } from '../../types';
+import { can } from '../../utils/permissions';
 import { formatDate } from '../../utils/formatters';
 import {
   AlertTriangle,
@@ -223,14 +224,16 @@ export const IncidentsView: React.FC = () => {
                         >
                           <Edit2 size={13} />
                         </button>
-                        <button
-                          onClick={() => handleDelete(inc)}
-                          className="btn btn-secondary btn-sm"
-                          style={{ padding: '5px 8px', color: '#DC2626' }}
-                          title="Supprimer"
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                        {can.deleteData(currentUser?.role) && (
+                          <button
+                            onClick={() => handleDelete(inc)}
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '5px 8px', color: '#DC2626' }}
+                            title="Supprimer"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
                       </div>
                     ) : (
                       <span style={{ fontSize: '0.8rem', color: 'var(--uba-silver-dark)' }}>Consultation</span>

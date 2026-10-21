@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { todayLocal } from '../utils/dates';
 import {
   Agency,
   DailyReport,
@@ -54,9 +55,14 @@ async function executeOp(op: SyncOp): Promise<boolean> {
       : await supabase.from(op.table).delete().eq('id', op.id!);
 
     if (res.error) {
-      // Erreurs définitives (droits RLS, contraintes de validation) : notifier et ne pas bloquer en boucle
-      if (['42501', '23514', '23502', '22P02'].includes(res.error.code ?? '')) {
+      // Erreurs définitives (droits RLS 42501, contraintes 23514/23502/22P02, triggers P0001, clés étrangères 23503)
+      const definitiveCodes = ['42501', '23514', '23502', '22P02', 'P0001', '23503'];
+      if (definitiveCodes.includes(res.error.code ?? '')) {
         notify(`Synchronisation refusée (${op.table}) : ${res.error.message}`, 'error');
+        // Annule le changement local : notifier pour recharger la table concernée depuis le serveur
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('archiva:sync-revert', { detail: { table: op.table } }));
+        }
         return true;
       }
       return false; // Erreur réseau/temporaire : conserver dans la file d'attente
@@ -348,7 +354,7 @@ export async function fetchAllRemote(): Promise<{
         cartonsCount: r.cartons_count ?? 0,
         dossiersCount: r.dossiers_count ?? 0,
         statut: r.statut || 'active',
-        dateCreation: r.created_at ? r.created_at.split('T')[0] : new Date().toISOString().split('T')[0]
+        dateCreation: r.created_at ? r.created_at.split('T')[0] : todayLocal()
       }));
     }
 
@@ -383,14 +389,18 @@ export async function fetchAllRemote(): Promise<{
         transferts: r.transferts || [],
         receptions: r.receptions || [],
         chronologie: r.chronologie || [],
-        observations: r.observations || '',
+        observations: Array.isArray(r.observations) ? r.observations : [],
         totalDeclare: r.total_declare ?? 0,
         totalCalcule: r.total_calcule ?? 0,
         ecart: r.ecart ?? 0,
         statut: r.statut || 'brouillon',
         version: r.version ?? 1,
         creePar: r.cree_par || 'Système',
-        dateCreation: r.created_at || new Date().toISOString()
+        dateCreation: r.created_at || new Date().toISOString(),
+        archived: Boolean(r.archived),
+        archivedAt: r.archived_at || undefined,
+        archivedBy: r.archived_by || undefined,
+        archiveNote: r.archive_note || undefined
       }));
     }
 
@@ -409,7 +419,7 @@ export async function fetchAllRemote(): Promise<{
         site: r.site,
         etat: r.etat,
         notes: r.notes || '',
-        dateEnregistrement: r.date_enregistrement || new Date().toISOString().split('T')[0]
+        dateEnregistrement: r.date_enregistrement || todayLocal()
       }));
     }
 
@@ -428,7 +438,11 @@ export async function fetchAllRemote(): Promise<{
         totalBoites: r.total_boites ?? 0,
         totalConventions: r.total_conventions ?? 0,
         statut: r.statut,
-        observations: r.observations || ''
+        observations: r.observations || '',
+        archived: Boolean(r.archived),
+        archivedAt: r.archived_at || undefined,
+        archivedBy: r.archived_by || undefined,
+        archiveNote: r.archive_note || undefined
       }));
     }
 
@@ -476,7 +490,11 @@ export async function fetchAllRemote(): Promise<{
         repartitionAgences: r.repartition_agences || [],
         pointsAConfirmer: r.points_a_confirmer || [],
         creePar: r.cree_par || 'Système',
-        dateCreation: r.created_at || new Date().toISOString()
+        dateCreation: r.created_at || new Date().toISOString(),
+        archived: Boolean(r.archived),
+        archivedAt: r.archived_at || undefined,
+        archivedBy: r.archived_by || undefined,
+        archiveNote: r.archive_note || undefined
       }));
     }
 

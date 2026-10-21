@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { CartonInventory } from '../../types';
+import { can } from '../../utils/permissions';
 import { formatNumber, formatDate } from '../../utils/formatters';
 import {
   Package,
@@ -211,14 +212,16 @@ export const CartonsView: React.FC = () => {
                           >
                             <Edit2 size={13} />
                           </button>
-                          <button
-                            onClick={() => handleDelete(c)}
-                            className="btn btn-secondary btn-sm"
-                            style={{ padding: '5px 8px', color: '#DC2626' }}
-                            title="Supprimer"
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                          {can.deleteData(currentUser?.role) && (
+                            <button
+                              onClick={() => handleDelete(c)}
+                              className="btn btn-secondary btn-sm"
+                              style={{ padding: '5px 8px', color: '#DC2626' }}
+                              title="Supprimer"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
                         </>
                       )}
                     </div>

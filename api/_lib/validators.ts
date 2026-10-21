@@ -23,3 +23,25 @@ export function validatePassword(password: unknown, role: string): string | null
 
   return null;
 }
+
+export function parseJsonBody(req: any): Record<string, any> {
+  if (!req.body) return {};
+  if (typeof req.body === 'object' && req.body !== null) return req.body;
+  if (typeof req.body === 'string') {
+    try {
+      const parsed = JSON.parse(req.body);
+      if (typeof parsed !== 'object' || parsed === null) return {};
+      return parsed;
+    } catch {
+      const error: any = new Error('Format JSON invalide dans le corps de la requête.');
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+  return {};
+}
+
+export function sanitizeString(val: unknown, maxLen = 255): string {
+  if (typeof val !== 'string') return '';
+  return val.trim().slice(0, maxLen);
+}

@@ -35,6 +35,13 @@ export const LoginView: React.FC = () => {
 
   useEffect(() => {
     checkBootstrapStatus();
+    try {
+      const reason = sessionStorage.getItem('archiva_logout_reason');
+      if (reason) {
+        setError(reason);
+        sessionStorage.removeItem('archiva_logout_reason');
+      }
+    } catch {}
   }, [checkBootstrapStatus]);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {

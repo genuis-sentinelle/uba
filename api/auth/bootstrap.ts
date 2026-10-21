@@ -27,12 +27,15 @@ function getSupabaseAdmin() {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
   if (!url || !key) {
-    throw new Error('Variables SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY requises sur Vercel.');
+    const error: any = new Error('Configuration serveur incomplète : variable manquante (voir /api/health).');
+    error.statusCode = 500;
+    throw error;
   }
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 }
 
 export default async function handler(req: any, res: any) {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   applyCors(req, res);
 
   if (req.method === 'OPTIONS') {
@@ -43,10 +46,20 @@ export default async function handler(req: any, res: any) {
     return res.status(405).json({ error: 'Méthode non autorisée.' });
   }
 
-  const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-  const { email, password, nomComplet, titre } = body || {};
+  let body: any;
+  try {
+    body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+    if (typeof body !== 'object' || body === null) body = {};
+  } catch {
+    return res.status(400).json({ error: 'Format JSON invalide dans le corps de la requête.' });
+  }
 
-  if (!nomComplet || typeof nomComplet !== 'string' || !nomComplet.trim() || !validateEmail(email)) {
+  const email = typeof body.email === 'string' ? body.email.trim() : '';
+  const nomComplet = typeof body.nomComplet === 'string' ? body.nomComplet.trim().slice(0, 150) : '';
+  const titre = typeof body.titre === 'string' ? body.titre.trim().slice(0, 150) : 'Super Administrateur';
+  const password = body.password;
+
+  if (!nomComplet || !validateEmail(email)) {
     return res.status(400).json({ error: 'Nom complet et adresse e-mail valides obligatoires.' });
   }
 
@@ -59,7 +72,7 @@ export default async function handler(req: any, res: any) {
   try {
     admin = getSupabaseAdmin();
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || 'Configuration serveur manquante.' });
+    return res.status(err.statusCode || 500).json({ error: err.message || 'Configuration serveur manquante.' });
   }
 
   const normalizedEmail = email.trim().toLowerCase();
@@ -144,6 +157,7 @@ export default async function handler(req: any, res: any) {
       message: 'Super Administrateur créé avec succès. La création est maintenant définitivement verrouillée.'
     });
   } catch (err: any) {
+    console.error('[ARCHIVA API] Bootstrap error:', err);
     if (userId) {
       await admin.auth.admin.deleteUser(userId).catch(() => {});
     }
@@ -158,7 +172,7 @@ export default async function handler(req: any, res: any) {
     }
 
     return res.status(500).json({
-      error: 'Échec de l\'initialisation : ' + (err.message || 'Erreur inconnue')
+      error: 'Échec de l\'initialisation du Super Administrateur.'
     });
   }
 }

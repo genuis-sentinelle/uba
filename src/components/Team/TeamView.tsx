@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { TeamMember } from '../../types';
+import { can } from '../../utils/permissions';
 import { Users, Plus, Edit2, Trash2, Search, X, MapPin } from 'lucide-react';
 
 import { useFeedback } from '../ui/Feedback';
@@ -237,14 +238,16 @@ export const TeamView: React.FC = () => {
                         >
                           <Edit2 size={13} /> Modifier
                         </button>
-                        <button
-                          onClick={() => handleDelete(m)}
-                          className="btn btn-secondary btn-sm"
-                          style={{ padding: '5px 8px', color: '#DC2626' }}
-                          title="Supprimer"
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                        {can.deleteData(currentUser?.role) && (
+                          <button
+                            onClick={() => handleDelete(m)}
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '5px 8px', color: '#DC2626' }}
+                            title="Supprimer"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
                       </div>
                     ) : (
                       <span style={{ fontSize: '0.8rem', color: 'var(--uba-silver-dark)' }}>Consultation</span>

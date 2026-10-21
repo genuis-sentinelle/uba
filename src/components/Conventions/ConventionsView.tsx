@@ -1,19 +1,48 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import { formatNumber } from '../../utils/formatters';
+import { selectMatrix, MatrixRow } from '../../domain/selectors';
+
+const MATRIX_YEARS = [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024];
 
 export const ConventionsView: React.FC = () => {
-  const { synthesisReports } = useData();
-  const synthesis = synthesisReports[0];
+  const { agencies, dailyReports, cartons, synthesisReports } = useData();
 
-  if (!synthesis) {
+  // Matrice calculée en temps réel d'après les données d'exploitation (ou repli sur la synthèse archivée)
+  const matrixRows: MatrixRow[] = useMemo(() => {
+    if (agencies.length === 0) {
+      if (synthesisReports[0]?.matrice && synthesisReports[0].matrice.length > 0) {
+        return synthesisReports[0].matrice;
+      }
+      return [];
+    }
+    return selectMatrix(agencies, dailyReports, MATRIX_YEARS, cartons);
+  }, [agencies, dailyReports, cartons, synthesisReports]);
+
+  // Calcul dynamique des indicateurs
+  const { countT, countA, countO } = useMemo(() => {
+    let t = 0;
+    let a = 0;
+    let o = 0;
+    matrixRows.forEach(row => {
+      MATRIX_YEARS.forEach(yr => {
+        const val = row.annees[yr];
+        if (val === 'T') t += 1;
+        else if (val === 'A') a += 1;
+        else if (val === 'O') o += 1;
+      });
+    });
+    return { countT: t, countA: a, countO: o };
+  }, [matrixRows]);
+
+  if (matrixRows.length === 0) {
     return (
       <div style={{ padding: '28px 32px', maxWidth: '1400px', margin: '0 auto' }}>
         <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: '#FFFFFF', marginBottom: '16px' }}>
           Conventions & Matrice de Suivi
         </h1>
         <div className="card" style={{ padding: '36px', textAlign: 'center', color: '#D9D9D9' }}>
-          Aucune synthèse enregistrée.
+          Aucune agence ou donnée d'inventaire enregistrée.
         </div>
       </div>
     );
@@ -28,7 +57,7 @@ export const ConventionsView: React.FC = () => {
             Conventions & Matrice de Suivi
           </h1>
           <div style={{ fontSize: '0.92rem', color: '#D9D9D9', marginTop: '4px' }}>
-            Exercices 2015 à 2024 · Traitement certifié UBA Congo
+            Exercices 2015 à 2024 · Traitement certifié UBA Congo · Synchronisation en direct
           </div>
         </div>
 
@@ -61,10 +90,10 @@ export const ConventionsView: React.FC = () => {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
         <div className="card" style={{ padding: '16px 20px', borderLeft: '4px solid var(--uba-red)' }}>
           <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#D9D9D9', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            Traitées (T)
+            Exercices Traités (T)
           </div>
           <div style={{ fontSize: '1.65rem', fontWeight: 900, color: 'var(--uba-red-bright)', marginTop: '4px' }}>
-            {formatNumber(synthesis.dossiersTraites)}
+            {formatNumber(countT)}
           </div>
         </div>
 
@@ -73,7 +102,7 @@ export const ConventionsView: React.FC = () => {
             En Attente (A)
           </div>
           <div style={{ fontSize: '1.65rem', fontWeight: 900, color: '#FFFFFF', marginTop: '4px' }}>
-            {formatNumber(synthesis.dossiersEnAttente)}
+            {formatNumber(countA)}
           </div>
         </div>
 
@@ -82,7 +111,7 @@ export const ConventionsView: React.FC = () => {
             Oubliés Probables (O)
           </div>
           <div style={{ fontSize: '1.65rem', fontWeight: 900, color: 'var(--uba-red-bright)', marginTop: '4px' }}>
-            3 alertes
+            {countO} alerte{countO > 1 ? 's' : ''}
           </div>
         </div>
       </div>
@@ -93,19 +122,19 @@ export const ConventionsView: React.FC = () => {
           <thead>
             <tr>
               <th style={{ textAlign: 'left', width: '180px' }}>Agence</th>
-              {[2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024].map(y => (
+              {MATRIX_YEARS.map(y => (
                 <th key={y} style={{ textAlign: 'center' }}>{y}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {synthesis.matrice.map((row, idx) => (
+            {matrixRows.map((row, idx) => (
               <tr key={idx}>
                 <td style={{ textAlign: 'left', fontWeight: 700 }}>
                   <div style={{ color: '#FFFFFF', fontSize: '0.95rem' }}>{row.agenceNom}</div>
                   <div style={{ fontSize: '0.8rem', color: '#D9D9D9' }}>Code {row.code}</div>
                 </td>
-                {[2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024].map(y => {
+                {MATRIX_YEARS.map(y => {
                   const val = row.annees[y] || '—';
 
                   let bg = 'transparent';

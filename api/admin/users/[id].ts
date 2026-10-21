@@ -14,7 +14,9 @@ function getSupabaseAdmin() {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
   if (!url || !key) {
-    throw new Error('Variables SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY requises sur Vercel.');
+    const error: any = new Error('Configuration serveur incomplète : variable manquante (voir /api/health).');
+    error.statusCode = 500;
+    throw error;
   }
   return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
 }
@@ -34,9 +36,11 @@ async function authenticateCaller(req: any) {
     throw error;
   }
 
+  // Si getSupabaseAdmin() lève une erreur (ex: variables manquantes -> 500), elle est propagée telle quelle
   const supabaseAdmin = getSupabaseAdmin();
   const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token);
   if (authError || !authData?.user) {
+    console.error('[ARCHIVA API] Auth getUser error:', authError);
     const error: any = new Error('Session invalide ou expirée. Veuillez vous reconnecter.');
     error.statusCode = 401;
     throw error;
@@ -50,6 +54,7 @@ async function authenticateCaller(req: any) {
     .single();
 
   if (profileError || !profile) {
+    console.error('[ARCHIVA API] Profile error:', profileError);
     const error: any = new Error('Profil utilisateur introuvable dans la base de données.');
     error.statusCode = 403;
     throw error;
@@ -65,6 +70,7 @@ async function authenticateCaller(req: any) {
 }
 
 export default async function handler(req: any, res: any) {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   applyCors(req, res);
 
   if (req.method === 'OPTIONS') {
@@ -76,7 +82,8 @@ export default async function handler(req: any, res: any) {
   try {
     caller = await authenticateCaller(req);
   } catch (err: any) {
-    return res.status(err.statusCode || 401).json({ error: err.message || 'Authentification requise.' });
+    console.error('[ARCHIVA API] Authenticate caller error:', err?.message || err);
+    return res.status(err.statusCode || 500).json({ error: err.message || 'Authentification requise.' });
   }
 
   if (caller.profile.role !== 'super_admin' && caller.profile.role !== 'admin') {
@@ -98,7 +105,7 @@ export default async function handler(req: any, res: any) {
   try {
     supabaseAdmin = getSupabaseAdmin();
   } catch (err: any) {
-    return res.status(500).json({ error: err.message || 'Configuration administrative indisponible.' });
+    return res.status(err.statusCode || 500).json({ error: err.message || 'Configuration administrative indisponible.' });
   }
 
   // Chargement du profil cible actuel
@@ -117,8 +124,18 @@ export default async function handler(req: any, res: any) {
   // -------------------------------------------------------------
   if (req.method === 'PATCH') {
     try {
-      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      const { nomComplet, titre, role, actif } = body || {};
+      let body: any;
+      try {
+        body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+        if (typeof body !== 'object' || body === null) body = {};
+      } catch {
+        return res.status(400).json({ error: 'Format JSON invalide dans le corps de la requête.' });
+      }
+
+      const nomComplet = typeof body.nomComplet === 'string' ? body.nomComplet.trim().slice(0, 150) : undefined;
+      const titre = typeof body.titre === 'string' ? body.titre.trim().slice(0, 150) : undefined;
+      const role = body.role;
+      const actif = body.actif;
 
       // Protection absolue du Super Administrateur
       if (targetProfile.role === 'super_admin') {
@@ -132,8 +149,14 @@ export default async function handler(req: any, res: any) {
 
       // CAS A : BLOCAGE / DÉBLOCAGE DU COMPTE
       if (actif !== undefined && actif !== targetProfile.actif) {
+        if (caller.profile.id === targetUserId) {
+          return res.status(400).json({
+            error: 'Vous ne pouvez pas modifier le statut de votre propre compte.'
+          });
+        }
+
         if (caller.profile.role === 'admin') {
-          if (targetProfile.role === 'admin' || targetProfile.role === 'super_admin') {
+          if (targetProfile.role !== 'stagiaire') {
             return res.status(403).json({
               error: 'Un administrateur standard ne peut bloquer ou débloquer qu\'un stagiaire.'
             });
@@ -162,7 +185,8 @@ export default async function handler(req: any, res: any) {
           .single();
 
         if (updateErr) {
-          return res.status(500).json({ error: 'Échec de la mise à jour du statut : ' + updateErr.message });
+          console.error('[ARCHIVA API] Update actif error:', updateErr);
+          return res.status(500).json({ error: 'Échec de la mise à jour du statut du compte.' });
         }
 
         // 2. Révocation globale des sessions auprès de Supabase Auth
@@ -205,6 +229,16 @@ export default async function handler(req: any, res: any) {
       }
 
       // CAS B : MISE À JOUR DU RÔLE OU DES INFORMATIONS
+      if (caller.profile.role === 'admin') {
+        const isSelf = caller.profile.id === targetUserId;
+        const isStagiaire = targetProfile.role === 'stagiaire';
+        if (!isSelf && !isStagiaire) {
+          return res.status(403).json({
+            error: 'Un administrateur ne peut modifier que les comptes stagiaires ou son propre profil.'
+          });
+        }
+      }
+
       const updateData: Record<string, any> = {
         updated_at: new Date().toISOString()
       };
@@ -246,7 +280,8 @@ export default async function handler(req: any, res: any) {
         .single();
 
       if (updateErr) {
-        return res.status(500).json({ error: 'Échec de mise à jour du profil : ' + updateErr.message });
+        console.error('[ARCHIVA API] Update profile error:', updateErr);
+        return res.status(500).json({ error: 'Échec de la mise à jour du profil utilisateur.' });
       }
 
       // Journal d'audit
@@ -277,15 +312,22 @@ export default async function handler(req: any, res: any) {
         }
       });
     } catch (err: any) {
-      return res.status(500).json({ error: err.message || 'Erreur interne lors de la modification.' });
+      console.error('[ARCHIVA API] PATCH user error:', err);
+      return res.status(500).json({ error: 'Erreur interne lors de la modification de l\'utilisateur.' });
     }
   }
 
   // -------------------------------------------------------------
-  // DELETE : Suppression définitive d'un compte utilisateur
+  // DELETE : Suppression définitive d'un compte utilisateur (Super Admin UNIQUEMENT)
   // -------------------------------------------------------------
   if (req.method === 'DELETE') {
     try {
+      if (caller.profile.role !== 'super_admin') {
+        return res.status(403).json({
+          error: 'Suppression de compte réservée au Super Administrateur.'
+        });
+      }
+
       if (caller.profile.id === targetUserId) {
         return res.status(400).json({
           error: 'Vous ne pouvez pas supprimer votre propre compte utilisateur.'
@@ -298,35 +340,33 @@ export default async function handler(req: any, res: any) {
         });
       }
 
-      if (caller.profile.role === 'admin') {
-        if (targetProfile.role === 'admin' || targetProfile.role === 'super_admin') {
-          return res.status(403).json({
-            error: 'Un administrateur standard ne peut supprimer qu\'un compte stagiaire.'
-          });
-        }
-      }
-
-      // 1. Journalisation préalable de l'audit
-      await supabaseAdmin.from('audit_logs').insert({
-        id: (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `log-${Date.now()}`),
-        timestamp: new Date().toISOString(),
-        user_id: caller.profile.id,
-        user_name: caller.profile.nom_complet,
-        user_role: caller.profile.role,
-        action: 'Suppression Utilisateur',
-        details: `Compte de ${targetProfile.nom_complet} (${targetProfile.email}, rôle: ${targetProfile.role}) DÉFINITIVEMENT supprimé par ${caller.profile.nom_complet}.`,
-        category: 'utilisateur'
-      });
-
-      // 2. Révocation globale des sessions
+      // 1. Révocation globale des sessions
       await supabaseAdmin.auth.admin.signOut(targetUserId, 'global').catch(() => {});
 
-      // 3. Suppression dans auth.users (cascade vers profiles via FK)
+      // 2. Suppression dans auth.users (cascade vers profiles via FK)
       const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(targetUserId);
 
       if (deleteAuthError) {
+        console.error('[ARCHIVA API] Delete auth error:', deleteAuthError);
+
+        // Journal d'audit d'échec
+        try {
+          await supabaseAdmin.from('audit_logs').insert({
+            id: (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `log-${Date.now()}`),
+            timestamp: new Date().toISOString(),
+            user_id: caller.profile.id,
+            user_name: caller.profile.nom_complet,
+            user_role: caller.profile.role,
+            action: 'Échec Suppression Utilisateur',
+            details: `Tentative de suppression de ${targetProfile.nom_complet} (${targetProfile.email}) échouée.`,
+            category: 'utilisateur'
+          });
+        } catch {
+          // Ignorer
+        }
+
         return res.status(500).json({
-          error: 'Échec de la suppression dans Supabase Auth : ' + deleteAuthError.message
+          error: 'Échec de la suppression de l\'utilisateur dans l\'authentification.'
         });
       }
 
@@ -336,12 +376,29 @@ export default async function handler(req: any, res: any) {
         // Ignorer si supprimé par cascade
       }
 
+      // 3. Journalisation de l'audit APRÈS la suppression réussie
+      try {
+        await supabaseAdmin.from('audit_logs').insert({
+          id: (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `log-${Date.now()}`),
+          timestamp: new Date().toISOString(),
+          user_id: caller.profile.id,
+          user_name: caller.profile.nom_complet,
+          user_role: caller.profile.role,
+          action: 'Suppression Utilisateur',
+          details: `Compte de ${targetProfile.nom_complet} (${targetProfile.email}, rôle: ${targetProfile.role}) DÉFINITIVEMENT supprimé par ${caller.profile.nom_complet}.`,
+          category: 'utilisateur'
+        });
+      } catch {
+        // Ignorer
+      }
+
       return res.status(200).json({
         success: true,
         message: `L'utilisateur ${targetProfile.nom_complet} a été supprimé définitivement.`
       });
     } catch (err: any) {
-      return res.status(500).json({ error: err.message || 'Erreur interne du serveur.' });
+      console.error('[ARCHIVA API] DELETE user error:', err);
+      return res.status(500).json({ error: 'Erreur interne lors de la suppression de l\'utilisateur.' });
     }
   }
 

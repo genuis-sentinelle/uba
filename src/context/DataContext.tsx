@@ -9,8 +9,10 @@ import {
   ArchiveIncident,
   CartonInventory,
   TransferSlip,
-  AttendanceRecord
+  AttendanceRecord,
+  ArchivableKind
 } from '../types';
+import { archiveReport, unarchiveReport } from '../services/reportArchives';
 import {
   INITIAL_AGENCIES,
   INITIAL_MEMBERS,
@@ -102,6 +104,10 @@ interface DataContextType {
   addTransferSlip: (slip: Omit<TransferSlip, 'id' | 'numeroBordereau'>) => { success: boolean; slipId: string; message: string };
   updateTransferSlip: (slip: TransferSlip) => { success: boolean; message: string };
   deleteTransferSlip: (id: string) => { success: boolean; message: string };
+
+  // Document Archiving (Étape 3)
+  archiveDocument: (kind: ArchivableKind, id: string, note?: string) => Promise<{ success: boolean; message: string }>;
+  unarchiveDocument: (kind: ArchivableKind, id: string) => Promise<{ success: boolean; message: string }>;
 
   // Global Data Controls
   clearAllData: () => { success: boolean; message: string };
@@ -310,6 +316,26 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   }, [currentUser?.id]);
 
+  // Écoute de l'annulation suite à refus serveur définitif (corrige la divergence optimiste)
+  useEffect(() => {
+    const handleRevert = async () => {
+      if (!isSupabaseConfigured) return;
+      const remote = await fetchAllRemote();
+      if (!remote) return;
+      if (remote.agencies) setAgencies(remote.agencies);
+      if (remote.teamMembers) setTeamMembers(remote.teamMembers);
+      if (remote.dailyReports) setDailyReports(remote.dailyReports);
+      if (remote.cartons) setCartons(remote.cartons);
+      if (remote.transferSlips) setTransferSlips(remote.transferSlips);
+      if (remote.incidents) setIncidents(remote.incidents);
+      if (remote.attendance) setAttendance(remote.attendance);
+      if (remote.synthesisReports) setSynthesisReports(remote.synthesisReports);
+    };
+
+    window.addEventListener('archiva:sync-revert', handleRevert);
+    return () => window.removeEventListener('archiva:sync-revert', handleRevert);
+  }, []);
+
   const addLog = useCallback((action: string, details: string, category: LogEntry['category']) => {
     const newLog: LogEntry = {
       id: newId('log'),
@@ -326,11 +352,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [currentUser]);
 
   const clearLogs = () => {
-    if (!can.deleteData(currentUser?.role)) {
+    if (!can.clearAll(currentUser?.role)) {
       return;
     }
     setLogs([]);
-    addLog('Journal vidé', `Historique d'audit vidé par ${currentUser?.nomComplet || 'Utilisateur'}`, 'systeme');
+    addLog('Journal local vidé', `Affichage local du journal vidé par ${currentUser?.nomComplet || 'Utilisateur'} (le journal serveur reste inviolable)`, 'systeme');
   };
 
   // Pointage (Attendance) - Gardé pour écriture
@@ -405,8 +431,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteAgency = (agencyId: string) => {
-    if (!can.write(currentUser?.role)) {
-      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    if (!can.deleteData(currentUser?.role)) {
+      return { success: false, message: 'Suppression réservée au Super Administrateur.' };
     }
 
     const target = agencies.find(a => a.id === agencyId);
@@ -458,8 +484,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteTeamMember = (memberId: string) => {
-    if (!can.write(currentUser?.role)) {
-      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    if (!can.deleteData(currentUser?.role)) {
+      return { success: false, message: 'Suppression réservée au Super Administrateur.' };
     }
 
     const target = teamMembers.find(m => m.id === memberId);
@@ -508,8 +534,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteDailyReport = (id: string) => {
-    if (!can.write(currentUser?.role)) {
-      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    if (!can.deleteData(currentUser?.role)) {
+      return { success: false, message: 'Suppression réservée au Super Administrateur.' };
     }
 
     const report = dailyReports.find(r => r.id === id);
@@ -550,8 +576,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteSynthesisReport = (id: string) => {
-    if (!can.write(currentUser?.role)) {
-      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    if (!can.deleteData(currentUser?.role)) {
+      return { success: false, message: 'Suppression réservée au Super Administrateur.' };
     }
 
     setSynthesisReports(prev => prev.filter(s => s.id !== id));
@@ -625,8 +651,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteIncident = (id: string) => {
-    if (!can.write(currentUser?.role)) {
-      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    if (!can.deleteData(currentUser?.role)) {
+      return { success: false, message: 'Suppression réservée au Super Administrateur.' };
     }
 
     setIncidents(prev => prev.filter(i => i.id !== id));
@@ -664,8 +690,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteCarton = (id: string) => {
-    if (!can.write(currentUser?.role)) {
-      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    if (!can.deleteData(currentUser?.role)) {
+      return { success: false, message: 'Suppression réservée au Super Administrateur.' };
     }
 
     setCartons(prev => prev.filter(c => c.id !== id));
@@ -703,8 +729,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteTransferSlip = (id: string) => {
-    if (!can.write(currentUser?.role)) {
-      return { success: false, message: 'Action non autorisée : profil en lecture seule.' };
+    if (!can.deleteData(currentUser?.role)) {
+      return { success: false, message: 'Suppression réservée au Super Administrateur.' };
     }
 
     setTransferSlips(prev => prev.filter(s => s.id !== id));
@@ -827,6 +853,71 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Document Archiving (Étape 3)
+  const archiveDocument = async (
+    kind: ArchivableKind,
+    id: string,
+    note?: string
+  ): Promise<{ success: boolean; message: string }> => {
+    assertCan(can.archive(currentUser?.role));
+    const res = await archiveReport(kind, id, note);
+    if (!res.success) {
+      return res;
+    }
+
+    const nowIso = new Date().toISOString();
+    const byUser = currentUser?.nomComplet || 'Utilisateur';
+
+    if (kind === 'daily') {
+      setDailyReports(prev =>
+        prev.map(r => (r.id === id ? { ...r, archived: true, archivedAt: nowIso, archivedBy: byUser, archiveNote: note } : r))
+      );
+      addLog('ARCHIVER_RAPPORT', `Rapport journalier (${id}) archivé${note ? ' : ' + note : ''}`, 'rapport');
+    } else if (kind === 'synthesis') {
+      setSynthesisReports(prev =>
+        prev.map(s => (s.id === id ? { ...s, archived: true, archivedAt: nowIso, archivedBy: byUser, archiveNote: note } : s))
+      );
+      addLog('ARCHIVER_SYNTHESE', `Rapport de synthèse (${id}) archivé${note ? ' : ' + note : ''}`, 'rapport');
+    } else if (kind === 'slip') {
+      setTransferSlips(prev =>
+        prev.map(b => (b.id === id ? { ...b, archived: true, archivedAt: nowIso, archivedBy: byUser, archiveNote: note } : b))
+      );
+      addLog('ARCHIVER_BORDEREAU', `Bordereau (${id}) archivé${note ? ' : ' + note : ''}`, 'rapport');
+    }
+
+    return res;
+  };
+
+  const unarchiveDocument = async (
+    kind: ArchivableKind,
+    id: string
+  ): Promise<{ success: boolean; message: string }> => {
+    assertCan(can.unarchive(currentUser?.role));
+    const res = await unarchiveReport(kind, id);
+    if (!res.success) {
+      return res;
+    }
+
+    if (kind === 'daily') {
+      setDailyReports(prev =>
+        prev.map(r => (r.id === id ? { ...r, archived: false, archivedAt: undefined, archivedBy: undefined, archiveNote: undefined } : r))
+      );
+      addLog('DESARCHIVER_RAPPORT', `Rapport journalier (${id}) restauré depuis les archives`, 'rapport');
+    } else if (kind === 'synthesis') {
+      setSynthesisReports(prev =>
+        prev.map(s => (s.id === id ? { ...s, archived: false, archivedAt: undefined, archivedBy: undefined, archiveNote: undefined } : s))
+      );
+      addLog('DESARCHIVER_SYNTHESE', `Rapport de synthèse (${id}) restauré depuis les archives`, 'rapport');
+    } else if (kind === 'slip') {
+      setTransferSlips(prev =>
+        prev.map(b => (b.id === id ? { ...b, archived: false, archivedAt: undefined, archivedBy: undefined, archiveNote: undefined } : b))
+      );
+      addLog('DESARCHIVER_BORDEREAU', `Bordereau (${id}) restauré depuis les archives`, 'rapport');
+    }
+
+    return res;
+  };
+
   return (
     <DataContext.Provider
       value={{
@@ -865,6 +956,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         addTransferSlip,
         updateTransferSlip,
         deleteTransferSlip,
+        archiveDocument,
+        unarchiveDocument,
         clearAllData,
         loadDemoData,
         exportDataToJson,

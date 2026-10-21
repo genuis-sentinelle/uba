@@ -15,13 +15,21 @@ import {
   CheckCircle2,
   AlertTriangle,
   ChevronDown,
-  Edit2
+  Edit2,
+  Archive,
+  RotateCcw
 } from 'lucide-react';
 
 export const SynthesisView: React.FC = () => {
-  const { synthesisReports, compileSynthesisFromReports, updateSynthesisReport } = useData();
+  const {
+    synthesisReports,
+    compileSynthesisFromReports,
+    updateSynthesisReport,
+    archiveDocument,
+    unarchiveDocument
+  } = useData();
   const { currentUser } = useAuth();
-  const { toast } = useFeedback();
+  const { toast, confirm } = useFeedback();
 
   const isStagiaire = currentUser?.role === 'stagiaire';
   const [selectedReportId, setSelectedReportId] = useState<string>(() => {
@@ -148,12 +156,65 @@ export const SynthesisView: React.FC = () => {
     }
   };
 
+  const handleArchive = async () => {
+    if (!currentSynthesis) return;
+    const ok = await confirm({
+      title: 'Archiver cette synthèse ?',
+      message: `Voulez-vous archiver la synthèse "${currentSynthesis.titre}" ? Une fois archivée, elle deviendra immuable (non modifiable).`,
+      confirmLabel: 'Archiver'
+    });
+    if (ok) {
+      const note = window.prompt('Note ou motif d\'archivage (optionnel) :') || undefined;
+      const res = await archiveDocument('synthesis', currentSynthesis.id, note);
+      if (res.success) {
+        toast('Synthèse archivée avec succès.', 'success');
+      } else {
+        toast(res.message, 'error');
+      }
+    }
+  };
+
+  const handleUnarchive = async () => {
+    if (!currentSynthesis) return;
+    const ok = await confirm({
+      title: 'Désarchiver cette synthèse ?',
+      message: `Restaurer la synthèse "${currentSynthesis.titre}" dans les synthèses actives ?`,
+      confirmLabel: 'Désarchiver'
+    });
+    if (ok) {
+      const res = await unarchiveDocument('synthesis', currentSynthesis.id);
+      if (res.success) {
+        toast('Synthèse restaurée dans les actives avec succès.', 'success');
+      } else {
+        toast(res.message, 'error');
+      }
+    }
+  };
+
   return (
     <div className="page">
       {/* Header & Controls */}
       <div className="page-head no-print">
         <div>
-          <h1>Synthèse d'Activité des Archives</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <h1 style={{ margin: 0 }}>Synthèse d'Activité des Archives</h1>
+            {currentSynthesis?.archived && (
+              <span
+                className="badge"
+                style={{
+                  backgroundColor: 'rgba(220, 38, 38, 0.2)',
+                  color: '#F87171',
+                  border: '1px solid rgba(220, 38, 38, 0.4)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontWeight: 800
+                }}
+              >
+                <Archive size={12} /> ARCHIVÉ
+              </span>
+            )}
+          </div>
           {currentSynthesis && (
             <p className="text-muted text-sm" style={{ marginTop: '4px' }}>
               Période officielle du {formatDate(currentSynthesis.dateDebut)} au {formatDate(currentSynthesis.dateFin)}
@@ -162,7 +223,7 @@ export const SynthesisView: React.FC = () => {
         </div>
 
         {/* Action Controls */}
-        <div className="row">
+        <div className="row" style={{ flexWrap: 'wrap', gap: '8px' }}>
           {/* Multiple reports selector if more than 1 */}
           {synthesisReports.length > 1 && (
             <select
@@ -173,7 +234,7 @@ export const SynthesisView: React.FC = () => {
             >
               {synthesisReports.map(s => (
                 <option key={s.id} value={s.id}>
-                  {s.titre} ({formatDate(s.dateDebut)} - {formatDate(s.dateFin)})
+                  {s.archived ? '[ARCHIVÉ] ' : ''}{s.titre} ({formatDate(s.dateDebut)} - {formatDate(s.dateFin)})
                 </option>
               ))}
             </select>
@@ -203,9 +264,19 @@ export const SynthesisView: React.FC = () => {
             </button>
           </div>
 
-          {!isStagiaire && (
+          {currentSynthesis?.archived ? (
+            can.unarchive(currentUser?.role) && (
+              <button
+                onClick={handleUnarchive}
+                className="btn btn-secondary btn-sm"
+                title="Désarchiver la synthèse (Restaurer dans les actives)"
+              >
+                <RotateCcw size={15} /> Désarchiver
+              </button>
+            )
+          ) : (
             <>
-              {currentSynthesis && (
+              {!isStagiaire && currentSynthesis && (
                 <button
                   onClick={openEditModal}
                   className="btn btn-secondary btn-sm"
@@ -214,13 +285,25 @@ export const SynthesisView: React.FC = () => {
                   <Edit2 size={15} /> Modifier
                 </button>
               )}
-              <button
-                onClick={() => setShowCompilerModal(true)}
-                className="btn btn-ai ai-border btn-sm"
-              >
-                <Sparkles size={15} /> Compiler une synthèse
-              </button>
+              {can.archive(currentUser?.role) && currentSynthesis && (
+                <button
+                  onClick={handleArchive}
+                  className="btn btn-secondary btn-sm"
+                  title="Archiver cette synthèse (Scellement immuable)"
+                >
+                  <Archive size={15} /> Archiver
+                </button>
+              )}
             </>
+          )}
+
+          {!isStagiaire && (
+            <button
+              onClick={() => setShowCompilerModal(true)}
+              className="btn btn-ai ai-border btn-sm"
+            >
+              <Sparkles size={15} /> Compiler une synthèse
+            </button>
           )}
 
           {currentSynthesis && (

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
+import { can } from '../../utils/permissions';
 import { formatNumber, formatDate } from '../../utils/formatters';
 import {
   FileText,
@@ -367,7 +368,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       >
                         <Printer size={14} />
                       </button>
-                      {!isStagiaire && (
+                      {can.deleteData(currentUser?.role) && (
                         <button
                           onClick={async () => {
                             const ok = await confirm({

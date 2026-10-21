@@ -6,6 +6,7 @@ import { Session } from '@supabase/supabase-js';
 export interface AuthContextType {
   currentUser: User | null;
   users: User[];
+  usersError: string | null;
   hasSuperAdmin: boolean;
   loading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; message: string }>;
@@ -36,6 +37,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
+  const [usersError, setUsersError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [isBootstrapLocked, setIsBootstrapLocked] = useState<boolean>(true); // Fail-closed par défaut
 
@@ -96,10 +98,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const data = await res.json();
         if (data.users) {
           setUsers(data.users);
+          setUsersError(null);
+        }
+      } else {
+        const errJson = await res.json().catch(() => null);
+        if (res.status === 500) {
+          setUsersError('Serveur non configuré : contactez l\'administrateur (SUPABASE_SERVICE_ROLE_KEY)');
+        } else if (res.status === 401 || res.status === 403) {
+          setUsersError(errJson?.error || 'Session invalide ou droits insuffisants pour accéder à la liste des utilisateurs.');
+        } else {
+          setUsersError(errJson?.error || `Erreur serveur (${res.status}) lors de la récupération des utilisateurs.`);
         }
       }
     } catch (err) {
       console.warn('[ARCHIVA Auth] Erreur récupération utilisateurs :', err);
+      setUsersError('Impossible de joindre le serveur. Vérifiez votre connexion.');
     }
   }, []);
 
@@ -130,6 +143,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error || !p || p.actif === false) {
         console.warn('[ARCHIVA Auth] Compte absent ou bloqué par le serveur. Déconnexion immédiate.');
+        if (p && p.actif === false) {
+          try {
+            sessionStorage.setItem('archiva_logout_reason', 'Votre compte a été désactivé ou bloqué par un administrateur.');
+          } catch {}
+        }
         await supabase.auth.signOut().catch(() => {});
         setCurrentUser(null);
         setUsers([]);
@@ -207,6 +225,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (profile && profile.actif === false) {
           console.warn('[ARCHIVA Auth] Compte désactivé/bloqué par le serveur. Déconnexion immédiate.');
+          try {
+            sessionStorage.setItem('archiva_logout_reason', 'Votre compte a été désactivé ou bloqué par un administrateur.');
+          } catch {}
           await logout();
         }
       } catch {
@@ -505,13 +526,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (currentUser.role === 'super_admin') {
       return { allowed: true };
     }
-    if (currentUser.role === 'admin') {
-      if (targetUser.role === 'admin') {
-        return { allowed: false, reason: 'Seul le Super Administrateur a le droit de supprimer un Administrateur.' };
-      }
-      return { allowed: true };
-    }
-    return { allowed: false, reason: 'Droits insuffisants pour supprimer un utilisateur.' };
+    return { allowed: false, reason: 'Suppression réservée au Super Administrateur.' };
   };
 
   /**
@@ -572,6 +587,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         currentUser,
         users,
+        usersError,
         hasSuperAdmin: isBootstrapLocked,
         loading,
         login,
