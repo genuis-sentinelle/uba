@@ -38,6 +38,9 @@ const readQueue = (): SyncOp[] => {
 const writeQueue = (q: SyncOp[]) => {
   try {
     localStorage.setItem(QUEUE_KEY, JSON.stringify(q));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('archiva:sync-status', { detail: { pendingCount: q.length } }));
+    }
   } catch {
     // ignore
   }
@@ -45,6 +48,26 @@ const writeQueue = (q: SyncOp[]) => {
 
 export const getPendingSyncCount = (): number => {
   return readQueue().length;
+};
+
+export interface SyncStatusInfo {
+  state: 'synced' | 'pending' | 'syncing' | 'offline';
+  pendingCount: number;
+  lastSyncAt: string;
+}
+
+let lastSyncTimestamp = new Date().toISOString();
+
+export const getSyncStatus = (): SyncStatusInfo => {
+  const pending = getPendingSyncCount();
+  const online = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  if (!online) {
+    return { state: 'offline', pendingCount: pending, lastSyncAt: lastSyncTimestamp };
+  }
+  if (pending > 0) {
+    return { state: 'pending', pendingCount: pending, lastSyncAt: lastSyncTimestamp };
+  }
+  return { state: 'synced', pendingCount: 0, lastSyncAt: lastSyncTimestamp };
 };
 
 async function executeOp(op: SyncOp): Promise<boolean> {
@@ -92,6 +115,30 @@ export async function flushSyncQueue() {
     if (!ok) rest.push(op);
   }
   writeQueue(rest);
+  lastSyncTimestamp = new Date().toISOString();
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('archiva:sync-status', { detail: { pendingCount: rest.length } }));
+  }
+}
+
+// ----------------- Realtime Multi-Device Subscription -----------------
+export function subscribeToRealtimeSync(onRemoteChange: (table: string) => void) {
+  if (!supabase || !isSupabaseConfigured) return () => {};
+
+  const channel = supabase
+    .channel('archiva-realtime-sync')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_reports' }, () => onRemoteChange('daily_reports'))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'cartons' }, () => onRemoteChange('cartons'))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'agencies' }, () => onRemoteChange('agencies'))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'transfer_slips' }, () => onRemoteChange('transfer_slips'))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'synthesis_reports' }, () => onRemoteChange('synthesis_reports'))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance' }, () => onRemoteChange('attendance'))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'incidents' }, () => onRemoteChange('incidents'))
+    .subscribe();
+
+  return () => {
+    supabase?.removeChannel(channel);
+  };
 }
 
 // ----------------- Typed Push Helpers -----------------
@@ -121,7 +168,8 @@ export const pushAgency = (agency: Agency) => {
       conventions_count: agency.conventionsCount,
       cartons_count: agency.cartonsCount,
       dossiers_count: agency.dossiersCount,
-      statut: agency.statut
+      statut: agency.statut,
+      ordre: agency.ordre ?? 0
     }
   });
 };
@@ -159,7 +207,15 @@ export const pushDailyReport = (report: DailyReport) => {
       ecart: report.ecart,
       statut: report.statut,
       version: report.version,
-      cree_par: report.creePar
+      cree_par: report.creePar,
+      custom_styles: report.customStyles || {},
+      custom_fields: report.customFields || [],
+      images: report.images || [],
+      hide_matrix: Boolean(report.hideMatrix),
+      boites_datees: report.boitesDatees ?? 0,
+      boites_non_datees: report.boitesNonDatees ?? 0,
+      boites_recues: report.boitesRecues ?? 0,
+      boites_non_triees: report.boitesNonTriees ?? 0
     }
   });
 };
@@ -189,7 +245,11 @@ export const pushSynthesisReport = (synthesis: SynthesisReport) => {
       repartition_agences: synthesis.repartitionAgences,
       points_a_confirmer: synthesis.pointsAConfirmer,
       cree_par: synthesis.creePar,
-      created_at: synthesis.dateCreation
+      created_at: synthesis.dateCreation,
+      custom_styles: synthesis.customStyles || {},
+      custom_fields: synthesis.customFields || [],
+      images: synthesis.images || [],
+      hide_matrix: Boolean(synthesis.hideMatrix)
     }
   });
 };
@@ -243,7 +303,12 @@ export const pushCarton = (carton: CartonInventory) => {
       site: carton.site,
       etat: carton.etat,
       notes: carton.notes || null,
-      date_enregistrement: carton.dateEnregistrement
+      date_enregistrement: carton.dateEnregistrement,
+      boites_datees: carton.boitesDatees ?? 0,
+      boites_non_datees: carton.boitesNonDatees ?? 0,
+      boites_recues: carton.boitesRecues ?? 0,
+      boites_non_triees: carton.boitesNonTriees ?? 0,
+      statut_tri: carton.statutTri ?? 'en_cours'
     }
   });
 };
@@ -354,7 +419,8 @@ export async function fetchAllRemote(): Promise<{
         cartonsCount: r.cartons_count ?? 0,
         dossiersCount: r.dossiers_count ?? 0,
         statut: r.statut || 'active',
-        dateCreation: r.created_at ? r.created_at.split('T')[0] : todayLocal()
+        dateCreation: r.created_at ? r.created_at.split('T')[0] : todayLocal(),
+        ordre: r.ordre ?? 0
       }));
     }
 
@@ -400,7 +466,15 @@ export async function fetchAllRemote(): Promise<{
         archived: Boolean(r.archived),
         archivedAt: r.archived_at || undefined,
         archivedBy: r.archived_by || undefined,
-        archiveNote: r.archive_note || undefined
+        archiveNote: r.archive_note || undefined,
+        customStyles: r.custom_styles || undefined,
+        customFields: r.custom_fields || [],
+        images: r.images || [],
+        hideMatrix: Boolean(r.hide_matrix),
+        boitesDatees: r.boites_datees ?? 0,
+        boitesNonDatees: r.boites_non_datees ?? 0,
+        boitesRecues: r.boites_recues ?? 0,
+        boitesNonTriees: r.boites_non_triees ?? 0
       }));
     }
 
@@ -419,7 +493,12 @@ export async function fetchAllRemote(): Promise<{
         site: r.site,
         etat: r.etat,
         notes: r.notes || '',
-        dateEnregistrement: r.date_enregistrement || todayLocal()
+        dateEnregistrement: r.date_enregistrement || todayLocal(),
+        boitesDatees: r.boites_datees ?? 0,
+        boitesNonDatees: r.boites_non_datees ?? 0,
+        boitesRecues: r.boites_recues ?? 0,
+        boitesNonTriees: r.boites_non_triees ?? 0,
+        statutTri: r.statut_tri || 'en_cours'
       }));
     }
 
@@ -494,7 +573,11 @@ export async function fetchAllRemote(): Promise<{
         archived: Boolean(r.archived),
         archivedAt: r.archived_at || undefined,
         archivedBy: r.archived_by || undefined,
-        archiveNote: r.archive_note || undefined
+        archiveNote: r.archive_note || undefined,
+        customStyles: r.custom_styles || undefined,
+        customFields: r.custom_fields || [],
+        images: r.images || [],
+        hideMatrix: Boolean(r.hide_matrix)
       }));
     }
 

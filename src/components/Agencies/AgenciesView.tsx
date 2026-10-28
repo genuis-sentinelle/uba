@@ -30,8 +30,16 @@ export const AgenciesView: React.FC = () => {
   const [description, setDescription] = useState('');
   const [conventionsCount, setConventionsCount] = useState<number>(0);
   const [cartonsCount, setCartonsCount] = useState<number>(0);
+  const [ordre, setOrdre] = useState<number>(1);
 
-  const filtered = agencies.filter(a =>
+  const sorted = [...agencies].sort((a, b) => {
+    const ordA = a.ordre ?? 999;
+    const ordB = b.ordre ?? 999;
+    if (ordA !== ordB) return ordA - ordB;
+    return a.nom.localeCompare(b.nom);
+  });
+
+  const filtered = sorted.filter(a =>
     a.nom.toLowerCase().includes(search.toLowerCase()) ||
     a.code.toLowerCase().includes(search.toLowerCase())
   );
@@ -43,6 +51,7 @@ export const AgenciesView: React.FC = () => {
     setDescription('');
     setConventionsCount(0);
     setCartonsCount(0);
+    setOrdre(agencies.length + 1);
     setShowModal(true);
   };
 
@@ -53,6 +62,7 @@ export const AgenciesView: React.FC = () => {
     setDescription(ag.description || '');
     setConventionsCount(ag.conventionsCount);
     setCartonsCount(ag.cartonsCount);
+    setOrdre(ag.ordre ?? 1);
     setShowModal(true);
   };
 
@@ -71,7 +81,8 @@ export const AgenciesView: React.FC = () => {
         description: description.trim() || undefined,
         conventionsCount: Number(conventionsCount) || 0,
         cartonsCount: Number(cartonsCount) || 0,
-        dossiersCount: Number(conventionsCount) || 0
+        dossiersCount: Number(conventionsCount) || 0,
+        ordre: Number(ordre) || 1
       };
       const res = updateAgency(updated);
       toast(res.message, res.success ? 'success' : 'error');
@@ -84,6 +95,7 @@ export const AgenciesView: React.FC = () => {
         conventionsCount: Number(conventionsCount) || 0,
         cartonsCount: Number(cartonsCount) || 0,
         dossiersCount: Number(conventionsCount) || 0,
+        ordre: Number(ordre) || 1,
         statut: 'active'
       });
       toast(res.message, res.success ? 'success' : 'error');
@@ -145,6 +157,7 @@ export const AgenciesView: React.FC = () => {
         <table className="uba-table uba-table--cards">
           <thead>
             <tr>
+              <th style={{ width: '60px' }}>Ordre</th>
               <th style={{ width: '90px' }}>Code</th>
               <th>Nom de l'agence</th>
               <th>Description</th>
@@ -159,13 +172,16 @@ export const AgenciesView: React.FC = () => {
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={can.editReferentials(currentUser?.role) ? 7 : 6} style={{ textAlign: 'center', padding: '36px' }} className="text-muted">
+                <td colSpan={can.editReferentials(currentUser?.role) ? 8 : 7} style={{ textAlign: 'center', padding: '36px' }} className="text-muted">
                   Aucune agence trouvée.
                 </td>
               </tr>
             ) : (
               filtered.map(ag => (
                 <tr key={ag.id}>
+                  <td data-label="Ordre">
+                    <span className="badge badge-outline">#{ag.ordre ?? 1}</span>
+                  </td>
                   <td data-label="Code">
                     <span className="badge badge-black">
                       {ag.code}
@@ -269,7 +285,18 @@ export const AgenciesView: React.FC = () => {
                 />
               </div>
 
-              <div className="grid-2">
+              <div className="grid-3">
+                <div className="form-group">
+                  <label className="form-label">Ordre d'affichage</label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    className="form-input num"
+                    placeholder="Ex: 1"
+                    value={ordre}
+                    onChange={e => setOrdre(Number(e.target.value))}
+                  />
+                </div>
                 <div className="form-group">
                   <label className="form-label">Conventions estimées</label>
                   <input

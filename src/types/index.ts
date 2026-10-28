@@ -41,6 +41,7 @@ export interface Agency {
   dossiersCount: number;
   statut: 'active' | 'terminee' | 'en_cours';
   dateCreation: string;
+  ordre?: number;
 }
 
 export interface TeamMember {
@@ -74,6 +75,27 @@ export interface DailyReportMouvement {
   conventions: number;
   boites: number;
   traitement?: string;
+}
+
+export interface ReportCustomStyles {
+  headerColor?: string;
+  accentColor?: string;
+  backgroundColor?: string;
+  fontScale?: 'compact' | 'normal' | 'spacious';
+  showCoverBadge?: boolean;
+}
+
+export interface ReportCustomField {
+  id: string;
+  label: string;
+  value: string;
+}
+
+export interface ReportImageAttachment {
+  id: string;
+  url: string;
+  caption?: string;
+  position?: 'header' | 'observations' | 'annex';
 }
 
 export interface DailyReport {
@@ -129,6 +151,15 @@ export interface DailyReport {
   archivedAt?: string;
   archivedBy?: string;
   archiveNote?: string;
+  // Personnalisation & boîtes
+  customStyles?: ReportCustomStyles;
+  customFields?: ReportCustomField[];
+  images?: ReportImageAttachment[];
+  hideMatrix?: boolean;
+  boitesDatees?: number;
+  boitesNonDatees?: number;
+  boitesRecues?: number;
+  boitesNonTriees?: number;
 }
 
 export interface SynthesisReport {
@@ -164,6 +195,10 @@ export interface SynthesisReport {
   archivedAt?: string;
   archivedBy?: string;
   archiveNote?: string;
+  customStyles?: ReportCustomStyles;
+  customFields?: ReportCustomField[];
+  images?: ReportImageAttachment[];
+  hideMatrix?: boolean;
 }
 
 export interface ArchiveIncident {
@@ -195,6 +230,12 @@ export interface CartonInventory {
   etat: 'bon' | 'abime' | 'a_verifier';
   dateEnregistrement: string;
   notes?: string;
+  // Nouveaux indicateurs de gestion des boîtes
+  boitesDatees?: number;
+  boitesNonDatees?: number;
+  boitesRecues?: number;
+  boitesNonTriees?: number;
+  statutTri?: 'non_commence' | 'en_cours' | 'termine';
 }
 
 export interface TransferSlipLine {

@@ -246,7 +246,7 @@ export const TransferSlipsView: React.FC = () => {
 
       {/* Table */}
       <div className="uba-table-container">
-        <table className="uba-table">
+        <table className="uba-table uba-table--cards">
           <thead>
             <tr>
               <th>N° Bordereau</th>
@@ -262,30 +262,30 @@ export const TransferSlipsView: React.FC = () => {
           <tbody>
             {filteredSlips.length === 0 ? (
               <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: '#D9D9D9' }}>
+                <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: 'var(--text-3)' }}>
                   Aucun bordereau correspondant au filtre sélectionné.
                 </td>
               </tr>
             ) : (
               filteredSlips.map(slip => (
                 <tr key={slip.id}>
-                  <td>
-                    <strong style={{ color: 'var(--uba-red-bright)', fontSize: '0.92rem' }}>{slip.numeroBordereau}</strong>
+                  <td data-label="N° Bordereau">
+                    <strong style={{ color: 'var(--brand-hi)', fontSize: '0.92rem' }}>{slip.numeroBordereau}</strong>
                   </td>
-                  <td style={{ color: '#FFFFFF' }}>{formatDate(slip.dateTransfert)}</td>
-                  <td>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#FFFFFF' }}>{slip.siteDepart} ➔ {slip.siteArrivee}</span>
+                  <td data-label="Date" style={{ color: 'var(--text-1)' }}>{formatDate(slip.dateTransfert)}</td>
+                  <td data-label="Itinéraire">
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-1)' }}>{slip.siteDepart} ➔ {slip.siteArrivee}</span>
                   </td>
-                  <td style={{ color: '#D9D9D9', fontSize: '0.85rem' }}>
+                  <td data-label="Transporteur" style={{ color: 'var(--text-2)', fontSize: '0.85rem' }}>
                     {slip.chauffeurNom}
                   </td>
-                  <td style={{ textAlign: 'right', fontWeight: 700, color: '#FFFFFF' }}>
+                  <td data-label="Boîtes" style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-1)' }}>
                     {slip.totalBoites}
                   </td>
-                  <td style={{ textAlign: 'right', fontWeight: 900, color: 'var(--uba-red-bright)', fontSize: '1.05rem' }}>
+                  <td data-label="Conventions" style={{ textAlign: 'right', fontWeight: 900, color: 'var(--brand-hi)', fontSize: '1.05rem' }}>
                     {formatNumber(slip.totalConventions)}
                   </td>
-                  <td>
+                  <td data-label="Statut">
                     {slip.archived ? (
                       <span
                         className="badge"
@@ -305,7 +305,7 @@ export const TransferSlipsView: React.FC = () => {
                       <span className="badge badge-white">Déchargé & Validé</span>
                     )}
                   </td>
-                  <td style={{ textAlign: 'right' }}>
+                  <td data-label="Actions" style={{ textAlign: 'right' }}>
                     <div style={{ display: 'inline-flex', gap: '6px' }}>
                       <button
                         onClick={() => setPreviewSlip(slip)}

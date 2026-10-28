@@ -1,7 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
-import { LogOut, ChevronDown, Menu, UserPlus, Search, X, User as UserIcon, WifiOff } from 'lucide-react';
+import { useTheme } from '../../context/ThemeContext';
+import { getPendingSyncCount, flushSyncQueue } from '../../services/sync';
+import {
+  LogOut,
+  ChevronDown,
+  Menu,
+  UserPlus,
+  Search,
+  X,
+  User as UserIcon,
+  WifiOff,
+  Sun,
+  Moon,
+  RefreshCw,
+  CheckCircle2
+} from 'lucide-react';
 
 interface NavbarProps {
   currentTab?: string;
@@ -36,19 +51,43 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const { currentUser, logout } = useAuth();
   const { agencies, dailyReports, cartons, teamMembers } = useData();
+  const { theme, toggleTheme } = useTheme();
 
   const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [pendingSync, setPendingSync] = useState<number>(getPendingSyncCount());
+  const [isFlushing, setIsFlushing] = useState(false);
 
-  React.useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      setPendingSync(getPendingSyncCount());
+    };
     const handleOffline = () => setIsOnline(false);
+    const handleSyncStatus = (e: any) => {
+      if (typeof e.detail?.pendingCount === 'number') {
+        setPendingSync(e.detail.pendingCount);
+      } else {
+        setPendingSync(getPendingSyncCount());
+      }
+    };
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    window.addEventListener('archiva:sync-status', handleSyncStatus);
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('archiva:sync-status', handleSyncStatus);
     };
   }, []);
+
+  const handleTriggerSync = async () => {
+    if (!isOnline || isFlushing) return;
+    setIsFlushing(true);
+    await flushSyncQueue();
+    setPendingSync(getPendingSyncCount());
+    setIsFlushing(false);
+  };
 
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
@@ -132,27 +171,54 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Search button & User bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {!isOnline && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                border: '1px solid #f59e0b',
-                color: '#f59e0b',
-                padding: '4px 10px',
-                borderRadius: '6px',
-                fontSize: '0.78rem',
-                fontWeight: 600
-              }}
-              title="Connexion réseau perdue. Les modifications locales seront synchronisées lors du retour du réseau."
-            >
-              <WifiOff size={14} />
-              <span className="desktop-only">Mode Hors-ligne</span>
-            </div>
-          )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* Indicateur de synchronisation multi-appareils */}
+          <button
+            type="button"
+            onClick={handleTriggerSync}
+            disabled={!isOnline || isFlushing}
+            className="btn btn-ghost btn-sm"
+            style={{
+              padding: '4px 10px',
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--r-sm)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+            title={!isOnline ? 'Hors-ligne : les modifications sont conservées localement' : pendingSync > 0 ? `${pendingSync} modification(s) en attente. Cliquez pour synchroniser.` : 'Synchronisé en temps réel avec le serveur central'}
+          >
+            {!isOnline ? (
+              <>
+                <WifiOff size={14} color="var(--warning)" />
+                <span className="desktop-only" style={{ color: 'var(--warning)' }}>Hors-ligne</span>
+              </>
+            ) : pendingSync > 0 ? (
+              <>
+                <RefreshCw size={13} style={{ animation: isFlushing ? 'spin 1s linear infinite' : 'none', color: '#F59E0B' }} />
+                <span style={{ color: '#F59E0B' }}>{pendingSync} en attente</span>
+              </>
+            ) : (
+              <>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#22C55E', boxShadow: '0 0 8px #22C55E' }} />
+                <span className="desktop-only" style={{ color: 'var(--text-2)' }}>Synchronisé</span>
+              </>
+            )}
+          </button>
+
+          {/* Sélecteur de Thème Clair / Sombre */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="btn btn-ghost btn-icon"
+            style={{ minHeight: '36px', width: '36px' }}
+            aria-label={theme === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre'}
+            title={theme === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre'}
+          >
+            {theme === 'dark' ? <Sun size={17} color="#FBBF24" /> : <Moon size={17} color="var(--brand)" />}
+          </button>
 
           {/* Quick Universal Search Trigger */}
           <button

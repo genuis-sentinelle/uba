@@ -91,6 +91,67 @@
   --safe-right: env(safe-area-inset-right, 0px);
 }
 
+/* ---------- 1b. Thème Clair (UBA Professionnel) ---------- */
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Couleurs de la charte UBA adaptée au mode clair */
+  --black: #F6F8FA;
+  --black-panel: #FFFFFF;
+  --black-raised: #EEF2F6;
+  --red: #D90429;
+  --red-hi: #EF233C;
+  --red-dark: #8A0000;
+  --red-tint: rgba(217, 4, 41, 0.08);
+  --red-soft: rgba(217, 4, 41, 0.35);
+  --white: #111827;
+  --white-70: #4B5563;
+  --white-45: #6B7280;
+  --line: #E5E7EB;
+  --line-strong: #D1D5DB;
+
+  /* Alias de compatibilité UBA */
+  --bg: #F6F8FA;
+  --surface: #FFFFFF;
+  --surface-2: #F0F2F5;
+  --surface-glass: rgba(255, 255, 255, 0.96);
+  --text-1: #111827;
+  --text-2: #4B5563;
+  --text-3: #6B7280;
+  --brand: #D90429;
+  --brand-hi: #EF233C;
+  --brand-tint: rgba(217, 4, 41, 0.08);
+  --danger: #D90429;
+  --success: #15803D;
+  --warning: #B45309;
+
+  /* Rétro-compatibilité --uba-* */
+  --uba-red: #D90429;
+  --uba-red-bright: #EF233C;
+  --uba-red-dark: #8A0000;
+  --uba-red-tint: rgba(217, 4, 41, 0.08);
+  --uba-red-soft: rgba(217, 4, 41, 0.35);
+  --uba-black: #F6F8FA;
+  --uba-black-pure: #F6F8FA;
+  --uba-black-panel: #FFFFFF;
+  --uba-black-smoke: #F0F2F5;
+  --uba-black-glass: #FFFFFF;
+  --uba-graphite: #E5E7EB;
+  --uba-anthracite: #D1D5DB;
+  --uba-silver-dark: #6B7280;
+  --uba-silver-metal: #4B5563;
+  --uba-silver-light: #374151;
+  --uba-white-pure: #111827;
+  --uba-white-cool: #111827;
+
+  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-3: 0 12px 28px rgba(0, 0, 0, 0.12);
+  --glow-sm: 0 0 10px rgba(217, 4, 41, 0.15);
+  --glow-md: 0 0 18px rgba(217, 4, 41, 0.22);
+  --glow-card: 0 2px 12px rgba(217, 4, 41, 0.08);
+}
+
 /* ---------- 2. Base ---------- */
 *, *::before, *::after { box-sizing: border-box; }
 * { margin: 0; padding: 0; }

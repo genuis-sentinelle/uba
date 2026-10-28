@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { useFeedback } from '../ui/Feedback';
 import { can } from '../../utils/permissions';
 import {
@@ -9,7 +10,10 @@ import {
   Upload,
   Database,
   Layers,
-  ShieldAlert
+  ShieldAlert,
+  Sun,
+  Moon,
+  Palette
 } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
@@ -26,6 +30,7 @@ export const SettingsView: React.FC = () => {
   } = useData();
 
   const { currentUser } = useAuth();
+  const { theme, setTheme } = useTheme();
   const { toast, confirm } = useFeedback();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -83,13 +88,72 @@ export const SettingsView: React.FC = () => {
         <div>
           <h1>Paramètres & Données</h1>
           <p className="text-muted text-sm" style={{ marginTop: '4px' }}>
-            Contrôle des volumes de données, sauvegardes JSON et maintenance.
+            Contrôle des volumes de données, thèmes d'affichage et maintenance.
           </p>
         </div>
       </div>
 
       {/* Grid: Actions */}
       <div className="stack">
+        {/* Card: Thème d'Affichage */}
+        <div className="card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+            <Palette size={20} color="var(--brand-hi)" />
+            <h2 style={{ fontSize: '1.2rem', margin: 0 }}>Thème & Ergonomie Visuelle</h2>
+          </div>
+          <p className="text-muted text-sm" style={{ marginBottom: '16px' }}>
+            Personnalisez l'apparence de l'application. Votre préférence est sauvegardée sur cet appareil.
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+            <button
+              type="button"
+              onClick={() => setTheme('dark')}
+              className="card card--interactive"
+              style={{
+                textAlign: 'left',
+                border: theme === 'dark' ? '2px solid var(--red)' : '1px solid var(--line)',
+                backgroundColor: '#050505',
+                color: '#FFFFFF',
+                padding: '16px'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800 }}>
+                  <Moon size={18} color="var(--red-hi)" /> Mode Sombre
+                </div>
+                {theme === 'dark' && <span className="badge badge-red">Actif</span>}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#9CA3AF' }}>
+                Fond noir pur, accents rouge UBA et contrastes renforcés.
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTheme('light')}
+              className="card card--interactive"
+              style={{
+                textAlign: 'left',
+                border: theme === 'light' ? '2px solid var(--red)' : '1px solid var(--line)',
+                backgroundColor: '#FFFFFF',
+                color: '#111827',
+                padding: '16px'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800 }}>
+                  <Sun size={18} color="#D90429" /> Mode Clair
+                </div>
+                {theme === 'light' && <span className="badge badge-red">Actif</span>}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#4B5563' }}>
+                Fond blanc / gris perle doux, lisibilité haute clarté bureautique.
+              </div>
+            </button>
+          </div>
+        </div>
+
         {/* Card: Export / Import JSON */}
         <div className="card">
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>

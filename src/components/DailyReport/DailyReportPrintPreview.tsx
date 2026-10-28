@@ -1,8 +1,8 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { DailyReport } from '../../types';
 import { formatNumber, formatDate } from '../../utils/formatters';
 import { exportElementToPdf } from '../../utils/pdfExport';
-import { Download, Printer, X, CheckCircle2 } from 'lucide-react';
+import { Download, Printer, X, CheckCircle2, ZoomIn, ZoomOut, Image as ImageIcon } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { can } from '../../utils/permissions';
 
@@ -15,6 +15,7 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
   const { currentUser } = useAuth();
   const canPrintDoc = can.print(currentUser?.role);
   const previewRef = useRef<HTMLDivElement>(null);
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
 
   const handleDownloadPdf = async () => {
     if (!canPrintDoc) return;
@@ -29,6 +30,11 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
     if (!canPrintDoc) return;
     window.print();
   };
+
+  const headerBg = report.customStyles?.headerColor || 'var(--brand)';
+  const accentBg = report.customStyles?.accentColor || 'var(--brand)';
+  const docBg = report.customStyles?.backgroundColor || '#FFFFFF';
+  const effectiveChef = report.chefNom || 'Thony OBAKI';
 
   const distinctYears = Array.from(new Set(report.transferts.map(t => t.exercice))).sort((a, b) => a - b);
   const isMultiYearReport = distinctYears.length > 1;
@@ -92,7 +98,41 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
           </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {/* Zoom controls */}
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '6px', padding: '2px 6px' }}>
+            <button
+              type="button"
+              onClick={() => setZoomLevel(prev => Math.max(0.5, Number((prev - 0.15).toFixed(2))))}
+              className="btn btn-ghost btn-sm"
+              style={{ minHeight: '28px', padding: '0 6px' }}
+              title="Dézoomer"
+            >
+              <ZoomOut size={13} />
+            </button>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, minWidth: '40px', textAlign: 'center', color: '#FFFFFF' }}>
+              {Math.round(zoomLevel * 100)}%
+            </span>
+            <button
+              type="button"
+              onClick={() => setZoomLevel(prev => Math.min(1.5, Number((prev + 0.15).toFixed(2))))}
+              className="btn btn-ghost btn-sm"
+              style={{ minHeight: '28px', padding: '0 6px' }}
+              title="Zoomer"
+            >
+              <ZoomIn size={13} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setZoomLevel(1)}
+              className="btn btn-ghost btn-sm"
+              style={{ minHeight: '28px', padding: '0 6px', fontSize: '0.72rem' }}
+              title="Réinitialiser zoom"
+            >
+              100%
+            </button>
+          </div>
+
           <button
             onClick={handleDownloadPdf}
             className="btn btn-primary btn-sm"
@@ -115,29 +155,39 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
         </div>
       </div>
 
-      {/* Printable Sheet (A4 Styled container — Blanc, Rouge, Noir officiel) */}
-      <div
-        id="daily-report-printable-doc"
-        ref={previewRef}
-        className="a4-page doc-light card"
-        style={{
-          width: '210mm',
-          minHeight: '297mm',
-          margin: '0 auto',
-          backgroundColor: '#FFFFFF',
-          border: '1px solid #E5E7EB',
-          borderRadius: '4px',
-          padding: '16mm 14mm',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-          color: '#111111',
-          fontFamily: 'var(--font-sans), Arial, sans-serif',
-          fontSize: '9.5pt',
-          lineHeight: '1.45'
-        }}
-      >
-        {/* BANDEAU ROUGE UBA */}
-        <div style={{
-          backgroundColor: 'var(--brand)',
+      {/* Outer scroll wrapper for mobile & desktop zooming */}
+      <div style={{
+        overflow: 'auto',
+        width: '100%',
+        display: 'flex',
+        justifyContent: 'center',
+        paddingBottom: '40px'
+      }}>
+        {/* Printable Sheet (A4 Styled container — Blanc, Rouge, Noir officiel) */}
+        <div
+          id="daily-report-printable-doc"
+          ref={previewRef}
+          className="a4-page doc-light card"
+          style={{
+            width: '210mm',
+            minHeight: '297mm',
+            transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
+            transformOrigin: 'top center',
+            backgroundColor: docBg,
+            border: '1px solid #E5E7EB',
+            borderRadius: '4px',
+            padding: '16mm 14mm',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+            color: '#111111',
+            fontFamily: 'var(--font-sans), Arial, sans-serif',
+            fontSize: report.customStyles?.fontScale === 'compact' ? '8.5pt' : report.customStyles?.fontScale === 'spacious' ? '10.5pt' : '9.5pt',
+            lineHeight: '1.45',
+            marginBottom: zoomLevel < 1 ? `-${Math.round((1 - zoomLevel) * 297)}mm` : undefined
+          }}
+        >
+          {/* BANDEAU ROUGE UBA */}
+          <div style={{
+            backgroundColor: headerBg,
           color: '#FFFFFF',
           padding: '14px 20px',
           borderRadius: '4px',
@@ -258,7 +308,7 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
               </tr>
               <tr>
                 <td style={{ padding: '6px 8px', fontWeight: 700, backgroundColor: '#F3F4F6', border: '1px solid #E5E7EB', color: '#111111' }}>Équipe / Chef</td>
-                <td style={{ padding: '6px 8px', border: '1px solid #E5E7EB', color: '#111111' }}><strong>{report.chefNom}</strong></td>
+                <td style={{ padding: '6px 8px', border: '1px solid #E5E7EB', color: '#111111' }}><strong>{effectiveChef}</strong></td>
                 <td style={{ padding: '6px 8px', fontWeight: 700, backgroundColor: '#F3F4F6', border: '1px solid #E5E7EB', color: '#111111' }}>
                   {report.superviseurs && report.superviseurs.length > 0 ? 'Stagiaires / Validateurs' : 'Superviseurs'}
                 </td>
@@ -276,6 +326,34 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
           </table>
         </div>
 
+        {/* ▌SUIVI DU TRI ET VOLUMÉTRIE DES BOÎTES */}
+        {(Boolean(report.boitesRecues) || Boolean(report.boitesDatees) || Boolean(report.boitesNonDatees) || Boolean(report.boitesNonTriees)) && (
+          <div style={{ marginBottom: '16px', border: '1px solid #E5E7EB', borderRadius: '4px', padding: '10px 14px', backgroundColor: '#FFFFFF' }}>
+            <div style={{ fontSize: '10pt', fontWeight: 800, color: '#111111', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ width: '4px', height: '14px', backgroundColor: accentBg, borderRadius: '2px' }} />
+              SUIVI DU TRI ET VOLUMÉTRIE DES BOÎTES
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', textAlign: 'center' }}>
+              <div style={{ padding: '6px', backgroundColor: '#F3F4F6', borderRadius: '4px' }}>
+                <div style={{ fontSize: '7.5pt', color: '#6B7280', textTransform: 'uppercase', fontWeight: 700 }}>Boîtes Reçues</div>
+                <div style={{ fontSize: '12pt', fontWeight: 800, color: '#111111' }}>{report.boitesRecues || 0}</div>
+              </div>
+              <div style={{ padding: '6px', backgroundColor: '#F3F4F6', borderRadius: '4px' }}>
+                <div style={{ fontSize: '7.5pt', color: '#6B7280', textTransform: 'uppercase', fontWeight: 700 }}>Boîtes Datées</div>
+                <div style={{ fontSize: '12pt', fontWeight: 800, color: '#111111' }}>{report.boitesDatees || 0}</div>
+              </div>
+              <div style={{ padding: '6px', backgroundColor: '#F3F4F6', borderRadius: '4px' }}>
+                <div style={{ fontSize: '7.5pt', color: '#6B7280', textTransform: 'uppercase', fontWeight: 700 }}>Boîtes Non Datées</div>
+                <div style={{ fontSize: '12pt', fontWeight: 800, color: '#111111' }}>{report.boitesNonDatees || 0}</div>
+              </div>
+              <div style={{ padding: '6px', backgroundColor: '#F3F4F6', borderRadius: '4px' }}>
+                <div style={{ fontSize: '7.5pt', color: '#6B7280', textTransform: 'uppercase', fontWeight: 700 }}>Tri Non Terminé</div>
+                <div style={{ fontSize: '12pt', fontWeight: 800, color: accentBg }}>{report.boitesNonTriees || 0}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ▌2. GROUPES DE TRAVAIL */}
         {report.groupes.length > 0 && (
           <div style={{ marginBottom: '16px' }}>
@@ -288,13 +366,13 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
               color: '#111111',
               marginBottom: '6px'
             }}>
-              <span style={{ display: 'inline-block', width: '4px', height: '14px', backgroundColor: 'var(--brand)', borderRadius: '2px' }} />
+              <span style={{ display: 'inline-block', width: '4px', height: '14px', backgroundColor: accentBg, borderRadius: '2px' }} />
               2. RÉPARTITION DES GROUPES DE TRAVAIL
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: report.groupes.length > 1 ? 'repeat(2, 1fr)' : '1fr', gap: '8px', fontSize: '8.5pt' }}>
               {report.groupes.map((grp, idx) => (
                 <div key={idx} style={{ border: '1px solid #E5E7EB', backgroundColor: '#F9FAFB', padding: '8px 12px', borderRadius: '4px' }}>
-                  <div style={{ fontWeight: 800, color: 'var(--brand)', marginBottom: '3px' }}>{grp.nom}</div>
+                  <div style={{ fontWeight: 800, color: accentBg, marginBottom: '3px' }}>{grp.nom}</div>
                   <div style={{ color: '#111111' }}><strong>Membres :</strong> {grp.membres.join(', ')}</div>
                   {grp.tachesAssignees && <div style={{ color: '#4B5563', marginTop: '3px' }}><em>Mission :</em> {grp.tachesAssignees}</div>}
                 </div>
@@ -303,8 +381,8 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
           </div>
         )}
 
-        {/* ▌TABLEAU RÉCAPITULATIF PAR AGENCE ET PAR ANNÉE (Affiché si multi-exercices) */}
-        {isMultiYearReport && (
+        {/* ▌TABLEAU RÉCAPITULATIF PAR AGENCE ET PAR ANNÉE (Omission de la matrice si hideMatrix activé) */}
+        {isMultiYearReport && !report.hideMatrix && (
           <div style={{ marginBottom: '16px' }}>
             <div style={{
               display: 'flex',
@@ -502,47 +580,90 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
           </table>
         </div>
 
-        {/* ▌6. OBSERVATIONS & SIGNATURES */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '14px', marginBottom: '16px' }}>
-          <div style={{ border: '1px solid #E5E7EB', backgroundColor: '#F9FAFB', padding: '10px 12px', borderRadius: '4px' }}>
-            <div style={{ fontWeight: 800, fontSize: '9pt', color: '#111111', marginBottom: '6px' }}>
-              5. OBSERVATIONS DU TERRAIN
+        {/* ▌6. OBSERVATIONS DU TERRAIN */}
+        <div style={{ marginBottom: '16px', border: '1px solid #E5E7EB', backgroundColor: '#F9FAFB', padding: '10px 12px', borderRadius: '4px' }}>
+          <div style={{ fontWeight: 800, fontSize: '9pt', color: '#111111', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ width: '4px', height: '14px', backgroundColor: accentBg, borderRadius: '2px' }} />
+            5. OBSERVATIONS DU TERRAIN & CONSTATS
+          </div>
+          {Array.isArray(report.observations) && report.observations.map((obs, i) => (
+            <div key={i} style={{ fontSize: '8pt', marginBottom: '4px', color: '#374151' }}>
+              <strong style={{ color: '#111111' }}>• {obs.point} :</strong> {obs.constat}
             </div>
-            {Array.isArray(report.observations) && report.observations.map((obs, i) => (
-              <div key={i} style={{ fontSize: '8pt', marginBottom: '4px', color: '#374151' }}>
-                <strong style={{ color: '#111111' }}>• {obs.point} :</strong> {obs.constat}
-              </div>
-            ))}
+          ))}
+        </div>
+
+        {/* ▌CHAMPS PERSONNALISÉS */}
+        {report.customFields && report.customFields.length > 0 && (
+          <div style={{ marginBottom: '16px', border: '1px solid #E5E7EB', borderRadius: '4px', padding: '10px 14px', backgroundColor: '#FFFFFF' }}>
+            <div style={{ fontSize: '9.5pt', fontWeight: 800, color: '#111111', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ width: '4px', height: '14px', backgroundColor: accentBg, borderRadius: '2px' }} />
+              INDICATEURS & CHAMPS PERSONNALISÉS
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
+              {report.customFields.map(cf => (
+                <div key={cf.id} style={{ fontSize: '8.5pt', padding: '6px 8px', backgroundColor: '#F9FAFB', borderRadius: '4px', border: '1px solid #E5E7EB' }}>
+                  <div style={{ color: '#6B7280', fontSize: '7.5pt', textTransform: 'uppercase', fontWeight: 700 }}>{cf.label}</div>
+                  <div style={{ color: '#111111', fontWeight: 700, marginTop: '2px' }}>{cf.value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ▌PIÈCES JOINTES & IMAGES */}
+        {report.images && report.images.length > 0 && (
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ fontSize: '9.5pt', fontWeight: 800, color: '#111111', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ width: '4px', height: '14px', backgroundColor: accentBg, borderRadius: '2px' }} />
+              DOCUMENTS & PHOTOGRAPHIES DU TERRAIN
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+              {report.images.map(img => (
+                <div key={img.id} style={{ border: '1px solid #E5E7EB', borderRadius: '4px', overflow: 'hidden', backgroundColor: '#FFFFFF' }}>
+                  <img src={img.url} alt={img.caption || 'Illustration rapport'} style={{ width: '100%', maxHeight: '180px', objectFit: 'cover', display: 'block' }} />
+                  {img.caption && (
+                    <div style={{ padding: '6px 8px', fontSize: '7.5pt', color: '#4B5563', fontStyle: 'italic', backgroundColor: '#F9FAFB', borderTop: '1px solid #E5E7EB' }}>
+                      {img.caption}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ▌VALIDATION & SIGNATURES */}
+        <div style={{ border: '1px solid #E5E7EB', backgroundColor: '#F9FAFB', padding: '12px 16px', borderRadius: '4px', marginBottom: '16px' }}>
+          <div style={{ fontSize: '8.5pt', fontWeight: 800, color: '#111111', textTransform: 'uppercase', marginBottom: '4px' }}>
+            6. CERTIFICATION ET VALIDATION OFFICIELLE
+          </div>
+          <div style={{ fontSize: '7.5pt', color: '#6B7280', marginBottom: '12px' }}>
+            Certifié exact, régulier et conforme aux procédures d'archivage UBA
           </div>
 
-          <div style={{ border: '1px solid #E5E7EB', backgroundColor: '#F9FAFB', padding: '10px 12px', borderRadius: '4px', textAlign: 'center' }}>
-            <div style={{ fontSize: '8.5pt', fontWeight: 800, color: '#111111' }}>
-              6. VALIDATION DU RAPPORT
-            </div>
-            <div style={{ fontSize: '7.5pt', color: '#6B7280', margin: '4px 0 10px' }}>
-              Certifié exact et conforme
-            </div>
-            {report.superviseurs && report.superviseurs.length > 0 ? (
-              <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', marginTop: '6px' }}>
-                {report.superviseurs.map((sup, idx) => (
-                  <div key={idx} style={{ textAlign: 'center' }}>
-                    <div style={{ fontWeight: 800, color: 'var(--brand)', fontSize: '9pt' }}>{sup}</div>
-                    <div style={{ fontSize: '7.5pt', color: '#4B5563', fontWeight: 600 }}>Stagiaire</div>
-                    <div style={{ fontSize: '7pt', fontStyle: 'italic', color: '#9CA3AF', marginTop: '12px' }}>Signature : ✍️</div>
-                  </div>
-                ))}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px', textAlign: 'center' }}>
+            <div style={{ borderTop: '1px solid #D1D5DB', paddingTop: '8px' }}>
+              <div style={{ fontSize: '7.5pt', color: '#4B5563', fontWeight: 700, textTransform: 'uppercase' }}>Chef d'équipe des Archives</div>
+              <div style={{ fontWeight: 900, color: accentBg, fontSize: '9.5pt', marginTop: '4px' }}>
+                {effectiveChef}
               </div>
-            ) : (
-              <div style={{ fontWeight: 900, color: 'var(--brand)', fontSize: '9.5pt', textDecoration: 'underline' }}>
-                {report.chefNom}
+              <div style={{ fontSize: '7pt', fontStyle: 'italic', color: '#9CA3AF', marginTop: '6px' }}>Visa & Signature certifiée</div>
+            </div>
+
+            {report.superviseurs && report.superviseurs.map((sup, idx) => (
+              <div key={idx} style={{ borderTop: '1px solid #D1D5DB', paddingTop: '8px' }}>
+                <div style={{ fontSize: '7.5pt', color: '#4B5563', fontWeight: 700, textTransform: 'uppercase' }}>Superviseur / Stagiaire</div>
+                <div style={{ fontWeight: 800, color: '#111111', fontSize: '9pt', marginTop: '4px' }}>{sup}</div>
+                <div style={{ fontSize: '7pt', fontStyle: 'italic', color: '#9CA3AF', marginTop: '6px' }}>Visa de conformité</div>
               </div>
-            )}
+            ))}
           </div>
         </div>
 
         {/* PIED DE PAGE OFFICIEL UBA */}
         <div style={{
-          borderTop: '1px solid var(--brand)',
+          borderTop: '1px solid ' + accentBg,
           paddingTop: '6px',
           display: 'flex',
           justifyContent: 'space-between',
@@ -553,6 +674,7 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
           <span>Rapport officiel certifié conforme</span>
           <span>Page 1 / 1</span>
         </div>
+      </div>
       </div>
     </div>
   );

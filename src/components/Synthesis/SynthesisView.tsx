@@ -46,6 +46,8 @@ export const SynthesisView: React.FC = () => {
   const [editAttente, setEditAttente] = useState(0);
   const [editBoites, setEditBoites] = useState(0);
   const [editPoints, setEditPoints] = useState('');
+  // Suppression de la matrice par défaut selon spécifications
+  const [hideMatrix, setHideMatrix] = useState<boolean>(true);
 
   // Dynamic default dates for current month
   const [dateDebutCompil, setDateDebutCompil] = useState(() => {
@@ -263,6 +265,17 @@ export const SynthesisView: React.FC = () => {
               Équipe (Stagiaires)
             </button>
           </div>
+
+          {/* Bouton pour afficher/masquer la matrice */}
+          {currentSynthesis && (
+            <button
+              onClick={() => setHideMatrix(!hideMatrix)}
+              className={`btn btn-sm ${hideMatrix ? 'btn-secondary' : 'btn-outline-red'}`}
+              title={hideMatrix ? "Afficher le tableau matriciel récapitulatif" : "Masquer la section matricielle"}
+            >
+              {hideMatrix ? "Matrice masquée" : "Matrice affichée"}
+            </button>
+          )}
 
           {currentSynthesis?.archived ? (
             can.unarchive(currentUser?.role) && (
@@ -558,8 +571,8 @@ export const SynthesisView: React.FC = () => {
             </div>
           </div>
 
-          {/* 4. MATRICE STATUT OU VOLUMÉTRIQUE PAR EXERCICE */}
-          {currentSynthesis.matrice && currentSynthesis.matrice.length > 0 && (
+          {/* 4. MATRICE STATUT OU VOLUMÉTRIQUE PAR EXERCICE (Supprimée par défaut selon spécifications) */}
+          {!hideMatrix && currentSynthesis.matrice && currentSynthesis.matrice.length > 0 && (
             <div style={{ marginBottom: '18px' }}>
               {(() => {
                 const isNumericMatrix = currentSynthesis.matrice.some(r =>
@@ -734,7 +747,9 @@ export const SynthesisView: React.FC = () => {
                   : "LE CHEF D'ÉQUIPE DES ARCHIVES"}
               </div>
               <div style={{ fontSize: '9pt', color: 'var(--brand)', fontWeight: 700, marginTop: '16px' }}>
-                {currentUser?.nomComplet || currentSynthesis.creePar}
+                {currentSynthesis.creePar.toLowerCase().includes('stagiaire')
+                  ? (currentUser?.nomComplet || currentSynthesis.creePar)
+                  : 'Thony OBAKI'}
               </div>
             </div>
           </div>

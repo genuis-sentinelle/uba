@@ -43,7 +43,8 @@ import {
   pushTeamMember,
   deleteTeamMemberRemote,
   pushAttendanceRecord,
-  fetchAllRemote
+  fetchAllRemote,
+  subscribeToRealtimeSync
 } from '../services/sync';
 import { newId, nextSlipNumber } from '../utils/ids';
 import { todayLocal } from '../utils/dates';
@@ -314,6 +315,27 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       }
     });
+  }, [currentUser?.id]);
+
+  // Synchronisation temps réel multi-appareils (Supabase Realtime)
+  useEffect(() => {
+    if (!currentUser || !isSupabaseConfigured) return;
+    const unsubscribe = subscribeToRealtimeSync(async (table) => {
+      const remote = await fetchAllRemote();
+      if (!remote) return;
+      if (remote.agencies && (table === 'agencies' || !table)) setAgencies(remote.agencies);
+      if (remote.teamMembers && (table === 'team_members' || !table)) setTeamMembers(remote.teamMembers);
+      if (remote.dailyReports && (table === 'daily_reports' || !table)) setDailyReports(remote.dailyReports);
+      if (remote.cartons && (table === 'cartons' || !table)) setCartons(remote.cartons);
+      if (remote.transferSlips && (table === 'transfer_slips' || !table)) setTransferSlips(remote.transferSlips);
+      if (remote.incidents && (table === 'incidents' || !table)) setIncidents(remote.incidents);
+      if (remote.attendance && (table === 'attendance' || !table)) setAttendance(remote.attendance);
+      if (remote.synthesisReports && (table === 'synthesis_reports' || !table)) setSynthesisReports(remote.synthesisReports);
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, [currentUser?.id]);
 
   // Écoute de l'annulation suite à refus serveur définitif (corrige la divergence optimiste)
