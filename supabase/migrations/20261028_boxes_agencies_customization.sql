@@ -33,54 +33,47 @@ ALTER TABLE public.synthesis_reports
   ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]'::jsonb,
   ADD COLUMN IF NOT EXISTS hide_matrix BOOLEAN DEFAULT FALSE;
 
--- 5. Publication Realtime pour synchronisation multi-appareils automatique
+-- 5. Publication Realtime pour synchronisation multi-appareils automatique (vérification d'existence)
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables
-    WHERE pubname = 'supabase_realtime' AND tablename = 'daily_reports'
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'daily_reports') AND NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'daily_reports'
   ) THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.daily_reports;
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables
-    WHERE pubname = 'supabase_realtime' AND tablename = 'cartons'
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'cartons') AND NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'cartons'
   ) THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.cartons;
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables
-    WHERE pubname = 'supabase_realtime' AND tablename = 'agencies'
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'agencies') AND NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'agencies'
   ) THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.agencies;
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables
-    WHERE pubname = 'supabase_realtime' AND tablename = 'transfer_slips'
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'transfer_slips') AND NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'transfer_slips'
   ) THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.transfer_slips;
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables
-    WHERE pubname = 'supabase_realtime' AND tablename = 'synthesis_reports'
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'synthesis_reports') AND NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'synthesis_reports'
   ) THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.synthesis_reports;
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables
-    WHERE pubname = 'supabase_realtime' AND tablename = 'attendance'
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'attendance') AND NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'attendance'
   ) THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.attendance;
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_publication_tables
-    WHERE pubname = 'supabase_realtime' AND tablename = 'incidents'
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'incidents') AND NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'incidents'
   ) THEN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.incidents;
   END IF;
