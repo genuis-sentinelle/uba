@@ -15,7 +15,8 @@ import {
   Sun,
   Moon,
   RefreshCw,
-  CheckCircle2
+  CheckCircle2,
+  Eye
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -51,7 +52,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const { currentUser, logout } = useAuth();
   const { agencies, dailyReports, cartons, teamMembers } = useData();
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, textScale, increaseTextSize, decreaseTextSize, resetTextSize, bgDim, toggleBgDim } = useTheme();
 
   const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [pendingSync, setPendingSync] = useState<number>(getPendingSyncCount());
@@ -205,6 +206,108 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#22C55E', boxShadow: '0 0 8px #22C55E' }} />
                 <span className="desktop-only" style={{ color: 'var(--text-2)' }}>Synchronisé</span>
               </>
+            )}
+          </button>
+
+          {/* Commandes d'Accessibilité : Taille du texte (A- / A / A+) */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              backgroundColor: 'var(--surface-2)',
+              border: '1px solid var(--line)',
+              borderRadius: 'var(--r-sm)',
+              padding: '2px',
+              gap: '2px'
+            }}
+            title="Ajuster la taille du texte (Réduire / Standard / Agrandir)"
+            aria-label="Réglage de la taille de texte"
+          >
+            <button
+              type="button"
+              onClick={decreaseTextSize}
+              disabled={textScale === 'sm'}
+              style={{
+                background: textScale === 'sm' ? 'var(--red-tint)' : 'transparent',
+                color: textScale === 'sm' ? 'var(--red-hi)' : 'var(--text-1)',
+                border: 'none',
+                padding: '3px 7px',
+                borderRadius: 'var(--r-xs)',
+                fontSize: '0.72rem',
+                fontWeight: 800,
+                cursor: textScale === 'sm' ? 'default' : 'pointer'
+              }}
+              title="Réduire la taille du texte"
+              aria-label="Réduire la taille du texte"
+            >
+              A-
+            </button>
+            <button
+              type="button"
+              onClick={resetTextSize}
+              style={{
+                background: textScale === 'base' ? 'var(--red-tint)' : 'transparent',
+                color: textScale === 'base' ? 'var(--red-hi)' : 'var(--text-1)',
+                border: 'none',
+                padding: '3px 7px',
+                borderRadius: 'var(--r-xs)',
+                fontSize: '0.78rem',
+                fontWeight: 800,
+                cursor: 'pointer'
+              }}
+              title="Taille de texte normale (100%)"
+              aria-label="Taille normale"
+            >
+              A
+            </button>
+            <button
+              type="button"
+              onClick={increaseTextSize}
+              disabled={textScale === 'lg'}
+              style={{
+                background: textScale === 'lg' ? 'var(--red-tint)' : 'transparent',
+                color: textScale === 'lg' ? 'var(--red-hi)' : 'var(--text-1)',
+                border: 'none',
+                padding: '3px 7px',
+                borderRadius: 'var(--r-xs)',
+                fontSize: '0.85rem',
+                fontWeight: 800,
+                cursor: textScale === 'lg' ? 'default' : 'pointer'
+              }}
+              title="Agrandir la taille du texte"
+              aria-label="Agrandir la taille du texte"
+            >
+              A+
+            </button>
+          </div>
+
+          {/* Atténuation de la luminosité de fond (Normal / Doux / Profond) */}
+          <button
+            type="button"
+            onClick={toggleBgDim}
+            className="btn btn-ghost btn-icon"
+            style={{
+              minHeight: '36px',
+              width: '36px',
+              position: 'relative',
+              border: bgDim !== 'normal' ? '1px solid var(--red-soft)' : '1px solid transparent'
+            }}
+            title={`Luminosité d'arrière-plan : ${bgDim === 'normal' ? 'Standard (100%)' : bgDim === 'soft' ? 'Atténuée douce (88%)' : 'Confort profond (72%)'}`}
+            aria-label="Changer la luminosité du fond"
+          >
+            <Eye size={16} color={bgDim !== 'normal' ? 'var(--red-hi)' : 'var(--text-2)'} />
+            {bgDim !== 'normal' && (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: '5px',
+                  right: '5px',
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--red)'
+                }}
+              />
             )}
           </button>
 

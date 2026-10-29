@@ -83,6 +83,7 @@ export interface ReportCustomStyles {
   backgroundColor?: string;
   fontScale?: 'compact' | 'normal' | 'spacious';
   showCoverBadge?: boolean;
+  orientation?: 'portrait' | 'landscape';
 }
 
 export interface ReportCustomField {
@@ -96,6 +97,14 @@ export interface ReportImageAttachment {
   url: string;
   caption?: string;
   position?: 'header' | 'observations' | 'annex';
+}
+
+export interface ReportTemplate {
+  id: string;
+  nom: string;
+  description?: string;
+  dateCreation: string;
+  reportData: Partial<DailyReport>;
 }
 
 export interface DailyReport {
@@ -160,6 +169,8 @@ export interface DailyReport {
   boitesNonDatees?: number;
   boitesRecues?: number;
   boitesNonTriees?: number;
+  visibleSections?: Record<string, boolean>;
+  orientation?: 'portrait' | 'landscape';
 }
 
 export interface SynthesisReport {
@@ -339,5 +350,3 @@ export type DomainEvent =
   | { type: 'bordereau.receptionne'; bordereauId: string; ecartConventions?: number }
   | { type: 'carton.abime'; cartonId: string; agenceId?: string }
   | { type: 'pointage.enregistre'; date: string; presents: number; absents: number };
-
-

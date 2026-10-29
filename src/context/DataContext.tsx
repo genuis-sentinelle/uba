@@ -10,7 +10,8 @@ import {
   CartonInventory,
   TransferSlip,
   AttendanceRecord,
-  ArchivableKind
+  ArchivableKind,
+  ReportTemplate
 } from '../types';
 import { archiveReport, unarchiveReport } from '../services/reportArchives';
 import {
@@ -84,6 +85,11 @@ interface DataContextType {
   addDailyReport: (report: Omit<DailyReport, 'id' | 'dateCreation' | 'version'>) => { success: boolean; reportId: string };
   updateDailyReport: (report: DailyReport) => { success: boolean; message: string };
   deleteDailyReport: (id: string) => { success: boolean; message: string };
+
+  // Report Templates CRUD (Cahier des charges section 4.2)
+  reportTemplates: ReportTemplate[];
+  addReportTemplate: (template: Omit<ReportTemplate, 'id' | 'dateCreation'>) => { success: boolean; message: string };
+  deleteReportTemplate: (templateId: string) => { success: boolean; message: string };
 
   // Synthesis CRUD & Auto Compiler
   addSynthesisReport: (synthesis: Omit<SynthesisReport, 'id' | 'dateCreation'>) => { success: boolean; reportId: string };
@@ -250,6 +256,53 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => { localStorage.setItem('archiva_uba_slips', JSON.stringify(transferSlips)); }, [transferSlips]);
   useEffect(() => { localStorage.setItem('archiva_uba_logs', JSON.stringify(logs.slice(0, 2000))); }, [logs]);
   useEffect(() => { localStorage.setItem('archiva_uba_attendance', JSON.stringify(attendance)); }, [attendance]);
+
+  const [reportTemplates, setReportTemplates] = useState<ReportTemplate[]>(() => {
+    const saved = localStorage.getItem('archiva_uba_report_templates');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {
+        // Fallback default
+      }
+    }
+    return [
+      {
+        id: 'tpl-standard-mazala',
+        nom: 'Modèle Standard UBA Congo (Mazala & Maya-Maya)',
+        description: 'Format officiel de rapport d\'activité avec répartition des équipes et tâches',
+        dateCreation: '2026-10-01T08:00:00Z',
+        reportData: {
+          horaires: '07:30 – 16:30',
+          taches: [
+            { numero: 1, titre: 'Organisation & répartition', horaire: '07h30 – 08h30', description: 'Briefing du matin et prise de poste' },
+            { numero: 2, titre: 'Traitement et tri des conventions', horaire: '08h30 – 13h00', description: 'Vérification de conformité et classement' },
+            { numero: 3, titre: 'Conditionnement & transfert', horaire: '13h30 – 16h30', description: 'Mise en cartons et décharge' }
+          ],
+          observations: [
+            { point: 'Conformité', constat: 'Opérations réalisées conformément aux procédures d\'archivage UBA', estIncident: false }
+          ]
+        }
+      }
+    ];
+  });
+  useEffect(() => { localStorage.setItem('archiva_uba_report_templates', JSON.stringify(reportTemplates)); }, [reportTemplates]);
+
+  const addReportTemplate = useCallback((template: Omit<ReportTemplate, 'id' | 'dateCreation'>) => {
+    const newTpl: ReportTemplate = {
+      ...template,
+      id: newId('tpl'),
+      dateCreation: new Date().toISOString()
+    };
+    setReportTemplates(prev => [newTpl, ...prev]);
+    return { success: true, message: `Modèle "${template.nom}" enregistré.` };
+  }, []);
+
+  const deleteReportTemplate = useCallback((templateId: string) => {
+    setReportTemplates(prev => prev.filter(t => t.id !== templateId));
+    return { success: true, message: 'Modèle supprimé.' };
+  }, []);
 
   // Synchronisation distante à chaque connexion authentifiée
   useEffect(() => {
@@ -965,6 +1018,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         addDailyReport,
         updateDailyReport,
         deleteDailyReport,
+        reportTemplates,
+        addReportTemplate,
+        deleteReportTemplate,
         addSynthesisReport,
         updateSynthesisReport,
         deleteSynthesisReport,

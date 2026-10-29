@@ -244,7 +244,7 @@ export const DailyReportView: React.FC<DailyReportViewProps> = ({ openedReportId
 
       {/* Reports Table */}
       <div className="uba-table-container">
-        <table className="uba-table">
+        <table className="uba-table uba-table--cards">
           <thead>
             <tr>
               <th>Titre du rapport</th>

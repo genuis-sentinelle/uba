@@ -152,6 +152,28 @@
   --glow-card: 0 2px 12px rgba(217, 4, 41, 0.08);
 }
 
+/* ---------- 1c. Accessibilité : Tailles de texte ---------- */
+[data-font-size="sm"] {
+  font-size: 88%;
+}
+[data-font-size="base"] {
+  font-size: 100%;
+}
+[data-font-size="lg"] {
+  font-size: 112%;
+}
+
+/* ---------- 1d. Accessibilité : Atténuation d'arrière-plan ---------- */
+[data-bg-dim="normal"] {
+  --bg-dim-opacity: 0;
+}
+[data-bg-dim="soft"] {
+  --bg-dim-opacity: 0.12;
+}
+[data-bg-dim="deep"] {
+  --bg-dim-opacity: 0.28;
+}
+
 /* ---------- 2. Base ---------- */
 *, *::before, *::after { box-sizing: border-box; }
 * { margin: 0; padding: 0; }
@@ -168,8 +190,27 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overflow-x: hidden;
+  position: relative;
 }
-#root { min-height: 100dvh; display: flex; flex-direction: column; background: var(--black); }
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background-color: var(--black);
+  opacity: var(--bg-dim-opacity, 0);
+  transition: opacity 0.25s ease;
+}
+#root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--black);
+  position: relative;
+  z-index: 2;
+  overflow-x: hidden;
+}
 
 img, svg, video { max-width: 100%; height: auto; }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -563,25 +604,84 @@ kbd {
 .toast--error { border-color: var(--red); box-shadow: var(--glow-sm); }
 
 /* ---------- 10. Document pour Impression (Papier Blanc / En-tête Rouge) ---------- */
+@page {
+  size: A4 portrait;
+  margin: 10mm 12mm;
+}
+@page landscape-mode {
+  size: A4 landscape;
+  margin: 10mm 12mm;
+}
+@page portrait-mode {
+  size: A4 portrait;
+  margin: 10mm 12mm;
+}
+.print-landscape {
+  page: landscape-mode;
+}
+.print-portrait {
+  page: portrait-mode;
+}
+
 @media print {
-  @page { size: A4 portrait; margin: 12mm; }
-  html, body { background: #fff !important; color: #000 !important; font-size: 10pt !important; }
+  html, body {
+    background: #ffffff !important;
+    color: #111111 !important;
+    font-size: 9.5pt !important;
+  }
+  body::after {
+    display: none !important;
+  }
   .app-header, .app-sidebar, .sidebar-backdrop, .bottom-nav,
-  .toast-region, .no-print, .btn, button, .modal-overlay { display: none !important; }
-  .app-main, .page { padding: 0 !important; max-width: none !important; }
+  .toast-region, .no-print, .btn, button, .modal-overlay,
+  .print-toolbar, .print-options-bar {
+    display: none !important;
+  }
+  .app-main, .page {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
   .panel, .card, .uba-table-container, .a4-page {
-    background: #fff !important; border: 1px solid #999 !important; box-shadow: none !important;
-    color: #000 !important; break-inside: avoid;
+    background: #ffffff !important;
+    border: 1px solid #d1d5db !important;
+    box-shadow: none !important;
+    color: #111111 !important;
+    break-inside: avoid;
+  }
+  .uba-table {
+    page-break-inside: auto;
+  }
+  .uba-table thead {
+    display: table-header-group !important;
   }
   .uba-table thead th {
-    background: #FF0000 !important; color: #fff !important;
-    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    background: #d90429 !important;
+    color: #ffffff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .uba-table tbody tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
   .uba-table tbody td {
-    background: #fff !important; color: #000 !important; border-bottom: 1px solid #ddd !important;
+    background: #ffffff !important;
+    color: #111111 !important;
+    border-bottom: 1px solid #e5e7eb !important;
   }
-  .badge-rate { border-color: #000 !important; color: #000 !important; }
-  h1, h2, h3, h4, p, span, td, th, div, strong { color: #000 !important; }
+  h1, h2, h3, h4, .uba-section-title {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+  }
+  .badge-rate {
+    border-color: #111111 !important;
+    color: #111111 !important;
+  }
+  h1, h2, h3, h4, p, span, td, th, div, strong {
+    color: #111111 !important;
+  }
 }
 
 /* Restriction stricte stagiaire : impression bloquée */

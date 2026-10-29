@@ -73,6 +73,13 @@ export const AgenciesView: React.FC = () => {
       return;
     }
 
+    const trimmedCode = code.trim();
+    const duplicate = agencies.find(a => a.id !== editingAgency?.id && a.code.toLowerCase() === trimmedCode.toLowerCase());
+    if (duplicate) {
+      toast(`Le code d'agence "${trimmedCode}" est déjà utilisé par l'agence "${duplicate.nom}".`, 'error');
+      return;
+    }
+
     if (editingAgency) {
       const updated: Agency = {
         ...editingAgency,
