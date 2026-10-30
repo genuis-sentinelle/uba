@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { AppDensity } from '../types';
 
 export type Theme = 'dark' | 'light';
 export type TextScale = 'sm' | 'base' | 'lg';
@@ -13,6 +14,9 @@ interface ThemeContextType {
   decreaseTextSize: () => void;
   resetTextSize: () => void;
   setTextScale: (scale: TextScale) => void;
+  density: AppDensity;
+  setDensity: (d: AppDensity) => void;
+  cycleDensity: () => void;
   bgDim: BgDim;
   toggleBgDim: () => void;
   setBgDim: (dim: BgDim) => void;
@@ -36,6 +40,16 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (saved === 'sm' || saved === 'base' || saved === 'lg') return saved;
     }
     return 'base';
+  });
+
+  const [density, setDensityState] = useState<AppDensity>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('uba_density');
+      if (saved === 'normal' || saved === 'compact' || saved === 'ultra-compact' || saved === 'micro') {
+        return saved as AppDensity;
+      }
+    }
+    return 'normal';
   });
 
   const [bgDim, setBgDimState] = useState<BgDim>(() => {
@@ -62,6 +76,12 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  const applyDensity = (d: AppDensity) => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-density', d);
+    }
+  };
+
   const applyBgDim = (d: BgDim) => {
     if (typeof document !== 'undefined') {
       document.documentElement.setAttribute('data-bg-dim', d);
@@ -77,6 +97,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     applyTextScale(textScale);
     localStorage.setItem('uba_font_scale', textScale);
   }, [textScale]);
+
+  useEffect(() => {
+    applyDensity(density);
+    localStorage.setItem('uba_density', density);
+  }, [density]);
 
   useEffect(() => {
     applyBgDim(bgDim);
@@ -107,6 +132,19 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setTextScaleState(s);
   };
 
+  const setDensity = (d: AppDensity) => {
+    setDensityState(d);
+  };
+
+  const cycleDensity = () => {
+    setDensityState(prev => {
+      if (prev === 'normal') return 'compact';
+      if (prev === 'compact') return 'ultra-compact';
+      if (prev === 'ultra-compact') return 'micro';
+      return 'normal';
+    });
+  };
+
   const toggleBgDim = () => {
     setBgDimState(prev => (prev === 'normal' ? 'soft' : prev === 'soft' ? 'deep' : 'normal'));
   };
@@ -126,6 +164,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         decreaseTextSize,
         resetTextSize,
         setTextScale,
+        density,
+        setDensity,
+        cycleDensity,
         bgDim,
         toggleBgDim,
         setBgDim

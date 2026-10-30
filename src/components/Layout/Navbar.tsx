@@ -52,7 +52,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const { currentUser, logout } = useAuth();
   const { agencies, dailyReports, cartons, teamMembers } = useData();
-  const { theme, toggleTheme, textScale, increaseTextSize, decreaseTextSize, resetTextSize, bgDim, toggleBgDim } = useTheme();
+  const { theme, toggleTheme, textScale, increaseTextSize, decreaseTextSize, resetTextSize, bgDim, toggleBgDim, density, cycleDensity } = useTheme();
 
   const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [pendingSync, setPendingSync] = useState<number>(getPendingSyncCount());
@@ -309,6 +309,27 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }}
               />
             )}
+          </button>
+
+          {/* Sélecteur de Densité (Normal / Compact / Ultra-Compact / Micro) */}
+          <button
+            type="button"
+            onClick={cycleDensity}
+            className="btn btn-ghost btn-sm"
+            style={{
+              minHeight: '34px',
+              padding: '0 8px',
+              fontSize: '0.74rem',
+              fontWeight: 800,
+              gap: '4px',
+              border: '1px solid var(--line)'
+            }}
+            aria-label="Changer la densite d'affichage"
+            title={`Densite : ${density.toUpperCase()} (Cliquer pour basculer : Normal -> Compact -> Ultra-Compact -> Micro)`}
+          >
+            <span style={{ color: density === 'micro' ? 'var(--red)' : 'var(--text-1)' }}>
+              {density === 'micro' ? '🔬 Micro' : density === 'ultra-compact' ? '⚡ Ultra' : density === 'compact' ? '📐 Compact' : '🖥️ Normal'}
+            </span>
           </button>
 
           {/* Sélecteur de Thème Clair / Sombre */}

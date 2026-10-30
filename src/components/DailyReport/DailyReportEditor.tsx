@@ -103,7 +103,7 @@ export const DailyReportEditor: React.FC<DailyReportEditorProps> = ({ initialRep
   const [headerColor, setHeaderColor] = useState<string>(initialReport?.customStyles?.headerColor || '#FF0000');
   const [accentColor, setAccentColor] = useState<string>(initialReport?.customStyles?.accentColor || '#FF0000');
   const [backgroundColor, setBackgroundColor] = useState<string>(initialReport?.customStyles?.backgroundColor || '#FFFFFF');
-  const [fontScale, setFontScale] = useState<'compact' | 'normal' | 'spacious'>(initialReport?.customStyles?.fontScale || 'normal');
+  const [fontScale, setFontScale] = useState<'micro' | 'compact' | 'normal' | 'spacious'>(initialReport?.customStyles?.fontScale || 'normal');
   const [hideMatrix, setHideMatrix] = useState<boolean>(initialReport?.hideMatrix ?? true);
   const [customFields, setCustomFields] = useState<ReportCustomField[]>(initialReport?.customFields || []);
   const [images, setImages] = useState<ReportImageAttachment[]>(initialReport?.images || []);
@@ -413,6 +413,7 @@ export const DailyReportEditor: React.FC<DailyReportEditorProps> = ({ initialRep
     creePar: currentUser?.nomComplet || 'Archiviste',
     dateCreation: initialReport?.dateCreation || new Date().toISOString(),
     customStyles: {
+      ...(initialReport?.customStyles || {}),
       headerColor,
       accentColor,
       backgroundColor,

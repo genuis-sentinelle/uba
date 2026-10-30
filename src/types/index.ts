@@ -77,13 +77,32 @@ export interface DailyReportMouvement {
   traitement?: string;
 }
 
+export type AppDensity = 'normal' | 'compact' | 'ultra-compact' | 'micro';
+
 export interface ReportCustomStyles {
   headerColor?: string;
+  headerTextColor?: string;
+  headerTitleText?: string;
+  headerSubtitleText?: string;
+  headerLogoText?: string;
   accentColor?: string;
   backgroundColor?: string;
-  fontScale?: 'compact' | 'normal' | 'spacious';
+  textColor?: string;
+  borderColor?: string;
+  tableZebraColor?: string;
+  fontFamily?: string;
+  fontScale?: 'micro' | 'compact' | 'normal' | 'spacious';
+  tableDensity?: 'micro' | 'compact' | 'normal';
+  pageMargin?: 'narrow' | 'normal' | 'wide';
   showCoverBadge?: boolean;
   orientation?: 'portrait' | 'landscape';
+  customLabels?: Record<string, string>;
+  columnVisibility?: Record<string, boolean>;
+  signatory1Title?: string;
+  signatory1Name?: string;
+  signatory2Title?: string;
+  signatory2Name?: string;
+  footerNote?: string;
 }
 
 export interface ReportCustomField {

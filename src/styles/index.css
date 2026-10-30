@@ -174,6 +174,129 @@
   --bg-dim-opacity: 0.28;
 }
 
+/* ---------- 1e. Moteur d'Ultra-Densité & Réduction d'Échelle ---------- */
+:root {
+  --btn-h-base: 40px;
+  --btn-px-base: 14px;
+  --btn-py-base: 8px;
+  --table-py-base: 10px;
+  --table-px-base: 12px;
+  --input-h-base: 40px;
+  --input-px-base: 12px;
+}
+
+[data-density="normal"] {
+  --density-scale: 1;
+}
+
+[data-density="compact"] {
+  --density-scale: 0.88;
+  --sp-1: 3px; --sp-2: 6px; --sp-3: 10px; --sp-4: 12px; --sp-5: 18px;
+  --header-h: 54px;
+  --nav-h: 54px;
+}
+[data-density="compact"] .btn {
+  min-height: 32px !important;
+  padding: 4px 10px !important;
+  font-size: 0.78rem !important;
+}
+[data-density="compact"] .form-input,
+[data-density="compact"] .form-select,
+[data-density="compact"] .form-textarea {
+  min-height: 34px !important;
+  padding: 4px 10px !important;
+  font-size: 0.8125rem !important;
+}
+[data-density="compact"] .uba-table th,
+[data-density="compact"] .uba-table td {
+  padding: 6px 10px !important;
+  font-size: 0.8rem !important;
+}
+[data-density="compact"] .panel,
+[data-density="compact"] .card {
+  padding: 12px 14px !important;
+}
+
+[data-density="ultra-compact"] {
+  --density-scale: 0.75;
+  --sp-1: 2px; --sp-2: 4px; --sp-3: 8px; --sp-4: 10px; --sp-5: 14px;
+  --header-h: 46px;
+  --nav-h: 46px;
+}
+[data-density="ultra-compact"] .btn {
+  min-height: 26px !important;
+  padding: 2px 8px !important;
+  font-size: 0.72rem !important;
+  gap: 4px !important;
+}
+[data-density="ultra-compact"] .btn svg {
+  width: 13px !important;
+  height: 13px !important;
+}
+[data-density="ultra-compact"] .form-input,
+[data-density="ultra-compact"] .form-select,
+[data-density="ultra-compact"] .form-textarea {
+  min-height: 28px !important;
+  padding: 2px 8px !important;
+  font-size: 0.75rem !important;
+}
+[data-density="ultra-compact"] .uba-table th,
+[data-density="ultra-compact"] .uba-table td {
+  padding: 4px 6px !important;
+  font-size: 0.74rem !important;
+  line-height: 1.25 !important;
+}
+[data-density="ultra-compact"] .panel,
+[data-density="ultra-compact"] .card {
+  padding: 10px 12px !important;
+}
+[data-density="ultra-compact"] .badge {
+  padding: 1px 6px !important;
+  font-size: 0.68rem !important;
+}
+
+[data-density="micro"] {
+  --density-scale: 0.65;
+  --sp-1: 1px; --sp-2: 3px; --sp-3: 6px; --sp-4: 8px; --sp-5: 10px;
+  --header-h: 40px;
+  --nav-h: 40px;
+}
+[data-density="micro"] .btn {
+  min-height: 22px !important;
+  padding: 1px 6px !important;
+  font-size: 0.68rem !important;
+  gap: 3px !important;
+  border-radius: 3px !important;
+}
+[data-density="micro"] .btn svg {
+  width: 11px !important;
+  height: 11px !important;
+}
+[data-density="micro"] .form-input,
+[data-density="micro"] .form-select,
+[data-density="micro"] .form-textarea {
+  min-height: 24px !important;
+  padding: 1px 6px !important;
+  font-size: 0.7rem !important;
+  border-radius: 3px !important;
+}
+[data-density="micro"] .uba-table th,
+[data-density="micro"] .uba-table td {
+  padding: 2px 4px !important;
+  font-size: 0.68rem !important;
+  line-height: 1.15 !important;
+}
+[data-density="micro"] .panel,
+[data-density="micro"] .card {
+  padding: 6px 8px !important;
+  border-radius: 4px !important;
+}
+[data-density="micro"] .badge {
+  padding: 0px 4px !important;
+  font-size: 0.62rem !important;
+  border-radius: 2px !important;
+}
+
 /* ---------- 2. Base ---------- */
 *, *::before, *::after { box-sizing: border-box; }
 * { margin: 0; padding: 0; }
@@ -623,6 +746,105 @@ kbd {
   page: portrait-mode;
 }
 
+/* ---------- 10b. Isolation Hermétique des Documents d'Impression (Fond Blanc Pur & Couleurs Contrôlées) ---------- */
+.doc-sheet-isolated {
+  background-color: var(--doc-bg, #FFFFFF) !important;
+  color: var(--doc-text, #111111) !important;
+  border-color: var(--doc-border, #E5E7EB) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  transition: transform 0.15s ease;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.doc-sheet-isolated * {
+  box-sizing: border-box;
+}
+
+/* Neutralisation formelle des variables de mode sombre à l'intérieur du document */
+.doc-sheet-isolated table,
+.doc-sheet-isolated th,
+.doc-sheet-isolated td,
+.doc-sheet-isolated div,
+.doc-sheet-isolated p,
+.doc-sheet-isolated span,
+.doc-sheet-isolated strong {
+  color: inherit;
+}
+
+/* Densité des tableaux pour documents A4 */
+.doc-table-micro th,
+.doc-table-micro td {
+  padding: 3px 5px !important;
+  font-size: 7pt !important;
+  line-height: 1.2 !important;
+}
+
+.doc-table-compact th,
+.doc-table-compact td {
+  padding: 5px 8px !important;
+  font-size: 8pt !important;
+  line-height: 1.3 !important;
+}
+
+.doc-table-normal th,
+.doc-table-normal td {
+  padding: 7px 10px !important;
+  font-size: 9pt !important;
+  line-height: 1.4 !important;
+}
+
+/* Marges de document */
+.doc-margin-narrow {
+  padding: 8mm 10mm !important;
+}
+.doc-margin-normal {
+  padding: 14mm 14mm !important;
+}
+.doc-margin-wide {
+  padding: 20mm 18mm !important;
+}
+
+/* ---------- 11. Utilitaires Responsive Mobile & Fluidité ---------- */
+.table-responsive-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: var(--sp-4);
+  border-radius: var(--r-sm);
+  scrollbar-width: thin;
+}
+
+.table-responsive-wrapper::-webkit-scrollbar {
+  height: 6px;
+}
+.table-responsive-wrapper::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 3px;
+}
+
+@media (max-width: 768px) {
+  .modal-overlay {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  .modal-content {
+    max-width: 100% !important;
+    width: 100% !important;
+    border-radius: 16px 16px 0 0 !important;
+    max-height: 94dvh !important;
+    padding: 16px 14px calc(16px + var(--safe-bottom)) !important;
+  }
+  .print-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .print-toolbar > div {
+    justify-content: space-between !important;
+    width: 100% !important;
+  }
+}
+
 @media print {
   html, body {
     background: #ffffff !important;
@@ -643,11 +865,11 @@ kbd {
     max-width: 100% !important;
     width: 100% !important;
   }
-  .panel, .card, .uba-table-container, .a4-page {
-    background: #ffffff !important;
+  .panel, .card, .uba-table-container, .a4-page, .doc-sheet-isolated {
+    background: var(--doc-bg, #ffffff) !important;
     border: 1px solid #d1d5db !important;
     box-shadow: none !important;
-    color: #111111 !important;
+    color: var(--doc-text, #111111) !important;
     break-inside: avoid;
   }
   .uba-table {

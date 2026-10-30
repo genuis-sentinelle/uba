@@ -31,15 +31,16 @@ export async function exportElementToPdf(elementId: string, filename: string, ro
       windowWidth: 794 // Standard A4 width reference in pixels
     });
 
+    const isLandscape = element.classList.contains('print-landscape');
     const imgData = canvas.toDataURL('image/png');
     const pdf = new jsPDF({
-      orientation: 'portrait',
+      orientation: isLandscape ? 'landscape' : 'portrait',
       unit: 'mm',
       format: 'a4'
     });
 
-    const imgWidth = 210;
-    const pageHeight = 297;
+    const imgWidth = isLandscape ? 297 : 210;
+    const pageHeight = isLandscape ? 210 : 297;
     const imgHeight = (canvas.height * imgWidth) / canvas.width;
     let heightLeft = imgHeight;
     let position = 0;

@@ -1,10 +1,11 @@
 import React, { useRef, useState } from 'react';
-import { DailyReport } from '../../types';
+import { DailyReport, ReportCustomStyles } from '../../types';
 import { formatNumber, formatDate } from '../../utils/formatters';
 import { exportElementToPdf } from '../../utils/pdfExport';
-import { Download, Printer, X, ZoomIn, ZoomOut, FileText, CheckCircle2 } from 'lucide-react';
+import { Download, Printer, X, ZoomIn, ZoomOut, FileText, CheckCircle2, Sliders } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { can } from '../../utils/permissions';
+import { DocumentCustomizerModal } from './DocumentCustomizerModal';
 
 interface DailyReportPrintPreviewProps {
   report: DailyReport;
@@ -17,6 +18,29 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
   const previewRef = useRef<HTMLDivElement>(null);
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>(report.orientation || 'portrait');
+  const [isCustomizerOpen, setIsCustomizerOpen] = useState<boolean>(false);
+  const [styles, setStyles] = useState<ReportCustomStyles>({
+    headerColor: '#FF0000',
+    headerTextColor: '#FFFFFF',
+    headerTitleText: "RAPPORT D'ACTIVITÉ — ÉQUIPE ARCHIVISTE",
+    headerSubtitleText: 'UBA CONGO · SITES MAYA-MAYA & MAZALA',
+    headerLogoText: 'UBA',
+    accentColor: '#FF0000',
+    backgroundColor: '#FFFFFF',
+    textColor: '#111111',
+    borderColor: '#E5E7EB',
+    tableZebraColor: '#F9FAFB',
+    fontFamily: 'var(--font-sans)',
+    fontScale: 'normal',
+    tableDensity: 'normal',
+    pageMargin: 'normal',
+    signatory1Title: "Chef d'équipe des Archives",
+    signatory1Name: report.chefNom || 'Thony OBAKI',
+    signatory2Title: 'Superviseur / Direction des Opérations',
+    signatory2Name: (report.superviseurs && report.superviseurs[0]) || 'Direction des Opérations',
+    footerNote: 'Document interne officiel — UBA Congo. Archivage physique sécurisé & décharges certifiées.',
+    ...(report.customStyles || {})
+  });
 
   const handleDownloadPdf = async () => {
     if (!canPrintDoc) return;
@@ -32,10 +56,13 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
     window.print();
   };
 
-  const headerBg = report.customStyles?.headerColor || 'var(--brand)';
-  const accentBg = report.customStyles?.accentColor || 'var(--brand)';
-  const docBg = report.customStyles?.backgroundColor || '#FFFFFF';
-  const effectiveChef = report.chefNom || 'Thony OBAKI';
+  const headerBg = styles.headerColor || '#FF0000';
+  const headerText = styles.headerTextColor || '#FFFFFF';
+  const accentBg = styles.accentColor || '#FF0000';
+  const docBg = styles.backgroundColor || '#FFFFFF';
+  const docTextColor = styles.textColor || '#111111';
+  const docBorderColor = styles.borderColor || '#E5E7EB';
+  const zebraBg = styles.tableZebraColor || '#F9FAFB';
 
   const distinctYears = Array.from(new Set(report.transferts.map(t => t.exercice))).sort((a, b) => a - b);
   const isMultiYearReport = distinctYears.length > 1;
@@ -57,6 +84,27 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
   };
 
   const isLandscape = orientation === 'landscape';
+  const effectiveChef = report.chefNom || 'Thony OBAKI';
+
+  const tableDensityClass = styles.tableDensity === 'micro'
+    ? 'doc-table-micro'
+    : styles.tableDensity === 'compact'
+    ? 'doc-table-compact'
+    : 'doc-table-normal';
+
+  const marginClass = styles.pageMargin === 'narrow'
+    ? 'doc-margin-narrow'
+    : styles.pageMargin === 'wide'
+    ? 'doc-margin-wide'
+    : 'doc-margin-normal';
+
+  const fontSizePt = styles.fontScale === 'micro'
+    ? '7pt'
+    : styles.fontScale === 'compact'
+    ? '8pt'
+    : styles.fontScale === 'spacious'
+    ? '10.5pt'
+    : '9pt';
 
   return (
     <div style={{
@@ -97,6 +145,18 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          {/* Customizer trigger */}
+          <button
+            type="button"
+            onClick={() => setIsCustomizerOpen(true)}
+            className="btn btn-secondary btn-sm"
+            style={{ borderColor: 'var(--red)', color: 'var(--white)', gap: '6px' }}
+            title="Personnaliser les titres, tables, couleurs, polices et signatures"
+          >
+            <Sliders size={14} style={{ color: 'var(--red)' }} />
+            <span>Personnaliser</span>
+          </button>
+
           {/* Orientation switch */}
           <button
             type="button"
@@ -172,32 +232,30 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
         justifyContent: 'center',
         paddingBottom: '40px'
       }}>
-        {/* Printable Sheet (A4 Styled container — Blanc, Rouge, Noir officiel) */}
+        {/* Printable Sheet (A4 Styled container — Blanc Pur hermétique, isolation complète) */}
         <div
           id="daily-report-printable-doc"
           ref={previewRef}
-          className={`a4-page doc-light card ${isLandscape ? 'print-landscape' : 'print-portrait'}`}
+          className={`a4-page doc-sheet-isolated ${isLandscape ? 'print-landscape' : 'print-portrait'} ${tableDensityClass} ${marginClass}`}
           style={{
             width: isLandscape ? '297mm' : '210mm',
             minHeight: isLandscape ? '210mm' : '297mm',
             transform: zoomLevel !== 1 ? `scale(${zoomLevel})` : undefined,
             transformOrigin: 'top center',
             backgroundColor: docBg,
-            border: '1px solid #E5E7EB',
+            border: `1px solid ${docBorderColor}`,
             borderRadius: '4px',
-            padding: isLandscape ? '12mm 14mm' : '16mm 14mm',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
-            color: '#111111',
-            fontFamily: 'var(--font-sans), Arial, sans-serif',
-            fontSize: report.customStyles?.fontScale === 'compact' ? '8.5pt' : report.customStyles?.fontScale === 'spacious' ? '10.5pt' : '9.5pt',
+            color: docTextColor,
+            fontFamily: styles.fontFamily || 'var(--font-sans), Arial, sans-serif',
+            fontSize: fontSizePt,
             lineHeight: '1.45',
             marginBottom: zoomLevel < 1 ? `-${Math.round((1 - zoomLevel) * (isLandscape ? 210 : 297))}mm` : undefined
           }}
         >
-          {/* BANDEAU ROUGE UBA */}
+          {/* BANDEAU ROUGE UBA (Entièrement personnalisable) */}
           <div style={{
             backgroundColor: headerBg,
-            color: '#FFFFFF',
+            color: headerText,
             padding: '14px 20px',
             borderRadius: '4px',
             display: 'flex',
@@ -206,22 +264,22 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
             marginBottom: '16px'
           }}>
             <div>
-              <div style={{ fontSize: '13pt', fontWeight: 900, letterSpacing: '0.03em', color: '#FFFFFF' }}>
-                RAPPORT D'ACTIVITÉ — ÉQUIPE ARCHIVISTE
+              <div style={{ fontSize: '13pt', fontWeight: 900, letterSpacing: '0.03em', color: headerText }}>
+                {styles.headerTitleText || "RAPPORT D'ACTIVITÉ — ÉQUIPE ARCHIVISTE"}
               </div>
-              <div style={{ fontSize: '8.5pt', fontWeight: 600, opacity: 0.95, color: '#FFFFFF', marginTop: '2px' }}>
-                UBA CONGO · SITES MAYA-MAYA & MAZALA
+              <div style={{ fontSize: '8.5pt', fontWeight: 600, opacity: 0.95, color: headerText, marginTop: '2px' }}>
+                {styles.headerSubtitleText || "UBA CONGO · SITES MAYA-MAYA & MAZALA"}
               </div>
             </div>
             <div style={{
               fontSize: '15pt',
               fontWeight: 900,
-              border: '2px solid #FFFFFF',
+              border: `2px solid ${headerText}`,
               padding: '2px 10px',
               borderRadius: '4px',
-              color: '#FFFFFF'
+              color: headerText
             }}>
-              UBA
+              {styles.headerLogoText || "UBA"}
             </div>
           </div>
 
@@ -420,30 +478,42 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
               <table className="uba-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '8.5pt' }}>
                 <thead>
                   <tr style={{ backgroundColor: accentBg, color: '#FFFFFF' }}>
-                    <th style={{ padding: '6px 8px', textAlign: 'left', border: '1px solid ' + accentBg, color: '#FFFFFF' }}>AGENCE</th>
-                    <th style={{ padding: '6px 8px', textAlign: 'center', border: '1px solid ' + accentBg, color: '#FFFFFF', width: '65px' }}>CODE</th>
-                    <th style={{ padding: '6px 8px', textAlign: 'center', border: '1px solid ' + accentBg, color: '#FFFFFF', width: '75px' }}>EXERCICE</th>
-                    <th style={{ padding: '6px 8px', textAlign: 'right', border: '1px solid ' + accentBg, color: '#FFFFFF', width: '90px' }}>CONVENTIONS</th>
-                    <th style={{ padding: '6px 8px', textAlign: 'right', border: '1px solid ' + accentBg, color: '#FFFFFF', width: '75px' }}>BOÎTES</th>
-                    <th style={{ padding: '6px 8px', textAlign: 'center', border: '1px solid ' + accentBg, color: '#FFFFFF', width: '90px' }}>TRAITEMENT</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'left', border: '1px solid ' + accentBg, color: '#FFFFFF' }}>
+                      {styles.customLabels?.['col_agence'] || 'AGENCE'}
+                    </th>
+                    <th style={{ padding: '6px 8px', textAlign: 'center', border: '1px solid ' + accentBg, color: '#FFFFFF', width: '65px' }}>
+                      {styles.customLabels?.['col_code'] || 'CODE'}
+                    </th>
+                    <th style={{ padding: '6px 8px', textAlign: 'center', border: '1px solid ' + accentBg, color: '#FFFFFF', width: '75px' }}>
+                      {styles.customLabels?.['col_exercice'] || 'EXERCICE'}
+                    </th>
+                    <th style={{ padding: '6px 8px', textAlign: 'right', border: '1px solid ' + accentBg, color: '#FFFFFF', width: '90px' }}>
+                      {styles.customLabels?.['col_conventions'] || 'CONVENTIONS'}
+                    </th>
+                    <th style={{ padding: '6px 8px', textAlign: 'right', border: '1px solid ' + accentBg, color: '#FFFFFF', width: '75px' }}>
+                      {styles.customLabels?.['col_boites'] || 'BOÎTES'}
+                    </th>
+                    <th style={{ padding: '6px 8px', textAlign: 'center', border: '1px solid ' + accentBg, color: '#FFFFFF', width: '90px' }}>
+                      {styles.customLabels?.['col_type'] || 'TRAITEMENT'}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {report.transferts.map((tr, idx) => (
-                    <tr key={tr.id || idx} style={{ backgroundColor: idx % 2 === 1 ? '#F9FAFB' : '#FFFFFF' }}>
-                      <td style={{ padding: '5px 8px', border: '1px solid #E5E7EB', fontWeight: 600, color: '#111111' }}>{tr.agenceNom}</td>
-                      <td style={{ padding: '5px 8px', border: '1px solid #E5E7EB', textAlign: 'center', color: '#4B5563' }}>{tr.code}</td>
-                      <td style={{ padding: '5px 8px', border: '1px solid #E5E7EB', textAlign: 'center', color: '#111111' }}>{tr.exercice}</td>
-                      <td style={{ padding: '5px 8px', border: '1px solid #E5E7EB', textAlign: 'right', fontWeight: 800, color: '#111111' }}>{formatNumber(tr.conventions)}</td>
-                      <td style={{ padding: '5px 8px', border: '1px solid #E5E7EB', textAlign: 'right', color: '#4B5563' }}>{tr.boites}</td>
-                      <td style={{ padding: '5px 8px', border: '1px solid #E5E7EB', textAlign: 'center', color: '#059669', fontWeight: 600 }}>{tr.traitement || 'Trié'}</td>
+                    <tr key={tr.id || idx} style={{ backgroundColor: idx % 2 === 1 ? zebraBg : docBg }}>
+                      <td style={{ padding: '5px 8px', border: `1px solid ${docBorderColor}`, fontWeight: 600, color: docTextColor }}>{tr.agenceNom}</td>
+                      <td style={{ padding: '5px 8px', border: `1px solid ${docBorderColor}`, textAlign: 'center', color: '#4B5563' }}>{tr.code}</td>
+                      <td style={{ padding: '5px 8px', border: `1px solid ${docBorderColor}`, textAlign: 'center', color: docTextColor }}>{tr.exercice}</td>
+                      <td style={{ padding: '5px 8px', border: `1px solid ${docBorderColor}`, textAlign: 'right', fontWeight: 800, color: docTextColor }}>{formatNumber(tr.conventions)}</td>
+                      <td style={{ padding: '5px 8px', border: `1px solid ${docBorderColor}`, textAlign: 'right', color: '#4B5563' }}>{tr.boites}</td>
+                      <td style={{ padding: '5px 8px', border: `1px solid ${docBorderColor}`, textAlign: 'center', color: '#059669', fontWeight: 600 }}>{tr.traitement || 'Trié'}</td>
                     </tr>
                   ))}
                   <tr style={{ backgroundColor: '#F3F4F6', fontWeight: 800 }}>
-                    <td colSpan={3} style={{ padding: '6px 8px', border: '1px solid #D1D5DB', textAlign: 'right', color: '#111111' }}>TOTAL GÉNÉRAL :</td>
-                    <td style={{ padding: '6px 8px', border: '1px solid #D1D5DB', textAlign: 'right', color: accentBg, fontSize: '9.5pt' }}>{formatNumber(report.totalCalcule)}</td>
-                    <td style={{ padding: '6px 8px', border: '1px solid #D1D5DB', textAlign: 'right', color: '#111111' }}>{report.transferts.reduce((sum, t) => sum + (t.boites || 0), 0)}</td>
-                    <td style={{ padding: '6px 8px', border: '1px solid #D1D5DB', textAlign: 'center', color: '#059669' }}>Certifié</td>
+                    <td colSpan={3} style={{ padding: '6px 8px', border: `1px solid ${docBorderColor}`, textAlign: 'right', color: docTextColor }}>TOTAL GÉNÉRAL :</td>
+                    <td style={{ padding: '6px 8px', border: `1px solid ${docBorderColor}`, textAlign: 'right', color: accentBg, fontSize: '9.5pt' }}>{formatNumber(report.totalCalcule)}</td>
+                    <td style={{ padding: '6px 8px', border: `1px solid ${docBorderColor}`, textAlign: 'right', color: docTextColor }}>{report.transferts.reduce((sum, t) => sum + (t.boites || 0), 0)}</td>
+                    <td style={{ padding: '6px 8px', border: `1px solid ${docBorderColor}`, textAlign: 'center', color: '#059669' }}>Certifié</td>
                   </tr>
                 </tbody>
               </table>
@@ -583,37 +653,41 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
 
           {/* ▌VALIDATION & SIGNATURES */}
           {visibleSections.signatures !== false && (
-            <div style={{ border: '1px solid #E5E7EB', backgroundColor: '#F9FAFB', padding: '10px 14px', borderRadius: '4px', marginBottom: '14px' }}>
-              <div style={{ fontSize: '8pt', fontWeight: 800, color: '#111111', textTransform: 'uppercase', marginBottom: '3px' }}>
-                7. CERTIFICATION ET VALIDATION OFFICIELLE
+            <div style={{ border: `1px solid ${docBorderColor}`, backgroundColor: '#F9FAFB', padding: '10px 14px', borderRadius: '4px', marginBottom: '14px' }}>
+              <div style={{ fontSize: '8pt', fontWeight: 800, color: docTextColor, textTransform: 'uppercase', marginBottom: '3px' }}>
+                {styles.customLabels?.['sec6_title'] || "6. VALIDATION & SIGNATURES OFFICIELLES"}
               </div>
               <div style={{ fontSize: '7pt', color: '#6B7280', marginBottom: '10px' }}>
                 Certifié exact, régulier et conforme aux procédures d'archivage UBA
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', textAlign: 'center' }}>
-                <div style={{ borderTop: '1px solid #D1D5DB', paddingTop: '6px' }}>
-                  <div style={{ fontSize: '7.5pt', color: '#4B5563', fontWeight: 700, textTransform: 'uppercase' }}>Chef d'équipe des Archives</div>
+                <div style={{ borderTop: `1px solid ${docBorderColor}`, paddingTop: '6px' }}>
+                  <div style={{ fontSize: '7.5pt', color: '#4B5563', fontWeight: 700, textTransform: 'uppercase' }}>
+                    {styles.signatory1Title || "Chef d'équipe des Archives"}
+                  </div>
                   <div style={{ fontWeight: 900, color: accentBg, fontSize: '9pt', marginTop: '3px' }}>
-                    {effectiveChef}
+                    {styles.signatory1Name || effectiveChef}
                   </div>
                   <div style={{ fontSize: '7pt', fontStyle: 'italic', color: '#9CA3AF', marginTop: '4px' }}>Visa & Signature certifiée</div>
                 </div>
 
-                {report.superviseurs && report.superviseurs.map((sup, idx) => (
-                  <div key={idx} style={{ borderTop: '1px solid #D1D5DB', paddingTop: '6px' }}>
-                    <div style={{ fontSize: '7.5pt', color: '#4B5563', fontWeight: 700, textTransform: 'uppercase' }}>Superviseur / Stagiaire</div>
-                    <div style={{ fontWeight: 800, color: '#111111', fontSize: '8.5pt', marginTop: '3px' }}>{sup}</div>
-                    <div style={{ fontSize: '7pt', fontStyle: 'italic', color: '#9CA3AF', marginTop: '4px' }}>Visa de conformité</div>
+                <div style={{ borderTop: `1px solid ${docBorderColor}`, paddingTop: '6px' }}>
+                  <div style={{ fontSize: '7.5pt', color: '#4B5563', fontWeight: 700, textTransform: 'uppercase' }}>
+                    {styles.signatory2Title || "Superviseur / Direction"}
                   </div>
-                ))}
+                  <div style={{ fontWeight: 800, color: docTextColor, fontSize: '8.5pt', marginTop: '3px' }}>
+                    {styles.signatory2Name || (report.superviseurs && report.superviseurs[0]) || "Direction des Opérations"}
+                  </div>
+                  <div style={{ fontSize: '7pt', fontStyle: 'italic', color: '#9CA3AF', marginTop: '4px' }}>Visa de conformité</div>
+                </div>
               </div>
             </div>
           )}
 
           {/* PIED DE PAGE OFFICIEL UBA */}
           <div style={{
-            borderTop: '1px solid ' + accentBg,
+            borderTop: `1px solid ${accentBg}`,
             paddingTop: '6px',
             display: 'flex',
             justifyContent: 'space-between',
@@ -621,11 +695,19 @@ export const DailyReportPrintPreview: React.FC<DailyReportPrintPreviewProps> = (
             color: '#6B7280'
           }}>
             <span>Équipe Archiviste UBA Congo — Système ARCHIVA</span>
-            <span>Rapport officiel certifié conforme</span>
+            <span>{styles.footerNote || "Rapport officiel certifié conforme"}</span>
             <span>{isLandscape ? 'A4 Paysage' : 'A4 Portrait'} · Page 1 / 1</span>
           </div>
         </div>
       </div>
+
+      {/* Modal de Personnalisation Intégrale */}
+      <DocumentCustomizerModal
+        isOpen={isCustomizerOpen}
+        onClose={() => setIsCustomizerOpen(false)}
+        customStyles={styles}
+        onUpdateStyles={newStyles => setStyles(newStyles)}
+      />
     </div>
   );
 };

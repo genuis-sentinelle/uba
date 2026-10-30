@@ -30,7 +30,7 @@ export const SettingsView: React.FC = () => {
   } = useData();
 
   const { currentUser } = useAuth();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, density, setDensity } = useTheme();
   const { toast, confirm } = useFeedback();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -151,6 +151,51 @@ export const SettingsView: React.FC = () => {
                 Fond blanc / gris perle doux, lisibilité haute clarté bureautique.
               </div>
             </button>
+          </div>
+        </div>
+
+
+        {/* Card: Densité & Échelle d'Affichage */}
+        <div className="card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+            <Palette size={20} color="var(--brand-hi)" />
+            <h2 style={{ fontSize: '1.2rem', margin: 0 }}>Densité & Échelle d'Affichage (Mode Réduit)</h2>
+          </div>
+          <p className="text-muted text-sm" style={{ marginBottom: '16px' }}>
+            Réduisez proportionnellement la taille des boutons, tables, formulaires et textes pour afficher un maximum de données sans faire défiler l'écran.
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+            {[
+              { id: 'normal', name: '🖥️ Normal (100%)', desc: 'Confort visuel standard, boutons 40px, espacements aérés.' },
+              { id: 'compact', name: '📐 Compact (88%)', desc: 'Espacements réduits de 15%, boutons 32px, tableaux condensés.' },
+              { id: 'ultra-compact', name: '⚡ Ultra-Compact (75%)', desc: 'Densité élevée, boutons 26px, tableaux serrés, textes réduits.' },
+              { id: 'micro', name: '🔬 Micro (65%)', desc: 'Réduction maximale : boutons 22px, tables micro-denses (padding 2px).' }
+            ].map(d => (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => setDensity(d.id as any)}
+                className="card card--interactive"
+                style={{
+                  textAlign: 'left',
+                  border: density === d.id ? '2px solid var(--red)' : '1px solid var(--line)',
+                  backgroundColor: 'var(--surface-2)',
+                  padding: '12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontWeight: 800, fontSize: '0.88rem' }}>{d.name}</span>
+                  {density === d.id && <span className="badge badge-red">Actif</span>}
+                </div>
+                <div style={{ fontSize: '0.74rem', color: 'var(--white-70)' }}>
+                  {d.desc}
+                </div>
+              </button>
+            ))}
           </div>
         </div>
 
