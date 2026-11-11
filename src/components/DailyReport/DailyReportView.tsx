@@ -7,6 +7,8 @@ import { formatNumber, formatDate } from '../../utils/formatters';
 import { todayLocal } from '../../utils/dates';
 import { DailyReportEditor } from './DailyReportEditor';
 import { DailyReportPrintPreview } from './DailyReportPrintPreview';
+import { CombineReportsModal } from './CombineReportsModal';
+import { CombinedReportsPrintPreview } from './CombinedReportsPrintPreview';
 import { isReportArchivable } from '../../services/reportArchives';
 import {
   FileText,
@@ -18,7 +20,8 @@ import {
   Search,
   Filter,
   Archive,
-  RotateCcw
+  RotateCcw,
+  Files
 } from 'lucide-react';
 
 import { useFeedback } from '../ui/Feedback';
@@ -44,6 +47,8 @@ export const DailyReportView: React.FC<DailyReportViewProps> = ({ openedReportId
   const [editingReport, setEditingReport] = useState<DailyReport | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
   const [archiveFilter, setArchiveFilter] = useState<'active' | 'archived' | 'all'>('active');
+  const [isCombining, setIsCombining] = useState(false);
+  const [combinedReports, setCombinedReports] = useState<DailyReport[]>([]);
   const [previewingReport, setPreviewingReport] = useState<DailyReport | null>(() => {
     if (openedReportId) {
       return dailyReports.find(r => r.id === openedReportId) || null;
@@ -182,6 +187,16 @@ export const DailyReportView: React.FC<DailyReportViewProps> = ({ openedReportId
                   title="Copie le dernier rapport avec les présents et superviseurs pré-remplis pour aujourd'hui"
                 >
                   <Copy size={16} /> Dupliquer le dernier rapport
+                </button>
+              )}
+
+              {dailyReports.filter(r => !r.archived).length >= 2 && (
+                <button
+                  onClick={() => setIsCombining(true)}
+                  className="btn btn-secondary"
+                  title="Combiner plusieurs rapports journaliers en un seul document ordonné par date"
+                >
+                  <Files size={16} /> Combiner des rapports
                 </button>
               )}
 
