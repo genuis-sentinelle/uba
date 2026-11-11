@@ -61,3 +61,4 @@ export async function deleteReportImage(path: string): Promise<boolean> {
     return false;
   }
 }
+

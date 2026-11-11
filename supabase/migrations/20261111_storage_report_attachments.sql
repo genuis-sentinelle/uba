@@ -36,3 +36,4 @@ USING (
     OR (auth.jwt() ->> 'role') = 'service_role'
   )
 );
+
