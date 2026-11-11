@@ -1,6 +1,6 @@
 // Service Worker pour ARCHIVA UBA
 // Cache offline-first pour les assets et network-first pour l'API
-const CACHE_NAME = 'archiva-uba-v1';
+const CACHE_NAME = 'archiva-uba-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -29,12 +29,36 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Ignorer les requêtes non-GET et les requêtes Supabase/API distantes pour laisser la gestion au client/SDK
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
 
+  // Mettre en cache les requêtes vers le même domaine (assets, JS, CSS, fonts woff/woff2, images)
   if (url.origin === self.location.origin) {
-    // Stratégie Stale-While-Revalidate pour les fichiers statiques de l'application
+    const isFont = url.pathname.endsWith('.woff') || url.pathname.endsWith('.woff2');
+    const isAsset = url.pathname.startsWith('/assets/') || isFont;
+
+    if (isAsset) {
+      // Stratégie Cache-First pour les assets immuables générés par Vite & les polices
+      event.respondWith(
+        caches.match(event.request).then((cachedResponse) => {
+          if (cachedResponse) {
+            return cachedResponse;
+          }
+          return fetch(event.request).then((networkResponse) => {
+            if (networkResponse && networkResponse.status === 200) {
+              const responseToCache = networkResponse.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(event.request, responseToCache);
+              });
+            }
+            return networkResponse;
+          });
+        })
+      );
+      return;
+    }
+
+    // Stratégie Stale-While-Revalidate pour le HTML et le reste
     event.respondWith(
       caches.match(event.request).then((cachedResponse) => {
         const fetchPromise = fetch(event.request)
@@ -54,4 +78,3 @@ self.addEventListener('fetch', (event) => {
     );
   }
 });
-

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DataProvider } from './context/DataContext';
@@ -6,23 +6,34 @@ import { Navbar } from './components/Layout/Navbar';
 import { Sidebar, NavigationTab } from './components/Layout/Sidebar';
 import { BottomNav } from './components/Layout/BottomNav';
 import { DashboardView } from './components/Dashboard/DashboardView';
-import { DailyReportView } from './components/DailyReport/DailyReportView';
-import { SynthesisView } from './components/Synthesis/SynthesisView';
-import { TransferSlipsView } from './components/TransferSlips/TransferSlipsView';
-import { CartonsView } from './components/Cartons/CartonsView';
-import { QuickAttendanceView } from './components/Attendance/QuickAttendanceView';
-import { IncidentsView } from './components/Incidents/IncidentsView';
-import { AgenciesView } from './components/Agencies/AgenciesView';
-import { ConventionsView } from './components/Conventions/ConventionsView';
-import { TeamView } from './components/Team/TeamView';
-import { AuditLogsView } from './components/AuditLogs/AuditLogsView';
-import { UsersManagementView } from './components/Users/UsersManagementView';
-import { SettingsView } from './components/Settings/SettingsView';
-import { ArchivesView } from './components/Archives/ArchivesView';
 import { LoginView } from './components/Auth/LoginView';
 import { ProfileModal } from './components/Profile/ProfileModal';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { can } from './utils/permissions';
+
+// Code Splitting / Lazy Loading des vues pour réduire le bundle initial
+const DailyReportView = lazy(() => import('./components/DailyReport/DailyReportView').then(m => ({ default: m.DailyReportView })));
+const SynthesisView = lazy(() => import('./components/Synthesis/SynthesisView').then(m => ({ default: m.SynthesisView })));
+const TransferSlipsView = lazy(() => import('./components/TransferSlips/TransferSlipsView').then(m => ({ default: m.TransferSlipsView })));
+const CartonsView = lazy(() => import('./components/Cartons/CartonsView').then(m => ({ default: m.CartonsView })));
+const QuickAttendanceView = lazy(() => import('./components/Attendance/QuickAttendanceView').then(m => ({ default: m.QuickAttendanceView })));
+const IncidentsView = lazy(() => import('./components/Incidents/IncidentsView').then(m => ({ default: m.IncidentsView })));
+const AgenciesView = lazy(() => import('./components/Agencies/AgenciesView').then(m => ({ default: m.AgenciesView })));
+const ConventionsView = lazy(() => import('./components/Conventions/ConventionsView').then(m => ({ default: m.ConventionsView })));
+const TeamView = lazy(() => import('./components/Team/TeamView').then(m => ({ default: m.TeamView })));
+const AuditLogsView = lazy(() => import('./components/AuditLogs/AuditLogsView').then(m => ({ default: m.AuditLogsView })));
+const UsersManagementView = lazy(() => import('./components/Users/UsersManagementView').then(m => ({ default: m.UsersManagementView })));
+const SettingsView = lazy(() => import('./components/Settings/SettingsView').then(m => ({ default: m.SettingsView })));
+const ArchivesView = lazy(() => import('./components/Archives/ArchivesView').then(m => ({ default: m.ArchivesView })));
+
+const ViewLoadingFallback: React.FC = () => (
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '360px', width: '100%' }}>
+    <div style={{ textAlign: 'center' }}>
+      <div className="badge badge-red" style={{ marginBottom: '10px', fontSize: '0.85rem' }}>ARCHIVA UBA</div>
+      <p className="text-muted text-sm">Chargement du module...</p>
+    </div>
+  </div>
+);
 
 const MainApp: React.FC = () => {
   const { currentUser, loading } = useAuth();
@@ -91,93 +102,95 @@ const MainApp: React.FC = () => {
   };
 
   const handleOpenCreateUser = () => {
-    setCurrentTab('users');
     setAutoOpenAddUser(true);
+    setCurrentTab('users');
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
+    <div className="app-layout">
       <Navbar
-        currentTab={currentTab}
-        onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-        onNavigate={setCurrentTab}
-        onOpenCreateUser={handleOpenCreateUser}
+        onToggleMobileMenu={() => setIsMobileMenuOpen(prev => !prev)}
         onOpenProfile={() => setIsProfileModalOpen(true)}
       />
 
-      <div className="app-shell">
+      <div className="app-body">
         <Sidebar
           currentTab={currentTab}
-          onSelectTab={setCurrentTab}
+          onSelectTab={(tab) => {
+            setCurrentTab(tab);
+            setIsMobileMenuOpen(false);
+          }}
           isOpenMobile={isMobileMenuOpen}
           onCloseMobile={() => setIsMobileMenuOpen(false)}
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={toggleSidebarCollapse}
         />
 
-        <main className="app-main">
-          {currentTab === 'dashboard' && (
-            <DashboardView
-              onNavigate={setCurrentTab}
-              onOpenReport={handleOpenReportFromDashboard}
-              onOpenCreateUser={handleOpenCreateUser}
-            />
-          )}
+        <main className={`app-main ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+          <Suspense fallback={<ViewLoadingFallback />}>
+            {currentTab === 'dashboard' && (
+              <DashboardView
+                onNavigate={setCurrentTab}
+                onOpenReport={handleOpenReportFromDashboard}
+                onOpenCreateUser={handleOpenCreateUser}
+              />
+            )}
 
-          {currentTab === 'daily-reports' && (
-            <DailyReportView openedReportId={openedReportId} />
-          )}
+            {currentTab === 'daily-reports' && (
+              <DailyReportView openedReportId={openedReportId} />
+            )}
 
-          {currentTab === 'synthesis' && (
-            <SynthesisView />
-          )}
+            {currentTab === 'synthesis' && (
+              <SynthesisView />
+            )}
 
-          {currentTab === 'transfer-slips' && (
-            <TransferSlipsView />
-          )}
+            {currentTab === 'transfer-slips' && (
+              <TransferSlipsView />
+            )}
 
-          {currentTab === 'cartons' && (
-            <CartonsView />
-          )}
+            {currentTab === 'cartons' && (
+              <CartonsView />
+            )}
 
-          {currentTab === 'attendance' && (
-            <QuickAttendanceView />
-          )}
+            {currentTab === 'attendance' && (
+              <QuickAttendanceView />
+            )}
 
-          {currentTab === 'incidents' && (
-            <IncidentsView />
-          )}
+            {currentTab === 'incidents' && (
+              <IncidentsView />
+            )}
 
-          {currentTab === 'agencies' && (
-            <AgenciesView />
-          )}
+            {currentTab === 'agencies' && (
+              <AgenciesView />
+            )}
 
-          {currentTab === 'conventions' && (
-            <ConventionsView />
-          )}
+            {currentTab === 'conventions' && (
+              <ConventionsView />
+            )}
 
-          {currentTab === 'team' && (
-            <TeamView />
-          )}
+            {currentTab === 'team' && (
+              <TeamView />
+            )}
 
-          {currentTab === 'audit-logs' && can.viewAudit(currentUser?.role) && (
-            <AuditLogsView />
-          )}
+            {currentTab === 'audit-logs' && can.viewAudit(currentUser?.role) && (
+              <AuditLogsView />
+            )}
 
-          {currentTab === 'archives' && can.viewArchives(currentUser?.role) && (
-            <ArchivesView />
-          )}
+            {currentTab === 'archives' && can.viewArchives(currentUser?.role) && (
+              <ArchivesView />
+            )}
 
-          {currentTab === 'users' && can.manageUsers(currentUser?.role) && (
-            <UsersManagementView
-              autoOpenAdd={autoOpenAddUser}
-              onModalClosed={() => setAutoOpenAddUser(false)}
-            />
-          )}
+            {currentTab === 'users' && can.manageUsers(currentUser?.role) && (
+              <UsersManagementView
+                autoOpenAdd={autoOpenAddUser}
+                onModalClosed={() => setAutoOpenAddUser(false)}
+              />
+            )}
 
-          {currentTab === 'settings' && can.editReferentials(currentUser?.role) && (
-            <SettingsView />
-          )}
+            {currentTab === 'settings' && can.editReferentials(currentUser?.role) && (
+              <SettingsView />
+            )}
+          </Suspense>
         </main>
       </div>
 

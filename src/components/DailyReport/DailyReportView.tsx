@@ -1,14 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, Suspense, lazy } from 'react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { DailyReport } from '../../types';
 import { can } from '../../utils/permissions';
 import { formatNumber, formatDate } from '../../utils/formatters';
 import { todayLocal } from '../../utils/dates';
-import { DailyReportEditor } from './DailyReportEditor';
-import { DailyReportPrintPreview } from './DailyReportPrintPreview';
-import { CombineReportsModal } from './CombineReportsModal';
-import { CombinedReportsPrintPreview } from './CombinedReportsPrintPreview';
 import { isReportArchivable } from '../../services/reportArchives';
 import {
   FileText,
@@ -26,10 +22,17 @@ import {
   Square,
   X,
   ChevronRight,
+  ChevronLeft,
   Eye
 } from 'lucide-react';
 
 import { useFeedback } from '../ui/Feedback';
+
+// Lazy loading des sous-vues lourdes pour optimiser le temps de chargement de la table
+const DailyReportEditor = lazy(() => import('./DailyReportEditor').then(m => ({ default: m.DailyReportEditor })));
+const DailyReportPrintPreview = lazy(() => import('./DailyReportPrintPreview').then(m => ({ default: m.DailyReportPrintPreview })));
+const CombineReportsModal = lazy(() => import('./CombineReportsModal').then(m => ({ default: m.CombineReportsModal })));
+const CombinedReportsPrintPreview = lazy(() => import('./CombinedReportsPrintPreview').then(m => ({ default: m.CombinedReportsPrintPreview })));
 
 interface DailyReportViewProps {
   openedReportId?: string | null;
@@ -52,6 +55,10 @@ export const DailyReportView: React.FC<DailyReportViewProps> = ({ openedReportId
   const [editingReport, setEditingReport] = useState<DailyReport | null>(null);
   const [searchFilter, setSearchFilter] = useState('');
   const [archiveFilter, setArchiveFilter] = useState<'active' | 'archived' | 'all'>('active');
+
+  // État de pagination
+  const [pageSize, setPageSize] = useState<number>(15);
+  const [currentPage, setCurrentPage] = useState<number>(1);
 
   // État du module de combinaison de rapports
   const [isCombining, setIsCombining] = useState(false);
@@ -160,6 +167,27 @@ export const DailyReportView: React.FC<DailyReportViewProps> = ({ openedReportId
     });
   }, [dailyReports, archiveFilter, searchFilter]);
 
+  // Pagination calculée
+  const totalPages = pageSize === -1 ? 1 : Math.max(1, Math.ceil(filteredReports.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+
+  const paginatedReports = useMemo(() => {
+    if (pageSize === -1) return filteredReports;
+    const start = (safePage - 1) * pageSize;
+    return filteredReports.slice(start, start + pageSize);
+  }, [filteredReports, safePage, pageSize]);
+
+  // Réinitialiser la page quand le filtre change
+  const handleFilterChange = (val: string) => {
+    setSearchFilter(val);
+    setCurrentPage(1);
+  };
+
+  const handleArchiveFilterChange = (val: 'active' | 'archived' | 'all') => {
+    setArchiveFilter(val);
+    setCurrentPage(1);
+  };
+
   // Gestion des cases à cocher directes dans le tableau
   const toggleRowSelection = (id: string) => {
     setSelectedReportIds(prev => {
@@ -173,16 +201,24 @@ export const DailyReportView: React.FC<DailyReportViewProps> = ({ openedReportId
     });
   };
 
-  const currentSelectableReports = filteredReports.filter(r => !r.archived);
+  const currentSelectableReports = paginatedReports.filter(r => !r.archived);
   const isAllCurrentSelected =
     currentSelectableReports.length > 0 &&
     currentSelectableReports.every(r => selectedReportIds.has(r.id));
 
   const toggleSelectAllCurrent = () => {
     if (isAllCurrentSelected) {
-      setSelectedReportIds(new Set());
+      setSelectedReportIds(prev => {
+        const next = new Set(prev);
+        currentSelectableReports.forEach(r => next.delete(r.id));
+        return next;
+      });
     } else {
-      setSelectedReportIds(new Set(currentSelectableReports.map(r => r.id)));
+      setSelectedReportIds(prev => {
+        const next = new Set(prev);
+        currentSelectableReports.forEach(r => next.add(r.id));
+        return next;
+      });
     }
   };
 
@@ -211,14 +247,16 @@ export const DailyReportView: React.FC<DailyReportViewProps> = ({ openedReportId
 
   if (isEditing) {
     return (
-      <DailyReportEditor
-        initialReport={editingReport}
-        onSave={handleSave}
-        onCancel={() => {
-          setIsEditing(false);
-          setEditingReport(null);
-        }}
-      />
+      <Suspense fallback={<div className="p-8 text-center text-muted">Chargement de l'éditeur de rapport...</div>}>
+        <DailyReportEditor
+          initialReport={editingReport}
+          onSave={handleSave}
+          onCancel={() => {
+            setIsEditing(false);
+            setEditingReport(null);
+          }}
+        />
+      </Suspense>
     );
   }
 
@@ -296,7 +334,7 @@ export const DailyReportView: React.FC<DailyReportViewProps> = ({ openedReportId
             className="form-input"
             placeholder="Filtrer par titre, superviseur ou agence..."
             value={searchFilter}
-            onChange={e => setSearchFilter(e.target.value)}
+            onChange={e => handleFilterChange(e.target.value)}
             style={{ paddingLeft: '40px', height: '42px', fontSize: '0.95rem' }}
           />
         </div>
@@ -305,7 +343,7 @@ export const DailyReportView: React.FC<DailyReportViewProps> = ({ openedReportId
         <div style={{ display: 'inline-flex', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--uba-anthracite)' }}>
           <button
             type="button"
-            onClick={() => setArchiveFilter('active')}
+            onClick={() => handleArchiveFilterChange('active')}
             className={`btn btn-sm ${archiveFilter === 'active' ? 'btn-primary' : 'btn-ghost'}`}
             style={{ borderRadius: 0, height: '42px', padding: '0 14px' }}
           >
@@ -313,7 +351,7 @@ export const DailyReportView: React.FC<DailyReportViewProps> = ({ openedReportId
           </button>
           <button
             type="button"
-            onClick={() => setArchiveFilter('archived')}
+            onClick={() => handleArchiveFilterChange('archived')}
             className={`btn btn-sm ${archiveFilter === 'archived' ? 'btn-primary' : 'btn-ghost'}`}
             style={{ borderRadius: 0, height: '42px', padding: '0 14px' }}
           >
@@ -321,7 +359,7 @@ export const DailyReportView: React.FC<DailyReportViewProps> = ({ openedReportId
           </button>
           <button
             type="button"
-            onClick={() => setArchiveFilter('all')}
+            onClick={() => handleArchiveFilterChange('all')}
             className={`btn btn-sm ${archiveFilter === 'all' ? 'btn-primary' : 'btn-ghost'}`}
             style={{ borderRadius: 0, height: '42px', padding: '0 14px' }}
           >
@@ -330,7 +368,7 @@ export const DailyReportView: React.FC<DailyReportViewProps> = ({ openedReportId
         </div>
 
         {searchFilter && (
-          <button onClick={() => setSearchFilter('')} className="btn btn-secondary btn-sm" style={{ height: '42px' }}>
+          <button onClick={() => handleFilterChange('')} className="btn btn-secondary btn-sm" style={{ height: '42px' }}>
             Réinitialiser
           </button>
         )}
@@ -347,7 +385,7 @@ export const DailyReportView: React.FC<DailyReportViewProps> = ({ openedReportId
                   type="checkbox"
                   checked={isAllCurrentSelected}
                   onChange={toggleSelectAllCurrent}
-                  title="Tout cocher / décocher pour la combinaison"
+                  title="Tout cocher / décocher sur la page courante"
                   style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--uba-red-bright)' }}
                 />
               </th>
@@ -362,7 +400,7 @@ export const DailyReportView: React.FC<DailyReportViewProps> = ({ openedReportId
             </tr>
           </thead>
           <tbody>
-            {filteredReports.length === 0 ? (
+            {paginatedReports.length === 0 ? (
               <tr>
                 <td colSpan={9} style={{ textAlign: 'center', padding: '42px', color: '#D9D9D9', fontSize: '1.05rem' }}>
                   {searchFilter
@@ -371,7 +409,7 @@ export const DailyReportView: React.FC<DailyReportViewProps> = ({ openedReportId
                 </td>
               </tr>
             ) : (
-              filteredReports.map(rep => {
+              paginatedReports.map(rep => {
                 const isSelected = selectedReportIds.has(rep.id);
                 return (
                   <tr
@@ -526,6 +564,73 @@ export const DailyReportView: React.FC<DailyReportViewProps> = ({ openedReportId
         </table>
       </div>
 
+      {/* Barre de Pagination Responsive */}
+      {filteredReports.length > 0 && (
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginTop: '16px',
+          padding: '10px 14px',
+          backgroundColor: 'rgba(255, 255, 255, 0.02)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          borderRadius: '8px',
+          flexWrap: 'wrap',
+          gap: '12px'
+        }}>
+          {/* Sélecteur de nombre d'éléments par page */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#9CA3AF' }}>
+            <span>Afficher par page :</span>
+            <div style={{ display: 'inline-flex', gap: '4px' }}>
+              {[10, 15, 30, -1].map((size) => (
+                <button
+                  key={size}
+                  type="button"
+                  onClick={() => {
+                    setPageSize(size);
+                    setCurrentPage(1);
+                  }}
+                  className={`btn btn-sm ${pageSize === size ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{ minHeight: '28px', padding: '0 8px', fontSize: '0.8rem', borderRadius: '4px' }}
+                >
+                  {size === -1 ? 'Tous' : size}
+                </button>
+              ))}
+            </div>
+            <span>(Total : {filteredReports.length})</span>
+          </div>
+
+          {/* Navigation page par page */}
+          {pageSize !== -1 && totalPages > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={safePage <= 1}
+                className="btn btn-secondary btn-sm"
+                style={{ minHeight: '28px', padding: '0 10px', gap: '4px' }}
+              >
+                <ChevronLeft size={14} /> Précédent
+              </button>
+
+              <span style={{ fontSize: '0.85rem', color: '#FFFFFF', fontWeight: 700, padding: '0 6px' }}>
+                Page {safePage} sur {totalPages}
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={safePage >= totalPages}
+                className="btn btn-secondary btn-sm"
+                style={{ minHeight: '28px', padding: '0 10px', gap: '4px' }}
+              >
+                Suivant <ChevronRight size={14} />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Barre d'action flottante de sélection directe */}
       {selectedReportIds.size > 0 && (
         <div style={{
@@ -592,31 +697,37 @@ export const DailyReportView: React.FC<DailyReportViewProps> = ({ openedReportId
 
       {/* Modal Preview A4 individuel */}
       {previewingReport && (
-        <DailyReportPrintPreview
-          report={previewingReport}
-          onClose={() => setPreviewingReport(null)}
-        />
+        <Suspense fallback={<div className="p-8 text-center text-muted">Génération de l'aperçu A4...</div>}>
+          <DailyReportPrintPreview
+            report={previewingReport}
+            onClose={() => setPreviewingReport(null)}
+          />
+        </Suspense>
       )}
 
       {/* Modal Détection Automatique et Sélection de Combinaison */}
       {isCombining && (
-        <CombineReportsModal
-          reports={dailyReports}
-          initialSelectedIds={Array.from(selectedReportIds)}
-          onCombine={(selected) => {
-            setIsCombining(false);
-            setCombinedReports(selected);
-          }}
-          onClose={() => setIsCombining(false)}
-        />
+        <Suspense fallback={<div className="p-8 text-center text-muted">Préparation du module de combinaison...</div>}>
+          <CombineReportsModal
+            reports={dailyReports}
+            initialSelectedIds={Array.from(selectedReportIds)}
+            onCombine={(selected) => {
+              setIsCombining(false);
+              setCombinedReports(selected);
+            }}
+            onClose={() => setIsCombining(false)}
+          />
+        </Suspense>
       )}
 
       {/* Modal Aperçu Imprimable de la Liasse Combinée A4 */}
       {combinedReports.length > 0 && (
-        <CombinedReportsPrintPreview
-          reports={combinedReports}
-          onClose={() => setCombinedReports([])}
-        />
+        <Suspense fallback={<div className="p-8 text-center text-muted">Génération de la liasse A4 combinée...</div>}>
+          <CombinedReportsPrintPreview
+            reports={combinedReports}
+            onClose={() => setCombinedReports([])}
+          />
+        </Suspense>
       )}
     </div>
   );
